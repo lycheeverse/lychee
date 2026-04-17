@@ -137,15 +137,15 @@ fn percentage_decode(input: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use rstest::rstest;
     use super::{ParsedFragment, TextDirective, strip_prefix, strip_suffix};
+    use rstest::rstest;
     use url::Url;
 
     #[rstest]
-    #[case(vec!["prefix-", "start", "-suffix"], Some("prefix".to_string()), vec!["start", "-suffix"])]  // Prefix present
-    #[case(vec!["start", "end"], None, vec!["start", "end"])]  // No prefix
-    #[case(vec!["prefix-"], None, vec!["prefix-"])]  // Too short, no prefix
-    #[case(vec!["-prefix","start", "end", "-suffix"], None, vec!["-prefix", "start", "end", "-suffix"])]  // Incorrect prefix format
+    #[case(vec!["prefix-", "start", "-suffix"], Some("prefix".to_string()), vec!["start", "-suffix"])] // Prefix present
+    #[case(vec!["start", "end"], None, vec!["start", "end"])] // No prefix
+    #[case(vec!["prefix-"], None, vec!["prefix-"])] // Too short, no prefix
+    #[case(vec!["-prefix","start", "end", "-suffix"], None, vec!["-prefix", "start", "end", "-suffix"])] // Incorrect prefix format
     fn test_strip_prefix(
         #[case] mut input_parts: Vec<&str>,
         #[case] expected_return: Option<String>,
@@ -157,10 +157,10 @@ mod tests {
     }
 
     #[rstest]
-    #[case(vec!["start", "-suffix"], Some("suffix".to_string()), vec!["start"])]  // Suffix present
-    #[case(vec!["start", "end"], None, vec!["start", "end"])]  // No suffix
-    #[case(vec!["-suffix"], None, vec!["-suffix"])]  // Too short, no suffix
-    #[case(vec!["start", "end", "suffix-"], None, vec!["start", "end", "suffix-"])]  // Incorrect suffix format
+    #[case(vec!["start", "-suffix"], Some("suffix".to_string()), vec!["start"])] // Suffix present
+    #[case(vec!["start", "end"], None, vec!["start", "end"])] // No suffix
+    #[case(vec!["-suffix"], None, vec!["-suffix"])] // Too short, no suffix
+    #[case(vec!["start", "end", "suffix-"], None, vec!["start", "end", "suffix-"])] // Incorrect suffix format
     fn test_strip_suffix(
         #[case] mut input_parts: Vec<&str>,
         #[case] expected_return: Option<String>,
@@ -278,9 +278,6 @@ mod tests {
         let url = Url::parse("https://example.com/#:~:text=").unwrap();
         let parsed = ParsedFragment::parse(&url);
 
-        assert_eq!(
-            parsed.text_directives,
-            vec![],
-        );
+        assert_eq!(parsed.text_directives, vec![],);
     }
 }

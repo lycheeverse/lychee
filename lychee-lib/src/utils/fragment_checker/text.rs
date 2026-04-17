@@ -82,6 +82,13 @@ fn extract_visible_text(input: &str) -> String {
     }
 
     impl TextExtractor {
+        fn new() -> Self {
+            Self {
+                text: String::new(),
+                hidden_stack: Vec::new(),
+            }
+        }
+
         fn is_hidden_tag(name: &str) -> bool {
             matches!(name, "head" | "script" | "style" | "template")
         }
@@ -130,7 +137,7 @@ fn extract_visible_text(input: &str) -> String {
         }
     }
 
-    let mut extractor = TextExtractor::default();
+    let mut extractor = TextExtractor::new();
     let emitter = CallbackEmitter::new(&mut extractor);
     let _: Result<Vec<_>, _> = Tokenizer::new_with_emitter(input, emitter).collect();
     extractor.text
