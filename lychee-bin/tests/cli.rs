@@ -1018,6 +1018,28 @@ mod cli {
             .stderr(contains("TOML parse error"));
     }
 
+    /// Make sure that TOML type errors include all error details (line/column
+    /// info and invalid type message), not just a generic "Failed to parse"
+    /// message.
+    ///
+    /// This is a regression test for
+    /// https://github.com/lycheeverse/lychee/issues/2146
+    #[tokio::test]
+    async fn test_invalid_config_type_error_shows_details() {
+        let config = fixtures_path!().join("configs").join("invalid-type.toml");
+        cargo_bin_cmd!()
+            .arg("--config")
+            .arg(config)
+            .arg("-")
+            .env_clear()
+            .assert()
+            .failure()
+            .stderr(contains("Cannot load configuration file"))
+            .stderr(contains("TOML parse error"))
+            .stderr(contains("invalid type"))
+            .stderr(contains("threads = 'a'"));
+    }
+
     #[tokio::test]
     async fn test_configs_precedence() {
         let path = fixtures_path!().join("configs");
