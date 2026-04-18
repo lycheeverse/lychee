@@ -85,6 +85,26 @@ enum FragmentMode {
     Full, // Check both anchor and text fragments
 }
 
+impl From<FragmentMode> for FragmentCheckerOptions {
+    fn from(mode: FragmentMode) -> Self {
+        match mode {
+            FragmentMode::None => FragmentCheckerOptions::default(),
+            FragmentMode::AnchorOnly => FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
+            FragmentMode::TextOnly => FragmentCheckerOptions {
+                check_anchor_fragments: false,
+                check_text_fragments: true,
+            },
+            FragmentMode::Full => FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: true,
+            },
+        }
+    }
+}
+
 /// lychee is a fast, asynchronous link checker which detects broken URLs and mail addresses
 /// in local files and websites. It supports Markdown and HTML and works with other file formats.
 ///
@@ -822,21 +842,7 @@ impl Config {
     }
 
     pub(crate) fn fragment_checker_options(&self) -> FragmentCheckerOptions {
-        match self.include_fragments.as_ref() {
-            Some(FragmentMode::AnchorOnly) => FragmentCheckerOptions {
-                check_anchor_fragments: true,
-                check_text_fragments: false,
-            },
-            Some(FragmentMode::TextOnly) => FragmentCheckerOptions {
-                check_anchor_fragments: false,
-                check_text_fragments: true,
-            },
-            Some(FragmentMode::Full) => FragmentCheckerOptions {
-                check_anchor_fragments: true,
-                check_text_fragments: true,
-            },
-            Some(FragmentMode::None) | None => FragmentCheckerOptions::default(),
-        }
+        self.include_fragments.unwrap_or(FragmentMode::None).into()
     }
 
     pub(crate) fn include_mail(&self) -> bool {
