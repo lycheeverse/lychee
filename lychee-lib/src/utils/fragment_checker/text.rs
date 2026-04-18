@@ -93,10 +93,9 @@ fn extract_visible_text(input: &str) -> String {
                     hidden_stack.pop();
                 }
             }
-            Token::String(value)
-                if hidden_stack.is_empty() => {
-                    text.push_str(&String::from_utf8_lossy(&value));
-                }
+            Token::String(value) if hidden_stack.is_empty() => {
+                text.push_str(&String::from_utf8_lossy(&value));
+            }
 
             _ => { /* Ignore other token types */ }
         }
