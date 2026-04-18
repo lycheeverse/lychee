@@ -1,9 +1,6 @@
 use super::parsed_fragment::TextDirective;
 use crate::types::FileType;
-use html5gum::{
-    Tokenizer,
-    emitters::callback::{Callback, CallbackEmitter, CallbackEvent},
-};
+use html5gum::{Token, Tokenizer};
 
 /// Check if the text fragments in the given URL are valid for the provided content and file type.
 pub(super) fn check_text_fragments(
@@ -70,82 +67,45 @@ impl TextDirective {
     }
 }
 
-/// Helper to extract text from HTML, ignoring hidden elements (e.g., `<head>`, `<script>`, `<style>`, and `<template>`).
-#[derive(Default)]
-struct TextExtractor {
-    text: String,
-    hidden_stack: Vec<String>,
-}
-
-impl TextExtractor {
-    fn new() -> Self {
-        Self::default()
-    }
-
-    fn is_hidden_tag(name: &str) -> bool {
-        matches!(name, "head" | "script" | "style" | "template")
-    }
-
-    const fn in_hidden_context(&self) -> bool {
-        !self.hidden_stack.is_empty()
-    }
-}
-
-impl Callback<(), usize> for &mut TextExtractor {
-    fn handle_event(
-        &mut self,
-        event: CallbackEvent<'_>,
-        _span: html5gum::Span<usize>,
-    ) -> Option<()> {
-        match event {
-            CallbackEvent::OpenStartTag { name } => {
-                let tag = String::from_utf8_lossy(name).into_owned();
-                if TextExtractor::is_hidden_tag(&tag) {
-                    self.hidden_stack.push(tag);
-                }
-            }
-            CallbackEvent::EndTag { name } => {
-                let tag = String::from_utf8_lossy(name);
-                if self
-                    .hidden_stack
-                    .last()
-                    .is_some_and(|last| last == tag.as_ref())
-                {
-                    self.hidden_stack.pop();
-                }
-            }
-            CallbackEvent::String { value } => {
-                if !self.in_hidden_context() {
-                    self.text.push_str(&String::from_utf8_lossy(value));
-                }
-            }
-            CallbackEvent::AttributeName { .. }
-            | CallbackEvent::AttributeValue { .. }
-            | CallbackEvent::CloseStartTag { .. }
-            | CallbackEvent::Comment { .. }
-            | CallbackEvent::Doctype { .. }
-            | CallbackEvent::Error(_) => {}
-        }
-        None
-    }
-}
-
 /// Extract visible text from the given HTML content.
 ///
 /// This method is a good enough heuristic using html5gum. All `CallbackEvent::String` is considered visible text,
 /// except known hidden (e.g., `<head>`, `<script>`, `<style>`, and `<template>`).
 fn extract_visible_text(input: &str) -> String {
-    let mut extractor = TextExtractor::new();
-    let emitter = CallbackEmitter::new(&mut extractor);
-    let _: Result<(), _> = Tokenizer::new_with_emitter(input, emitter).collect();
+    fn is_hidden_tag(name: &str) -> bool {
+        matches!(name, "head" | "script" | "style" | "template")
+    }
+
+    let mut text = String::new();
+    let mut hidden_stack: Vec<String> = Vec::new();
+
+    for Ok(token) in Tokenizer::new(input) {
+        match token {
+            Token::StartTag(tag) => {
+                let tag_name = String::from_utf8_lossy(&tag.name).into_owned();
+                if is_hidden_tag(&tag_name) {
+                    hidden_stack.push(tag_name);
+                }
+            }
+            Token::EndTag(tag) => {
+                let tag_name = String::from_utf8_lossy(&tag.name).into_owned();
+                if hidden_stack.last().is_some_and(|last| last == &tag_name) {
+                    hidden_stack.pop();
+                }
+            }
+            Token::String(value) => {
+                if hidden_stack.is_empty() {
+                    text.push_str(&String::from_utf8_lossy(&value));
+                }
+            }
+            _ => { /* Ignore other token types */ }
+        }
+    }
+
     // It's kind of wasteful to split and re-join the text. However, given that extra whitespace may appear both inside
     // a tag and between tags, this is a simple way to ensure that the extracted text is normalized in a way that matches
     // how browsers treat whitespace for text fragments.
-    extractor
-        .text
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 #[cfg(test)]
