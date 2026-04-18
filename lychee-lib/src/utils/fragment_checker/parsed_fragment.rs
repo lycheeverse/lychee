@@ -65,27 +65,27 @@ impl<'a> ParsedFragment<'a> {
     }
 }
 
-/// Helper function to strip a prefix from the start of the text directive parts, if present and correctly formatted.
-fn strip_prefix(parts: &mut Vec<&str>) -> Option<String> {
-    if parts.len() >= 2 && parts.first().is_some_and(|p| p.ends_with('-')) {
-        let part = parts.remove(0);
-        Some(percentage_decode(&part[..part.len() - 1]))
-    } else {
-        None
-    }
-}
-
-/// Helper function to strip a suffix from the end of the text directive parts, if present and correctly formatted.
-fn strip_suffix(parts: &mut Vec<&str>) -> Option<String> {
-    if parts.len() >= 2 && parts.last().is_some_and(|p| p.starts_with('-')) {
-        let part = parts.pop().expect("checked length above");
-        Some(percentage_decode(&part[1..]))
-    } else {
-        None
-    }
-}
-
 impl TextDirective {
+    /// Helper function to strip a prefix from the start of the text directive parts, if present and correctly formatted.
+    fn strip_prefix(parts: &mut Vec<&str>) -> Option<String> {
+        if parts.len() >= 2 && parts.first().is_some_and(|p| p.ends_with('-')) {
+            let part = parts.remove(0);
+            Some(percentage_decode(&part[..part.len() - 1]))
+        } else {
+            None
+        }
+    }
+
+    /// Helper function to strip a suffix from the end of the text directive parts, if present and correctly formatted.
+    fn strip_suffix(parts: &mut Vec<&str>) -> Option<String> {
+        if parts.len() >= 2 && parts.last().is_some_and(|p| p.starts_with('-')) {
+            let part = parts.pop().expect("checked length above");
+            Some(percentage_decode(&part[1..]))
+        } else {
+            None
+        }
+    }
+
     /// Parse a [text directive] from a string.
     ///
     /// Text directives follow the format:
@@ -112,8 +112,8 @@ impl TextDirective {
             return None;
         }
 
-        let prefix = strip_prefix(&mut parts);
-        let suffix = strip_suffix(&mut parts);
+        let prefix = Self::strip_prefix(&mut parts);
+        let suffix = Self::strip_suffix(&mut parts);
 
         let (start, end) = match parts.as_slice() {
             [start] => (percentage_decode(start), None),
@@ -137,7 +137,7 @@ fn percentage_decode(input: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{ParsedFragment, TextDirective, strip_prefix, strip_suffix};
+    use super::{ParsedFragment, TextDirective};
     use rstest::rstest;
     use url::Url;
 
@@ -151,7 +151,7 @@ mod tests {
         #[case] expected_return: Option<String>,
         #[case] expected_remaining: Vec<&str>,
     ) {
-        let result = strip_prefix(&mut input_parts);
+        let result = TextDirective::strip_prefix(&mut input_parts);
         assert_eq!(result, expected_return);
         assert_eq!(input_parts, expected_remaining);
     }
@@ -166,7 +166,7 @@ mod tests {
         #[case] expected_return: Option<String>,
         #[case] expected_remaining: Vec<&str>,
     ) {
-        let result = strip_suffix(&mut input_parts);
+        let result = TextDirective::strip_suffix(&mut input_parts);
         assert_eq!(result, expected_return);
         assert_eq!(input_parts, expected_remaining);
     }
