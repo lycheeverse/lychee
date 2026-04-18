@@ -70,73 +70,71 @@ impl TextDirective {
     }
 }
 
+/// Helper to extract text from HTML, ignoring hidden elements (e.g., `<head>`, `<script>`, `<style>`, and `<template>`).
+#[derive(Default)]
+struct TextExtractor {
+    text: String,
+    hidden_stack: Vec<String>,
+}
+
+impl TextExtractor {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn is_hidden_tag(name: &str) -> bool {
+        matches!(name, "head" | "script" | "style" | "template")
+    }
+
+    const fn in_hidden_context(&self) -> bool {
+        !self.hidden_stack.is_empty()
+    }
+}
+
+impl Callback<(), usize> for &mut TextExtractor {
+    fn handle_event(
+        &mut self,
+        event: CallbackEvent<'_>,
+        _span: html5gum::Span<usize>,
+    ) -> Option<()> {
+        match event {
+            CallbackEvent::OpenStartTag { name } => {
+                let tag = String::from_utf8_lossy(name).into_owned();
+                if TextExtractor::is_hidden_tag(&tag) {
+                    self.hidden_stack.push(tag);
+                }
+            }
+            CallbackEvent::EndTag { name } => {
+                let tag = String::from_utf8_lossy(name);
+                if self
+                    .hidden_stack
+                    .last()
+                    .is_some_and(|last| last == tag.as_ref())
+                {
+                    self.hidden_stack.pop();
+                }
+            }
+            CallbackEvent::String { value } => {
+                if !self.in_hidden_context() {
+                    self.text.push_str(&String::from_utf8_lossy(value));
+                }
+            }
+            CallbackEvent::AttributeName { .. }
+            | CallbackEvent::AttributeValue { .. }
+            | CallbackEvent::CloseStartTag { .. }
+            | CallbackEvent::Comment { .. }
+            | CallbackEvent::Doctype { .. }
+            | CallbackEvent::Error(_) => {}
+        }
+        None
+    }
+}
+
 /// Extract visible text from the given HTML content.
 ///
 /// This method is a good enough heuristic using html5gum. All `CallbackEvent::String` is considered visible text,
 /// except known hidden (e.g., `<head>`, `<script>`, `<style>`, and `<template>`).
 fn extract_visible_text(input: &str) -> String {
-    #[derive(Default)]
-    struct TextExtractor {
-        text: String,
-        hidden_stack: Vec<String>,
-    }
-
-    impl TextExtractor {
-        const fn new() -> Self {
-            Self {
-                text: String::new(),
-                hidden_stack: Vec::new(),
-            }
-        }
-
-        fn is_hidden_tag(name: &str) -> bool {
-            matches!(name, "head" | "script" | "style" | "template")
-        }
-
-        const fn in_hidden_context(&self) -> bool {
-            !self.hidden_stack.is_empty()
-        }
-    }
-
-    impl Callback<(), usize> for &mut TextExtractor {
-        fn handle_event(
-            &mut self,
-            event: CallbackEvent<'_>,
-            _span: html5gum::Span<usize>,
-        ) -> Option<()> {
-            match event {
-                CallbackEvent::OpenStartTag { name } => {
-                    let tag = String::from_utf8_lossy(name).into_owned();
-                    if TextExtractor::is_hidden_tag(&tag) {
-                        self.hidden_stack.push(tag);
-                    }
-                }
-                CallbackEvent::EndTag { name } => {
-                    let tag = String::from_utf8_lossy(name);
-                    if self
-                        .hidden_stack
-                        .last()
-                        .is_some_and(|last| last == tag.as_ref())
-                    {
-                        self.hidden_stack.pop();
-                    }
-                }
-                CallbackEvent::String { value } => {
-                    if !self.in_hidden_context() {
-                        self.text.push_str(&String::from_utf8_lossy(value));
-                    }
-                }
-                CallbackEvent::AttributeName { .. }
-                | CallbackEvent::AttributeValue { .. }
-                | CallbackEvent::CloseStartTag { .. }
-                | CallbackEvent::Comment { .. }
-                | CallbackEvent::Doctype { .. }
-                | CallbackEvent::Error(_) => {}
-            }
-            None
-        }
-    }
-
     let mut extractor = TextExtractor::new();
     let emitter = CallbackEmitter::new(&mut extractor);
     let _: Result<(), _> = Tokenizer::new_with_emitter(input, emitter).collect();
