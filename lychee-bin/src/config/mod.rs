@@ -75,7 +75,7 @@ impl ArgBoolOptionalExt for Arg {
 }
 
 /// Values for `--include-fragments` option, which controls how URL fragments are checked.
-#[derive(Debug, Clone, Deserialize, EnumString)]
+#[derive(Debug, Clone, Copy, Deserialize, EnumString)]
 #[serde(rename_all = "kebab-case")]
 #[strum(serialize_all = "kebab-case")]
 enum FragmentMode {
