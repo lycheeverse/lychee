@@ -491,9 +491,8 @@ pub(crate) struct Config {
 
     /// Enable the checking of fragments in links.
     ///
-    /// Use `none` to disable fragment checks,
-    /// `anchor-only` for anchor fragments like `#section`,
-    /// `text-only` for text fragments like `#:~:text=example`,
+    /// Use `none` to disable fragment checks, `anchor-only` for anchor fragments
+    /// like `#section`, `text-only` for text fragments like `#:~:text=example`,
     /// or `full` to check both.
     ///
     /// If provided without a value, defaults to `anchor-only`.
