@@ -139,7 +139,7 @@ fn extract_visible_text(input: &str) -> String {
 
     let mut extractor = TextExtractor::new();
     let emitter = CallbackEmitter::new(&mut extractor);
-    let _: Result<Vec<_>, _> = Tokenizer::new_with_emitter(input, emitter).collect();
+    let _: Result<(), _> = Tokenizer::new_with_emitter(input, emitter).collect();
     extractor.text
 }
 
