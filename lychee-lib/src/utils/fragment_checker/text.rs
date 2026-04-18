@@ -139,6 +139,10 @@ fn extract_visible_text(input: &str) -> String {
     let emitter = CallbackEmitter::new(&mut extractor);
     let _: Result<(), _> = Tokenizer::new_with_emitter(input, emitter).collect();
     extractor.text
+    // It's kind of wasteful to split and re-join the text. However, given that extra whitespace may appear both inside
+    // a tag and between tags, this is a simple way to ensure that the extracted text is normalized in a way that matches
+    // how browsers treat whitespace for text fragments.
+    extractor.text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 #[cfg(test)]

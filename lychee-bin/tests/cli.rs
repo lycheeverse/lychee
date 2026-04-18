@@ -4164,7 +4164,7 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
             .arg(format!("{}/should-match.html", mock_server.uri()))
             .assert()
             .success()
-            .stdout(contains("4 Total"))
+            .stdout(contains("5 Total"))
             .stdout(contains("0 Errors"));
 
         cargo_bin_cmd!()
@@ -4180,7 +4180,7 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
             .arg(format!("{}/should-match.html", mock_server.uri()))
             .assert()
             .success()
-            .stdout(contains("4 Total"))
+            .stdout(contains("5 Total"))
             .stdout(contains("0 Errors"));
 
         cargo_bin_cmd!()
@@ -4205,7 +4205,7 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
             .arg(fixtures_dir.join("should-match.html"))
             .assert()
             .success()
-            .stdout(contains("4 Total"))
+            .stdout(contains("5 Total"))
             .stdout(contains("0 Errors"));
 
         cargo_bin_cmd!()
