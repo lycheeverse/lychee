@@ -30,28 +30,41 @@ pub(super) fn check_text_fragments(
 }
 
 impl TextDirective {
+    fn normalize_whitespace(&self) -> Self {
+        TextDirective {
+            prefix: self.prefix.as_deref().map(normalize_whitespace),
+            start: normalize_whitespace(&self.start),
+            end: self.end.as_deref().map(normalize_whitespace),
+            suffix: self.suffix.as_deref().map(normalize_whitespace),
+        }
+    }
+
     fn matches(&self, document: &str) -> bool {
-        if self.start.is_empty() {
+        Self::matches_inner(&self.normalize_whitespace(), document)
+    }
+
+    fn matches_inner(this: &Self, document: &str) -> bool {
+        if this.start.is_empty() {
             return false;
         }
 
         let mut start_offset = 0;
-        while let Some(relative_start) = document[start_offset..].find(&self.start) {
+        while let Some(relative_start) = document[start_offset..].find(&this.start) {
             let match_start = start_offset + relative_start;
-            let mut match_end = match_start + self.start.len();
+            let mut match_end = match_start + this.start.len();
 
-            if let Some(end) = &self.end {
+            if let Some(end) = &this.end {
                 let Some(relative_end) = document[match_end..].find(end) else {
                     return false;
                 };
                 match_end += relative_end + end.len();
             }
 
-            let prefix_matches = self
+            let prefix_matches = this
                 .prefix
                 .as_ref()
                 .is_none_or(|prefix| document[..match_start].trim_end().ends_with(prefix));
-            let suffix_matches = self
+            let suffix_matches = this
                 .suffix
                 .as_ref()
                 .is_none_or(|suffix| document[match_end..].trim_start().starts_with(suffix));
@@ -102,9 +115,38 @@ fn extract_visible_text(input: &str) -> String {
         }
     }
 
-    // It's kind of wasteful to split and re-join the text. However, given that extra whitespace may appear both inside
-    // a tag and between tags, this is a simple way to ensure that the extracted text is normalized in a way that matches
-    // how browsers treat whitespace for text fragments.
+    normalize_whitespace(&text)
+}
+
+/// Normalizes whitespace in the given text by replacing adjacent (Unicode-aware)
+/// whitespace characters with a single ASCII space. Leading and trailing whitespace
+/// is not included in the output.
+///
+/// It's kind of wasteful to split and re-join the text. However, given that extra whitespace may
+/// appear both inside a tag and between tags, this is a simple way to ensure that the extracted
+/// text is normalized in a way that matches how browsers treat whitespace for text fragments.
+///
+/// # Alternatives
+///
+/// In space-separated langauges, it would be more efficient to consider words
+/// individually (without re-joining) and use something like an [inverted index][]
+/// that maps words to their indices.
+///
+/// [inverted index]: https://swtch.com/~rsc/regexp/regexp4.html
+///
+/// However, this relies on correct word boundaries and it breaks down for languages
+/// without word separators. In its definition of [word boundary][], the spec says:
+///
+/// > Some languages do not have such a separator (notably, Chinese/Japanese/Korean).
+/// > Languages such as these requires dictionaries to determine what a valid word in
+/// > the given locale is.
+///
+/// It would be problematic to apply whitespace-based word splitting universally as,
+/// for these langauges, we would detect the entire text as a single word and nothing
+/// would match.
+///
+/// [word boundary]: https://wicg.github.io/scroll-to-text-fragment/#word-boundaries
+fn normalize_whitespace(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
@@ -135,7 +177,7 @@ mod tests {
     }
 
     #[test]
-    fn extract_visible_whitespace_implied_by_adjacent_tags() {
+    fn extract_visible_text_whitespace_implied_by_adjacent_tags() {
         assert!(
             extract_visible_text("a<div>b</div>").contains("a b"),
             "div is a block tag, so should create whitespace"
@@ -143,6 +185,22 @@ mod tests {
         assert!(
             extract_visible_text("a<span>b</span>").contains("ab"),
             "span is an inline tag, so should /not/ create whitespace"
+        );
+    }
+
+    #[test]
+    fn extract_visible_text_alternative_whitespaces() {
+        assert!(
+            extract_visible_text("a\n\t           b").contains("a b"),
+            "all spaces should be collapsed"
+        );
+        assert!(
+            extract_visible_text("a&nbsp;b").contains("a b"),
+            "encoded &nbsp; space should be interpreted as space"
+        );
+        assert!(
+            extract_visible_text("a\u{00A0}b").contains("a b"),
+            "inline nbsp should also be interpreted as space"
         );
     }
 
@@ -201,5 +259,25 @@ mod tests {
             INDEX_HTML,
             FileType::Html
         ));
+    }
+
+    #[test]
+    fn check_text_fragments_alternative_whitespaces() {
+        // chrome/firefox will generate this from html with nbsp.
+        let url = Url::parse("http://127.0.0.1:8000/a.html#:~:text=b%C2%A0cd").unwrap();
+        let parsed = ParsedFragment::parse(&url);
+        assert!(
+            check_text_fragments(&parsed.text_directives, "b\u{00a0}cd", FileType::Html),
+            "percent encoded nbsp in fragment should be decoded"
+        );
+
+        // chrome/firefox don't generate this, but they do highlight it correctly when it's
+        // typed in manually.
+        let url = Url::parse("http://127.0.0.1:8000/a.html#:~:text=b%20cd").unwrap();
+        let parsed = ParsedFragment::parse(&url);
+        assert!(
+            check_text_fragments(&parsed.text_directives, "b\u{00a0}cd", FileType::Html),
+            "%20 space in fragment should match any space in the text"
+        );
     }
 }

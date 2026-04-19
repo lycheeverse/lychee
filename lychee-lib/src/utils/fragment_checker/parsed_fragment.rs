@@ -280,4 +280,20 @@ mod tests {
 
         assert_eq!(parsed.text_directives, vec![],);
     }
+
+    #[test]
+    fn parses_text_directive_with_encoded_utf8() {
+        let url = Url::parse("http://127.0.0.1:8000/a.html#:~:text=b%C2%A0cd").unwrap();
+        let parsed = ParsedFragment::parse(&url);
+
+        assert_eq!(
+            parsed.text_directives,
+            vec![TextDirective {
+                prefix: None,
+                start: "b\u{a0}cd".to_string(),
+                end: None,
+                suffix: None
+            }]
+        );
+    }
 }
