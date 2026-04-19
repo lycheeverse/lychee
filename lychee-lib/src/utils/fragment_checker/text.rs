@@ -1,3 +1,5 @@
+use std::iter;
+
 use super::parsed_fragment::TextDirective;
 use crate::types::FileType;
 use html5gum::{Token, Tokenizer};
@@ -42,20 +44,20 @@ impl TextDirective {
         let mut regex_str = String::new();
 
         if let Some(prefix) = &self.prefix {
-            regex_str.push_str(&regex::escape(&normalize_whitespace(&prefix)));
+            regex_str.push_str(&regex::escape(&normalize_whitespace(prefix.trim())));
             regex_str.push_str(r"\s*");
         }
 
-        regex_str.push_str(&regex::escape(&normalize_whitespace(&self.start)));
+        regex_str.push_str(&regex::escape(&normalize_whitespace(self.start.trim())));
 
         if let Some(end) = &self.end {
             regex_str.push_str(".+?"); // lazy quantifier
-            regex_str.push_str(&regex::escape(&normalize_whitespace(&end)));
+            regex_str.push_str(&regex::escape(&normalize_whitespace(end.trim())));
         }
 
         if let Some(suffix) = &self.suffix {
             regex_str.push_str(r"\s*");
-            regex_str.push_str(&regex::escape(&normalize_whitespace(&suffix)));
+            regex_str.push_str(&regex::escape(&normalize_whitespace(suffix.trim())));
         }
 
         Regex::new(&regex_str)
@@ -97,7 +99,9 @@ fn is_hidden_tag(name: &str) -> bool {
     )
 }
 
-/// Extract visible text from the given HTML content.
+/// Extract visible text from the given HTML content. Whitespace is normalized by
+/// replacing adjacent (Unicode-aware) whitespace characters with a single ASCII
+/// space.
 ///
 /// Ensures that `Hell<i>o</i> <strong>world</strong>` is returned as a single string
 /// of continuous text: `Hello world`.
@@ -105,6 +109,13 @@ fn is_hidden_tag(name: &str) -> bool {
 /// This method is a good enough heuristic using html5gum. All [`Token::String`] is
 /// considered visible text, except known hidden text (according to [`is_hidden_tag`]).
 fn extract_visible_text(input: &str) -> String {
+    /// Pushes a space if not already ending in a space.
+    fn push_space(text: &mut String) {
+        if !text.ends_with(char::is_whitespace) {
+            text.push(' ');
+        }
+    }
+
     let mut text: String = String::new();
     let mut hidden_stack: Vec<String> = Vec::new();
 
@@ -123,46 +134,40 @@ fn extract_visible_text(input: &str) -> String {
                 }
             }
             Token::String(value) if hidden_stack.is_empty() => {
-                text.push_str(&String::from_utf8_lossy(&value));
+                let string = String::from_utf8_lossy(&value);
+                if string.starts_with(char::is_whitespace) {
+                    push_space(&mut text);
+                }
+
+                text.extend(intersperse_whitespace(&string));
+
+                if string.ends_with(char::is_whitespace) {
+                    push_space(&mut text);
+                }
             }
 
             _ => { /* Ignore other token types */ }
         }
     }
 
-    normalize_whitespace(&text)
+    text
+}
+
+/// Returns an iterator of whitespace-separated words in the given string, interspersed
+/// with exactly one ASCII space between wach word. Leading or trailing whitespace
+/// is discarded.
+fn intersperse_whitespace(text: &str) -> impl Iterator<Item = &str> {
+    text.split_whitespace().enumerate().flat_map(|(i, word)| {
+        let space: Option<&str> = (i > 0).then_some(" ");
+        space.into_iter().chain(iter::once(word))
+    })
 }
 
 /// Normalizes whitespace in the given text by replacing adjacent (Unicode-aware)
 /// whitespace characters with a single ASCII space. Leading and trailing whitespace
-/// is not included in the output.
-///
-/// It's kind of wasteful to split and re-join the text. However, given that extra whitespace may
-/// appear both inside a tag and between tags, this is a simple way to ensure that the extracted
-/// text is normalized in a way that matches how browsers treat whitespace for text fragments.
-///
-/// # Alternatives
-///
-/// In space-separated languages, it would be more efficient to match words
-/// individually (without re-joining). This could use something like an [inverted index][]
-/// that maps words to their indices.
-///
-/// [inverted index]: https://swtch.com/~rsc/regexp/regexp4.html
-///
-/// However, this relies on correct word boundaries and it breaks down for languages
-/// without word separators. In its definition of [word boundary][], the spec says:
-///
-/// > Some languages do not have such a separator (notably, Chinese/Japanese/Korean).
-/// > Languages such as these requires dictionaries to determine what a valid word in
-/// > the given locale is.
-///
-/// It would be problematic to apply whitespace-based word matching universally as,
-/// for these langauges, we would detect the entire text as a single word and nothing
-/// would match.
-///
-/// [word boundary]: https://wicg.github.io/scroll-to-text-fragment/#word-boundaries
+/// is removed in the output.
 fn normalize_whitespace(text: &str) -> String {
-    text.split_whitespace().collect::<Vec<_>>().join(" ")
+    intersperse_whitespace(text).collect()
 }
 
 #[cfg(test)]
@@ -178,7 +183,11 @@ mod tests {
         let text = extract_visible_text(INDEX_HTML);
 
         assert!(text.contains("Sed porta nisl sit amet quam ornare rutrum."));
-        assert!(text.contains("Proin vulputate mi id sem pulvinar euismod."));
+        assert!(
+            text.contains("Proin vulputate mi id sem pulvinar euismod."),
+            "{}",
+            text
+        );
         assert!(!text.contains("my-style-property"));
         assert!(!text.contains("my-element-attribute-value"));
     }
