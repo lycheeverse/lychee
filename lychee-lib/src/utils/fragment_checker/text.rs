@@ -69,7 +69,7 @@ impl TextDirective {
 
 /// Extract visible text from the given HTML content.
 ///
-/// This method is a good enough heuristic using html5gum. All `CallbackEvent::String` is considered visible text,
+/// This method is a good enough heuristic using html5gum. All [`Token::String`] is considered visible text,
 /// except known hidden (e.g., `<head>`, `<script>`, `<style>`, and `<template>`).
 fn extract_visible_text(input: &str) -> String {
     fn is_hidden_tag(name: &str) -> bool {
@@ -83,6 +83,7 @@ fn extract_visible_text(input: &str) -> String {
         match token {
             Token::StartTag(tag) => {
                 let tag_name = String::from_utf8_lossy(&tag.name).into_owned();
+                println!("{}", tag_name);
                 if is_hidden_tag(&tag_name) {
                     hidden_stack.push(tag_name);
                 }
@@ -123,6 +124,26 @@ mod tests {
         assert!(text.contains("Proin vulputate mi id sem pulvinar euismod."));
         assert!(!text.contains("my-style-property"));
         assert!(!text.contains("my-element-attribute-value"));
+    }
+
+    #[test]
+    fn extract_visible_text_capital_tags() {
+        assert!(!extract_visible_text("<STYLE> inside </STYLE>").contains("inside"));
+        assert!(!extract_visible_text("<STYLE> inside </style>").contains("inside"));
+        assert!(extract_visible_text("<STYLE> inside </style> after").contains("after"));
+        assert!(extract_visible_text("<style> inside </STYLE> after").contains("after"));
+    }
+
+    #[test]
+    fn extract_visible_whitespace_implied_by_adjacent_tags() {
+        assert!(
+            extract_visible_text("a<div>b</div>").contains("a b"),
+            "div is a block tag, so should create whitespace"
+        );
+        assert!(
+            extract_visible_text("a<span>b</span>").contains("ab"),
+            "span is an inline tag, so should /not/ create whitespace"
+        );
     }
 
     #[test]
