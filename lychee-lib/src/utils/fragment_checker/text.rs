@@ -80,15 +80,36 @@ impl TextDirective {
     }
 }
 
+/// Returns whether text within the given HTML tag is hidden from text fragment searching.
+///
+/// This is loosely based on (and is a superset of) the spec's [search invisible][] elements.
+/// Technically, the spec also calls for computing the CSS `display` property, but we do not
+/// do that here.
+///
+/// [search invisible]: https://wicg.github.io/scroll-to-text-fragment/#search-invisible
+fn is_hidden_tag(name: &str) -> bool {
+    matches!(
+        name,
+        "head"
+            | "script"
+            | "style"
+            | "template"
+            | "iframe"
+            | "img"
+            | "meter"
+            | "object"
+            | "progresss"
+            | "video"
+            | "audio"
+            | "select"
+    )
+}
+
 /// Extract visible text from the given HTML content.
 ///
 /// This method is a good enough heuristic using html5gum. All [`Token::String`] is considered visible text,
-/// except known hidden (e.g., `<head>`, `<script>`, `<style>`, and `<template>`).
+/// except known hidden text (according to [`is_hidden_tag`]).
 fn extract_visible_text(input: &str) -> String {
-    fn is_hidden_tag(name: &str) -> bool {
-        matches!(name, "head" | "script" | "style" | "template")
-    }
-
     let mut text = String::new();
     let mut hidden_stack: Vec<String> = Vec::new();
 
@@ -96,7 +117,6 @@ fn extract_visible_text(input: &str) -> String {
         match token {
             Token::StartTag(tag) => {
                 let tag_name = String::from_utf8_lossy(&tag.name).into_owned();
-                println!("{}", tag_name);
                 if is_hidden_tag(&tag_name) {
                     hidden_stack.push(tag_name);
                 }
@@ -278,6 +298,28 @@ mod tests {
         assert!(
             check_text_fragments(&parsed.text_directives, "b\u{00a0}cd", FileType::Html),
             "%20 space in fragment should match any space in the text"
+        );
+    }
+
+    #[test]
+    fn check_text_fragments_prefix_and_suffix() {
+        let url = Url::parse(
+            "https://en.wikipedia.org/wiki/Most_common_words_in_English#:~:text=in-,the,the,-texts",
+        )
+        .unwrap();
+        let parsed = ParsedFragment::parse(&url);
+
+        let html =
+            "<p>written      in     the English language.</p>\n\n<p>In total, the      texts</p>";
+        assert!(
+            check_text_fragments(&parsed.text_directives, html, FileType::Html),
+            "whitespace should be skipped between the match and prefix/suffix"
+        );
+
+        let html = "<p>in</p><p>the English language.</p>\n<p>In total, the</p><p>texts</p>";
+        assert!(
+            check_text_fragments(&parsed.text_directives, html, FileType::Html),
+            "prefix/suffix should match across block tags"
         );
     }
 }
