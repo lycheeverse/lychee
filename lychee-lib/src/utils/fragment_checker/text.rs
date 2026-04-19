@@ -1,6 +1,10 @@
+use std::iter;
+
 use super::parsed_fragment::TextDirective;
 use crate::types::FileType;
 use html5gum::{Token, Tokenizer};
+use log::warn;
+use regex::Regex;
 
 /// Check if the text fragments in the given URL are valid for the provided content and file type.
 pub(super) fn check_text_fragments(
@@ -22,7 +26,6 @@ pub(super) fn check_text_fragments(
     // The algorithm to find a range in a document likely requires a full implementation of a browser.
     // See https://wicg.github.io/scroll-to-text-fragment/#finding-ranges-in-a-document
     // Here, we try to approximate it by extracting visible text.
-    // This ensures that `Hell<i>o</i> <strong>world</strong>` is matched.
     let document = extract_visible_text(content);
     directives
         .iter()
@@ -30,53 +33,90 @@ pub(super) fn check_text_fragments(
 }
 
 impl TextDirective {
+    /// Builds a regex to find the current [`TextDirective`] within normalised
+    /// HTML text content.
+    ///
+    /// # Errors
+    ///
+    /// The regex built is always syntactically correct, so errors are rare. Errors
+    /// could happen if the text directive size exceeds the regex size limit.
+    fn to_regex(&self) -> Result<Regex, regex::Error> {
+        let mut regex_str = String::new();
+
+        if let Some(prefix) = &self.prefix {
+            regex_str.push_str(&regex::escape(&normalize_whitespace(prefix.trim())));
+            regex_str.push_str(r"\s*");
+        }
+
+        regex_str.push_str(&regex::escape(&normalize_whitespace(self.start.trim())));
+
+        if let Some(end) = &self.end {
+            regex_str.push_str(".+?"); // lazy quantifier
+            regex_str.push_str(&regex::escape(&normalize_whitespace(end.trim())));
+        }
+
+        if let Some(suffix) = &self.suffix {
+            regex_str.push_str(r"\s*");
+            regex_str.push_str(&regex::escape(&normalize_whitespace(suffix.trim())));
+        }
+
+        Regex::new(&regex_str)
+    }
+
     fn matches(&self, document: &str) -> bool {
-        if self.start.is_empty() {
-            return false;
-        }
-
-        let mut start_offset = 0;
-        while let Some(relative_start) = document[start_offset..].find(&self.start) {
-            let match_start = start_offset + relative_start;
-            let mut match_end = match_start + self.start.len();
-
-            if let Some(end) = &self.end {
-                let Some(relative_end) = document[match_end..].find(end) else {
-                    return false;
-                };
-                match_end += relative_end + end.len();
+        match self.to_regex() {
+            Ok(regex) => regex.is_match(document),
+            Err(e) => {
+                warn!("Failed to create regex for text fragment {self:?}. {e:?}");
+                false
             }
-
-            let prefix_matches = self
-                .prefix
-                .as_ref()
-                .is_none_or(|prefix| document[..match_start].trim_end().ends_with(prefix));
-            let suffix_matches = self
-                .suffix
-                .as_ref()
-                .is_none_or(|suffix| document[match_end..].trim_start().starts_with(suffix));
-
-            if prefix_matches && suffix_matches {
-                return true;
-            }
-
-            start_offset = match_start + 1;
         }
-
-        false
     }
 }
 
-/// Extract visible text from the given HTML content.
+/// Returns whether text within the given HTML tag is hidden from text fragment searching.
 ///
-/// This method is a good enough heuristic using html5gum. All `CallbackEvent::String` is considered visible text,
-/// except known hidden (e.g., `<head>`, `<script>`, `<style>`, and `<template>`).
+/// This is loosely based on (and is a superset of) the spec's [search invisible][] elements.
+/// Technically, the spec also calls for computing the CSS `display` property, but we do not
+/// do that here.
+///
+/// [search invisible]: https://wicg.github.io/scroll-to-text-fragment/#search-invisible
+fn is_hidden_tag(name: &str) -> bool {
+    matches!(
+        name,
+        "head"
+            | "script"
+            | "style"
+            | "template"
+            | "iframe"
+            | "img"
+            | "meter"
+            | "object"
+            | "progresss"
+            | "video"
+            | "audio"
+            | "select"
+    )
+}
+
+/// Extract visible text from the given HTML content. Whitespace is normalized by
+/// replacing adjacent (Unicode-aware) whitespace characters with a single ASCII
+/// space.
+///
+/// Ensures that `Hell<i>o</i> <strong>world</strong>` is returned as a single string
+/// of continuous text: `Hello world`.
+///
+/// This method is a good enough heuristic using html5gum. All [`Token::String`] is
+/// considered visible text, except known hidden text (according to [`is_hidden_tag`]).
 fn extract_visible_text(input: &str) -> String {
-    fn is_hidden_tag(name: &str) -> bool {
-        matches!(name, "head" | "script" | "style" | "template")
+    /// Pushes a space if not already ending in a space.
+    fn push_space(text: &mut String) {
+        if !text.ends_with(char::is_whitespace) {
+            text.push(' ');
+        }
     }
 
-    let mut text = String::new();
+    let mut text: String = String::new();
     let mut hidden_stack: Vec<String> = Vec::new();
 
     for Ok(token) in Tokenizer::new(input) {
@@ -94,17 +134,40 @@ fn extract_visible_text(input: &str) -> String {
                 }
             }
             Token::String(value) if hidden_stack.is_empty() => {
-                text.push_str(&String::from_utf8_lossy(&value));
+                let string = String::from_utf8_lossy(&value);
+                if string.starts_with(char::is_whitespace) {
+                    push_space(&mut text);
+                }
+
+                text.extend(intersperse_whitespace(&string));
+
+                if string.ends_with(char::is_whitespace) {
+                    push_space(&mut text);
+                }
             }
 
             _ => { /* Ignore other token types */ }
         }
     }
 
-    // It's kind of wasteful to split and re-join the text. However, given that extra whitespace may appear both inside
-    // a tag and between tags, this is a simple way to ensure that the extracted text is normalized in a way that matches
-    // how browsers treat whitespace for text fragments.
-    text.split_whitespace().collect::<Vec<_>>().join(" ")
+    text
+}
+
+/// Returns an iterator of whitespace-separated words in the given string, interspersed
+/// with exactly one ASCII space between wach word. Leading or trailing whitespace
+/// is discarded.
+fn intersperse_whitespace(text: &str) -> impl Iterator<Item = &str> {
+    text.split_whitespace().enumerate().flat_map(|(i, word)| {
+        let space: Option<&str> = (i > 0).then_some(" ");
+        space.into_iter().chain(iter::once(word))
+    })
+}
+
+/// Normalizes whitespace in the given text by replacing adjacent (Unicode-aware)
+/// whitespace characters with a single ASCII space. Leading and trailing whitespace
+/// is removed in the output.
+fn normalize_whitespace(text: &str) -> String {
+    intersperse_whitespace(text).collect()
 }
 
 #[cfg(test)]
@@ -120,9 +183,45 @@ mod tests {
         let text = extract_visible_text(INDEX_HTML);
 
         assert!(text.contains("Sed porta nisl sit amet quam ornare rutrum."));
-        assert!(text.contains("Proin vulputate mi id sem pulvinar euismod."));
+        assert!(
+            text.contains("Proin vulputate mi id sem pulvinar euismod."),
+            "{}",
+            text
+        );
         assert!(!text.contains("my-style-property"));
         assert!(!text.contains("my-element-attribute-value"));
+    }
+
+    #[test]
+    fn extract_visible_text_capital_tags() {
+        assert!(!extract_visible_text("<STYLE> inside </STYLE>").contains("inside"));
+        assert!(!extract_visible_text("<STYLE> inside </style>").contains("inside"));
+        assert!(extract_visible_text("<STYLE> inside </style> after").contains("after"));
+        assert!(extract_visible_text("<style> inside </STYLE> after").contains("after"));
+    }
+
+    #[test]
+    fn extract_visible_text_whitespace_implied_by_adjacent_tags() {
+        assert!(
+            extract_visible_text("a<span>b</span>").contains("ab"),
+            "span is an inline tag, so should /not/ create whitespace"
+        );
+    }
+
+    #[test]
+    fn extract_visible_text_alternative_whitespaces() {
+        assert!(
+            extract_visible_text("a\n\t           b").contains("a b"),
+            "all spaces should be collapsed"
+        );
+        assert!(
+            extract_visible_text("a&nbsp;b").contains("a b"),
+            "encoded &nbsp; space should be interpreted as space"
+        );
+        assert!(
+            extract_visible_text("a\u{00A0}b").contains("a b"),
+            "inline nbsp should also be interpreted as space"
+        );
     }
 
     #[test]
@@ -180,5 +279,74 @@ mod tests {
             INDEX_HTML,
             FileType::Html
         ));
+    }
+
+    #[test]
+    fn check_text_fragments_alternative_whitespaces() {
+        // chrome/firefox will generate this from html with nbsp.
+        let url = Url::parse("http://127.0.0.1:8000/a.html#:~:text=b%C2%A0cd").unwrap();
+        let parsed = ParsedFragment::parse(&url);
+        assert!(
+            check_text_fragments(&parsed.text_directives, "b\u{00a0}cd", FileType::Html),
+            "percent encoded nbsp in fragment should be decoded"
+        );
+
+        // chrome/firefox don't generate this, but they do highlight it correctly when it's
+        // typed in manually.
+        let url = Url::parse("http://127.0.0.1:8000/a.html#:~:text=b%20cd").unwrap();
+        let parsed = ParsedFragment::parse(&url);
+        assert!(
+            check_text_fragments(&parsed.text_directives, "b\u{00a0}cd", FileType::Html),
+            "%20 space in fragment should match any space in the text"
+        );
+    }
+
+    #[test]
+    fn check_text_fragments_prefix_and_suffix() {
+        let url = Url::parse(
+            "https://en.wikipedia.org/wiki/Most_common_words_in_English#:~:text=in-,the,the,-texts",
+        )
+        .unwrap();
+        let parsed = ParsedFragment::parse(&url);
+
+        let html =
+            "<p>written      in     the English language.</p>\n\n<p>In total, the      texts</p>";
+        assert!(
+            check_text_fragments(&parsed.text_directives, html, FileType::Html),
+            "whitespace should be skipped between the match and prefix/suffix"
+        );
+
+        let html = "<p>in</p><p>the English language.</p>\n<p>In total, the</p><p>texts</p>";
+        assert!(
+            check_text_fragments(&parsed.text_directives, html, FileType::Html),
+            "prefix/suffix should match across block tags"
+        );
+    }
+
+    /// Prefix and suffix should be used to disambiguate when start/end occur multiple times
+    /// in the HTML. In these test cases, the expected valid highlight range is indicated in
+    /// `[ ... ]`.
+    #[test]
+    fn check_text_fragments_multiple_occurrences() {
+        let url =
+            Url::parse("https://en.wikipedia.org/wiki/#:~:text=prefix-,start,end,-suffix").unwrap();
+        let parsed = ParsedFragment::parse(&url);
+        let html = "start [ prefix start end suffix ]";
+        assert!(
+            check_text_fragments(&parsed.text_directives, html, FileType::Html),
+            "should work with multiple occurrences of start, only one has prefix"
+        );
+
+        let html = "[ prefix start end end suffix ]";
+        assert!(
+            check_text_fragments(&parsed.text_directives, html, FileType::Html),
+            "should work with multiple occurrences of end, only one has suffix"
+        );
+
+        let html = "start [ prefix start end end suffix ]";
+        assert!(
+            check_text_fragments(&parsed.text_directives, html, FileType::Html),
+            "should work with multiple occurrences of both start and end"
+        );
     }
 }
