@@ -92,7 +92,7 @@ fn is_hidden_tag(name: &str) -> bool {
             | "img"
             | "meter"
             | "object"
-            | "progresss"
+            | "progress" // https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/progress
             | "video"
             | "audio"
             | "select"
@@ -154,7 +154,7 @@ fn extract_visible_text(input: &str) -> String {
 }
 
 /// Returns an iterator of whitespace-separated words in the given string, interspersed
-/// with exactly one ASCII space between wach word. Leading or trailing whitespace
+/// with exactly one ASCII space between each word. Leading or trailing whitespace
 /// is discarded.
 fn intersperse_whitespace(text: &str) -> impl Iterator<Item = &str> {
     text.split_whitespace().enumerate().flat_map(|(i, word)| {
