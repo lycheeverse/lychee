@@ -1,6 +1,6 @@
 use super::parsed_fragment::TextDirective;
 use crate::types::FileType;
-use html5gum::{Spanned, Token, Tokenizer};
+use html5gum::{Token, Tokenizer};
 use log::warn;
 use regex::Regex;
 
@@ -143,8 +143,8 @@ fn extract_visible_text(input: &str) -> String {
 ///
 /// # Alternatives
 ///
-/// In space-separated langauges, it would be more efficient to consider words
-/// individually (without re-joining) and use something like an [inverted index][]
+/// In space-separated languages, it would be more efficient to match words
+/// individually (without re-joining). This could use something like an [inverted index][]
 /// that maps words to their indices.
 ///
 /// [inverted index]: https://swtch.com/~rsc/regexp/regexp4.html
@@ -156,7 +156,7 @@ fn extract_visible_text(input: &str) -> String {
 /// > Languages such as these requires dictionaries to determine what a valid word in
 /// > the given locale is.
 ///
-/// It would be problematic to apply whitespace-based word splitting universally as,
+/// It would be problematic to apply whitespace-based word matching universally as,
 /// for these langauges, we would detect the entire text as a single word and nothing
 /// would match.
 ///
