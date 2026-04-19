@@ -4427,3 +4427,16 @@ fn test_file_limit_low_concurrency() {
         "System file descriptor limit is 64 which is too low for the requested concurrency of 128. Lowering `max_concurrency` to 44",
     ));
 }
+
+// Verify that lychee will fail before all checks run if the parent of the given output path does not exist
+// See https://github.com/lycheeverse/lychee/issues/2147
+#[test]
+fn test_output_invalid_path() {
+    let mut cmd = assert_cmd::Command::cargo_bin("lychee").unwrap();
+    cmd.arg("--output")
+        .arg("does/not/exist")
+        .arg("https://example.com");
+    cmd.assert().failure().stderr(predicates::str::contains(
+        "Output path `does/not/exist` is not writable: parent directory `does/not` does not exist",
+    ));
+}
