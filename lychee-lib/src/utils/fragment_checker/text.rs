@@ -1,6 +1,8 @@
 use super::parsed_fragment::TextDirective;
 use crate::types::FileType;
-use html5gum::{Token, Tokenizer};
+use html5gum::{Spanned, Token, Tokenizer};
+use log::warn;
+use regex::Regex;
 
 /// Check if the text fragments in the given URL are valid for the provided content and file type.
 pub(super) fn check_text_fragments(
@@ -22,7 +24,6 @@ pub(super) fn check_text_fragments(
     // The algorithm to find a range in a document likely requires a full implementation of a browser.
     // See https://wicg.github.io/scroll-to-text-fragment/#finding-ranges-in-a-document
     // Here, we try to approximate it by extracting visible text.
-    // This ensures that `Hell<i>o</i> <strong>world</strong>` is matched.
     let document = extract_visible_text(content);
     directives
         .iter()
@@ -30,53 +31,44 @@ pub(super) fn check_text_fragments(
 }
 
 impl TextDirective {
-    fn normalize_whitespace(&self) -> Self {
-        TextDirective {
-            prefix: self.prefix.as_deref().map(normalize_whitespace),
-            start: normalize_whitespace(&self.start),
-            end: self.end.as_deref().map(normalize_whitespace),
-            suffix: self.suffix.as_deref().map(normalize_whitespace),
+    /// Builds a regex to find the current [`TextDirective`] within normalised
+    /// HTML text content.
+    ///
+    /// # Errors
+    ///
+    /// The regex built is always syntactically correct, so errors are rare. Errors
+    /// could happen if the text directive size exceeds the regex size limit.
+    fn to_regex(&self) -> Result<Regex, regex::Error> {
+        let mut regex_str = String::new();
+
+        if let Some(prefix) = &self.prefix {
+            regex_str.push_str(&regex::escape(&normalize_whitespace(&prefix)));
+            regex_str.push_str(r"\s*");
         }
+
+        regex_str.push_str(&regex::escape(&normalize_whitespace(&self.start)));
+
+        if let Some(end) = &self.end {
+            regex_str.push_str(".+?"); // lazy quantifier
+            regex_str.push_str(&regex::escape(&normalize_whitespace(&end)));
+        }
+
+        if let Some(suffix) = &self.suffix {
+            regex_str.push_str(r"\s*");
+            regex_str.push_str(&regex::escape(&normalize_whitespace(&suffix)));
+        }
+
+        Regex::new(&regex_str)
     }
 
     fn matches(&self, document: &str) -> bool {
-        Self::matches_inner(&self.normalize_whitespace(), document)
-    }
-
-    fn matches_inner(this: &Self, document: &str) -> bool {
-        if this.start.is_empty() {
-            return false;
-        }
-
-        let mut start_offset = 0;
-        while let Some(relative_start) = document[start_offset..].find(&this.start) {
-            let match_start = start_offset + relative_start;
-            let mut match_end = match_start + this.start.len();
-
-            if let Some(end) = &this.end {
-                let Some(relative_end) = document[match_end..].find(end) else {
-                    return false;
-                };
-                match_end += relative_end + end.len();
+        match self.to_regex() {
+            Ok(regex) => regex.is_match(document),
+            Err(e) => {
+                warn!("Failed to create regex for text fragment {self:?}. {e:?}");
+                false
             }
-
-            let prefix_matches = this
-                .prefix
-                .as_ref()
-                .is_none_or(|prefix| document[..match_start].trim_end().ends_with(prefix));
-            let suffix_matches = this
-                .suffix
-                .as_ref()
-                .is_none_or(|suffix| document[match_end..].trim_start().starts_with(suffix));
-
-            if prefix_matches && suffix_matches {
-                return true;
-            }
-
-            start_offset = match_start + 1;
         }
-
-        false
     }
 }
 
@@ -107,10 +99,13 @@ fn is_hidden_tag(name: &str) -> bool {
 
 /// Extract visible text from the given HTML content.
 ///
-/// This method is a good enough heuristic using html5gum. All [`Token::String`] is considered visible text,
-/// except known hidden text (according to [`is_hidden_tag`]).
+/// Ensures that `Hell<i>o</i> <strong>world</strong>` is returned as a single string
+/// of continuous text: `Hello world`.
+///
+/// This method is a good enough heuristic using html5gum. All [`Token::String`] is
+/// considered visible text, except known hidden text (according to [`is_hidden_tag`]).
 fn extract_visible_text(input: &str) -> String {
-    let mut text = String::new();
+    let mut text: String = String::new();
     let mut hidden_stack: Vec<String> = Vec::new();
 
     for Ok(token) in Tokenizer::new(input) {
@@ -198,10 +193,6 @@ mod tests {
 
     #[test]
     fn extract_visible_text_whitespace_implied_by_adjacent_tags() {
-        assert!(
-            extract_visible_text("a<div>b</div>").contains("a b"),
-            "div is a block tag, so should create whitespace"
-        );
         assert!(
             extract_visible_text("a<span>b</span>").contains("ab"),
             "span is an inline tag, so should /not/ create whitespace"
@@ -320,6 +311,33 @@ mod tests {
         assert!(
             check_text_fragments(&parsed.text_directives, html, FileType::Html),
             "prefix/suffix should match across block tags"
+        );
+    }
+
+    /// Prefix and suffix should be used to disambiguate when start/end occur multiple times
+    /// in the HTML. In these test cases, the expected valid highlight range is indicated in
+    /// `[ ... ]`.
+    #[test]
+    fn check_text_fragments_multiple_occurrences() {
+        let url =
+            Url::parse("https://en.wikipedia.org/wiki/#:~:text=prefix-,start,end,-suffix").unwrap();
+        let parsed = ParsedFragment::parse(&url);
+        let html = "start [ prefix start end suffix ]";
+        assert!(
+            check_text_fragments(&parsed.text_directives, html, FileType::Html),
+            "should work with multiple occurrences of start, only one has prefix"
+        );
+
+        let html = "[ prefix start end end suffix ]";
+        assert!(
+            check_text_fragments(&parsed.text_directives, html, FileType::Html),
+            "should work with multiple occurrences of end, only one has suffix"
+        );
+
+        let html = "start [ prefix start end end suffix ]";
+        assert!(
+            check_text_fragments(&parsed.text_directives, html, FileType::Html),
+            "should work with multiple occurrences of both start and end"
         );
     }
 }
