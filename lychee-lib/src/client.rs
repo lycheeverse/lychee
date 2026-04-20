@@ -548,7 +548,7 @@ impl Client {
             _ if uri.is_tel() => (Status::Excluded, None), // We don't check tel: URIs
             _ if uri.is_file() => (self.check_file(&uri).await, None),
             _ if uri.is_mail() => (self.check_mail(&uri).await, None),
-            _ => self.check_website(&uri, credentials).await?,
+            _ => self.check_website(&uri, credentials).await,
         };
 
         Ok(Response::new(
@@ -606,7 +606,7 @@ impl Client {
         &self,
         uri: &Uri,
         credentials: Option<BasicAuthCredentials>,
-    ) -> Result<(Status, Option<Redirects>)> {
+    ) -> (Status, Option<Redirects>) {
         self.website_checker.check_website(uri, credentials).await
     }
 
