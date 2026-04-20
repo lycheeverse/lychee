@@ -36,6 +36,7 @@ pub(crate) fn extract_markdown(
     let mut inside_code_block = false;
     let mut inside_link_block = false;
     let mut inside_wikilink_block = false;
+    let mut inside_autolink_block = false;
 
     // HTML blocks come in chunks from pulldown_cmark, so we need to accumulate them
     let mut inside_html_block = false;
@@ -84,6 +85,7 @@ pub(crate) fn extract_markdown(
                     LinkType::Autolink |
                     // Email address in autolink like `<john@example.org>`
                     LinkType::Email => {
+                        inside_autolink_block = true;
                         let span_provider = get_email_span_provider(&span_provider, &span, link_type);
                         Some(extract_raw_uri_from_plaintext(&dest_url, &span_provider))
                     }
@@ -130,6 +132,7 @@ pub(crate) fn extract_markdown(
             // A text node.
             Event::Text(txt) => {
                 if inside_wikilink_block
+                    || inside_autolink_block
                     || (inside_link_block && !include_verbatim)
                     || (inside_code_block && !include_verbatim) {
                     None
@@ -207,6 +210,7 @@ pub(crate) fn extract_markdown(
             Event::End(TagEnd::Link) => {
                 inside_link_block = false;
                 inside_wikilink_block = false;
+                inside_autolink_block = false;
                 None
             }
 
@@ -573,6 +577,15 @@ $$
         let markdown = r"[[_TOC_]][TOC]";
         let uris = extract_markdown(markdown, true, true);
         assert!(uris.is_empty());
+    }
+
+    /// Don't extract the text of autolinks, as this is the link itself already.
+    /// Prevents a regression of <https://github.com/lycheeverse/lychee/issues/2150>
+    #[test]
+    fn test_autolink() {
+        let markdown = "<http://example>";
+        assert_eq!(extract_markdown(markdown, false, false).len(), 1);
+        assert_eq!(extract_markdown(markdown, true, false).len(), 1);
     }
 
     #[test]
