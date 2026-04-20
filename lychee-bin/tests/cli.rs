@@ -62,18 +62,12 @@ mod cli {
     /// Order of the lines is ignored.
     fn assert_lines_eq<S: AsRef<str> + Ord>(result: Assert, mut expected_lines: Vec<S>) {
         let output = &result.get_output().stdout;
-        let mut actual_lines: Vec<String> = output
-            .lines()
-            .map(|line| line.unwrap().to_string())
-            .collect();
+        let mut actual_lines: Vec<String> = output.lines().map(|line| line.unwrap()).collect();
 
         actual_lines.sort();
         expected_lines.sort();
 
-        let expected_lines: Vec<String> = expected_lines
-            .into_iter()
-            .map(|l| l.as_ref().to_owned())
-            .collect();
+        let expected_lines: Vec<&str> = expected_lines.iter().map(|l| l.as_ref()).collect();
 
         assert_eq!(actual_lines, expected_lines);
     }
