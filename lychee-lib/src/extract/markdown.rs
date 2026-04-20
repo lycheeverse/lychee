@@ -35,8 +35,7 @@ pub(crate) fn extract_markdown(
     // which is why we keep track of entries and exits while traversing the input.
     let mut inside_code_block = false;
     let mut inside_link_block = false;
-    let mut inside_wikilink_block = false;
-    let mut inside_autolink_block = false;
+    let mut skip_following_link_text = false;
 
     // HTML blocks come in chunks from pulldown_cmark, so we need to accumulate them
     let mut inside_html_block = false;
@@ -85,7 +84,7 @@ pub(crate) fn extract_markdown(
                     LinkType::Autolink |
                     // Email address in autolink like `<john@example.org>`
                     LinkType::Email => {
-                        inside_autolink_block = true;
+                        skip_following_link_text  = true;
                         let span_provider = get_email_span_provider(&span_provider, &span, link_type);
                         Some(extract_raw_uri_from_plaintext(&dest_url, &span_provider))
                     }
@@ -95,7 +94,7 @@ pub(crate) fn extract_markdown(
                         if !include_wikilinks {
                             return None;
                         }
-                        inside_wikilink_block = true;
+                        skip_following_link_text = true;
                         // Ignore gitlab toc notation: https://docs.gitlab.com/user/markdown/#table-of-contents
                         if ["_TOC_".to_string(), "TOC".to_string()].contains(&dest_url.to_string()) {
                             return None;
@@ -131,8 +130,7 @@ pub(crate) fn extract_markdown(
 
             // A text node.
             Event::Text(txt) => {
-                if inside_wikilink_block
-                    || inside_autolink_block
+                if skip_following_link_text
                     || (inside_link_block && !include_verbatim)
                     || (inside_code_block && !include_verbatim) {
                     None
@@ -209,8 +207,7 @@ pub(crate) fn extract_markdown(
 
             Event::End(TagEnd::Link) => {
                 inside_link_block = false;
-                inside_wikilink_block = false;
-                inside_autolink_block = false;
+                skip_following_link_text = false;
                 None
             }
 
