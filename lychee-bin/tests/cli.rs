@@ -62,18 +62,12 @@ mod cli {
     /// Order of the lines is ignored.
     fn assert_lines_eq<S: AsRef<str> + Ord>(result: Assert, mut expected_lines: Vec<S>) {
         let output = &result.get_output().stdout;
-        let mut actual_lines: Vec<String> = output
-            .lines()
-            .map(|line| line.unwrap().to_string())
-            .collect();
+        let mut actual_lines: Vec<String> = output.lines().map(|line| line.unwrap()).collect();
 
         actual_lines.sort();
         expected_lines.sort();
 
-        let expected_lines: Vec<String> = expected_lines
-            .into_iter()
-            .map(|l| l.as_ref().to_owned())
-            .collect();
+        let expected_lines: Vec<&str> = expected_lines.iter().map(|l| l.as_ref()).collect();
 
         assert_eq!(actual_lines, expected_lines);
     }
@@ -838,22 +832,72 @@ mod cli {
     #[tokio::test]
     async fn test_glob_recursive() -> Result<()> {
         let dir = tempfile::tempdir()?;
-        let subdir_level_1 = tempfile::tempdir_in(&dir)?;
-        let subdir_level_2 = tempfile::tempdir_in(&subdir_level_1)?;
+        let subdir_level_1 = dir.path().join("level1");
+        let subdir_level_2 = subdir_level_1.join("level2");
+        std::fs::create_dir_all(&subdir_level_2)?;
 
         let mock_server = mock_server!(StatusCode::OK);
-        let mut file = File::create(subdir_level_2.path().join("test.md"))?;
+        let mut file = File::create(subdir_level_2.join("test.md"))?;
 
         writeln!(file, "{}", mock_server.uri().as_str())?;
 
         cargo_bin_cmd!()
-            .arg(dir.path().join("**/*.md")) // ** should be a recursive glob
+            .arg(dir.path().join("**/*.md")) // `**` should be a recursive glob
             .arg("--verbose")
             .assert()
             .success()
             .stdout(contains("1 Total"));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_glob_skips_hidden_files_by_default() {
+        let test_dir = fixtures_path!().join("hidden");
+
+        // Glob should skip hidden files by default (matching shell behavior)
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(test_dir.join("**/*"))
+            .assert()
+            .success()
+            .stdout(is_empty());
+
+        // Glob should skip hidden files for --dump-inputs too
+        cargo_bin_cmd!()
+            .arg("--dump-inputs")
+            .arg(test_dir.join("**/*"))
+            .assert()
+            .success()
+            .stdout(is_empty());
+    }
+
+    #[test]
+    fn test_glob_includes_hidden_files_with_flag() {
+        let test_dir = fixtures_path!().join("hidden");
+
+        // Glob should include hidden files when --hidden is passed
+        let result = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg("--hidden")
+            .arg(test_dir.join("**/*"))
+            .assert()
+            .success();
+
+        assert_lines_eq(
+            result,
+            vec!["https://rust-lang.org/", "https://rust-lang.org/"],
+        );
+
+        // --dump-inputs with --hidden should list hidden files
+        cargo_bin_cmd!()
+            .arg("--dump-inputs")
+            .arg("--hidden")
+            .arg(test_dir.join("**/*"))
+            .assert()
+            .success()
+            .stdout(contains(".file.md"))
+            .stdout(contains(".hidden/file.md"));
     }
 
     /// Test formatted file output
