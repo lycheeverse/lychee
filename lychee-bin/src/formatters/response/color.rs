@@ -25,7 +25,6 @@ impl ColorFormatter {
             Status::Error(_) | Status::RequestError(_) | Status::Cached(CacheStatus::Error(_)) => {
                 &PINK
             }
-            Status::Redirected(inner, _) | Status::Remapped(inner, _) => Self::status_color(inner),
         }
     }
 

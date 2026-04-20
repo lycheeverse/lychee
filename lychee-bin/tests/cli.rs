@@ -1942,7 +1942,7 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .failure()
             .stdout(contains(r#"
-[404] http://rust-lang.org/lycheeverse (at 1:1) | Rejected status code: 404 Not Found (configurable with "accept" option) | Followed 1 redirect. Redirects: http://rust-lang.org/lycheeverse --[301]--> https://rust-lang.org/lycheeverse | Remaps: http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse
+[404] http://rust-lang.org/lycheeverse (at 1:1) | Rejected status code: 404 Not Found (configurable with "accept" option) | Remaps: http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse | Followed 1 redirect. Redirects: http://rust-lang.org/lycheeverse --[301]--> https://rust-lang.org/lycheeverse
 "#))
         // It is debugged when URIs are remapped
         .stderr(contains("[DEBUG] Remapping http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse"))
@@ -1991,7 +1991,15 @@ The config file should contain every possible key for documentation purposes."
                 "url": "https://bbb.com/",
                 "status": {
                   "text": "Excluded",
-                  "details": "This is due to your 'exclude' values | Remaps: https://aaa.com/ --> https://bbb.com/"
+                  "details": "This is due to your 'exclude' values"
+                },
+                "remap": {
+                    "new": {
+                        "url": "https://bbb.com/",
+                    },
+                    "original": {
+                        "url": "https://aaa.com/",
+                     },
                 },
                 "span": {
                   "line": 1,
@@ -2654,6 +2662,13 @@ The config file should contain every possible key for documentation purposes."
                 json["success_map"],
                 json!({
                 "stdin":[{
+                    "redirects": {
+                        "origin": redirect_url,
+                        "redirects": [{
+                            "code": 308,
+                            "url": ok_url,
+                        }]
+                    },
                     "span": {
                         "column": 1,
                         "line": 1,
@@ -2661,13 +2676,6 @@ The config file should contain every possible key for documentation purposes."
                     "status": {
                         "code": 200,
                         "text": "200 OK",
-                        "redirects": {
-                            "origin": redirect_url,
-                            "redirects": [{
-                                "code": 308,
-                                "url": ok_url,
-                            }]
-                        },
                     },
                     "url": redirect_url
                 }]})

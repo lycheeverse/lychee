@@ -97,6 +97,7 @@ pub use crate::{
     },
     collector::Collector,
     filter::{Excludes, Filter, Includes},
+    remap::Remap,
     types::{
         BaseInfo, BasicAuthCredentials, BasicAuthSelector, CacheStatus, CookieJar, ErrorKind,
         FileExtensions, FileType, Input, InputContent, InputResolver, InputSource, LycheeResult,

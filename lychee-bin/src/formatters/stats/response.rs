@@ -87,14 +87,6 @@ impl ResponseStats {
             Status::Error(_) | Status::RequestError(_) => self.errors += 1,
             Status::UnknownStatusCode(_) | Status::UnknownMailStatus(_) => self.unknown += 1,
             Status::Timeout(_) => self.timeouts += 1,
-            Status::Redirected(inner, _) => {
-                self.redirects += 1;
-                self.increment_status_counters(inner);
-            }
-            Status::Remapped(inner, _) => {
-                self.remaps += 1;
-                self.increment_status_counters(inner);
-            }
             Status::Excluded => self.excludes += 1,
             Status::Unsupported(_) => self.unsupported += 1,
             Status::Cached(cache_status) => {
@@ -115,7 +107,7 @@ impl ResponseStats {
         let source: InputSource = response.source().clone();
 
         if self.detailed_stats
-            && let Some(redirects) = status.redirects()
+            && let Some(redirects) = response.redirects()
         {
             self.redirect_map
                 .entry(source.clone())
@@ -145,6 +137,12 @@ impl ResponseStats {
         }
 
         self.total += 1;
+        if response.redirects().is_some() {
+            self.redirects += 1;
+        }
+        if response.remap().is_some() {
+            self.remaps += 1;
+        }
         self.increment_status_counters(response.status());
         self.add_response_status(response);
     }
@@ -189,7 +187,7 @@ mod tests {
     // and it's a lot faster to just generate a fake response
     fn mock_response(status: Status) -> Response {
         let uri = website("https://some-url.com/ok");
-        Response::new(uri, status, InputSource::Stdin, None, None)
+        Response::new(uri, status, None, None, InputSource::Stdin, None, None)
     }
 
     fn dummy_ok() -> Response {

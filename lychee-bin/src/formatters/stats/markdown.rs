@@ -199,6 +199,8 @@ mod tests {
         let response = ResponseBody {
             uri: Uri::try_from("http://example.com").unwrap(),
             status: Status::Ok(StatusCode::OK),
+            redirects: None,
+            remap: None,
             span: SPAN,
             duration: DURATION,
         };
@@ -211,6 +213,8 @@ mod tests {
         let response = ResponseBody {
             uri: Uri::try_from("http://example.com").unwrap(),
             status: Status::Cached(CacheStatus::Ok(StatusCode::OK)),
+            redirects: None,
+            remap: None,
             span: SPAN,
             duration: DURATION,
         };
@@ -226,6 +230,8 @@ mod tests {
         let response = ResponseBody {
             uri: Uri::try_from("http://example.com").unwrap(),
             status: Status::Cached(CacheStatus::Error(Some(StatusCode::BAD_REQUEST))),
+            redirects: None,
+            remap: None,
             span: SPAN,
             duration: DURATION,
         };

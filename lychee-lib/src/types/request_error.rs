@@ -85,6 +85,8 @@ impl RequestError {
                 Ok(Response::new(
                     ERROR_URI.clone(),
                     Status::RequestError(e),
+                    None,
+                    None,
                     src,
                     span,
                     None,

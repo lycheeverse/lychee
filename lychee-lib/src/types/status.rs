@@ -1,11 +1,9 @@
 use std::{collections::HashSet, fmt::Display};
 
 use super::CacheStatus;
-use super::redirect_history::Redirects;
 use crate::ErrorKind;
 use crate::RequestError;
 use crate::ratelimit::CacheableResponse;
-use crate::remap::Remap;
 use http::StatusCode;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
@@ -30,10 +28,6 @@ pub enum Status {
     RequestError(RequestError),
     /// Request timed out
     Timeout(Option<StatusCode>),
-    /// Got redirected to different resource
-    Redirected(Box<Status>, Redirects),
-    /// The original [`Url`] was remapped in the link check process
-    Remapped(Box<Status>, Remap),
     /// The given status code is not known by lychee
     UnknownStatusCode(StatusCode),
     /// The given mail address could not be reliably identified.
@@ -63,7 +57,6 @@ impl Display for Status {
             Status::RequestError(e) => write!(f, "{e}"),
             Status::Cached(status) => write!(f, "{status}"),
             Status::Excluded => f.write_str("Excluded"),
-            Status::Redirected(inner, _) | Status::Remapped(inner, _) => Status::fmt(inner, f),
         }
     }
 }
@@ -73,23 +66,21 @@ impl Serialize for Status {
     where
         S: Serializer,
     {
-        let mut s;
+        let s;
 
         if let Some(code) = self.code() {
             s = serializer.serialize_struct("Status", 2)?;
+            let mut s = s;
             s.serialize_field("text", &self.to_string())?;
             s.serialize_field("code", &code.as_u16())?;
+            s.end()
         } else {
             s = serializer.serialize_struct("Status", 2)?;
+            let mut s = s;
             s.serialize_field("text", &self.to_string())?;
             s.serialize_field("details", &self.details())?;
+            s.end()
         }
-
-        if let Status::Redirected(_, redirects) = self {
-            s.serialize_field("redirects", redirects)?;
-        }
-
-        s.end()
     }
 }
 
@@ -147,16 +138,6 @@ impl Status {
     pub fn details(&self) -> String {
         match &self {
             Status::Ok(code) => code.to_string(),
-            Status::Redirected(inner, redirects) => {
-                let count = redirects.count();
-                let noun = if count == 1 { "redirect" } else { "redirects" };
-                let inner = inner.details();
-                format!("{inner} | Followed {count} {noun}. Redirects: {redirects}")
-            }
-            Status::Remapped(inner, remap) => {
-                let inner = inner.details();
-                format!("{inner} | Remaps: {remap}")
-            }
             Status::Error(e) => e.details(),
             Status::RequestError(e) => e.error().details(),
             Status::UnknownMailStatus(reason) => reason.clone(),
@@ -172,10 +153,7 @@ impl Status {
     #[inline]
     #[must_use]
     pub const fn is_success(&self) -> bool {
-        matches!(
-            self.innermost(),
-            Status::Ok(_) | Status::Cached(CacheStatus::Ok(_))
-        )
+        matches!(self, Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)))
     }
 
     /// Returns `true` if the check was not successful
@@ -183,7 +161,7 @@ impl Status {
     #[must_use]
     pub const fn is_error(&self) -> bool {
         matches!(
-            self.innermost(),
+            self,
             Status::Error(_)
                 | Status::RequestError(_)
                 | Status::Cached(CacheStatus::Error(_))
@@ -196,7 +174,7 @@ impl Status {
     #[must_use]
     pub const fn is_excluded(&self) -> bool {
         matches!(
-            self.innermost(),
+            self,
             Status::Excluded | Status::Cached(CacheStatus::Excluded)
         )
     }
@@ -205,7 +183,7 @@ impl Status {
     #[inline]
     #[must_use]
     pub const fn is_timeout(&self) -> bool {
-        matches!(self.innermost(), Status::Timeout(_))
+        matches!(self, Status::Timeout(_))
     }
 
     /// Returns `true` if a URI is unsupported
@@ -213,7 +191,7 @@ impl Status {
     #[must_use]
     pub const fn is_unsupported(&self) -> bool {
         matches!(
-            self.innermost(),
+            self,
             Status::Unsupported(_) | Status::Cached(CacheStatus::Unsupported)
         )
     }
@@ -226,26 +204,7 @@ impl Status {
     #[inline]
     #[must_use]
     pub const fn is_unknown(&self) -> bool {
-        matches!(self.innermost(), Status::UnknownStatusCode(_))
-    }
-
-    /// Extract the innermost [`Status`], handling nested variants
-    #[must_use]
-    pub const fn innermost(&self) -> &Self {
-        match self {
-            Status::Redirected(inner, _) | Status::Remapped(inner, _) => inner.innermost(),
-            other => other,
-        }
-    }
-
-    /// Extract (potentially nested) [`Redirects`]
-    #[must_use]
-    pub const fn redirects(&self) -> Option<&Redirects> {
-        match self {
-            Status::Remapped(inner, _) => inner.redirects(),
-            Status::Redirected(_, redirects) => Some(redirects),
-            _ => None,
-        }
+        matches!(self, Status::UnknownStatusCode(_))
     }
 
     /// Return a unicode icon to visualize the status
@@ -259,7 +218,6 @@ impl Status {
             Status::Timeout(_) => ICON_TIMEOUT,
             Status::Unsupported(_) => ICON_UNSUPPORTED,
             Status::Cached(_) => ICON_CACHED,
-            Status::Redirected(inner, _) | Status::Remapped(inner, _) => inner.icon(),
         }
     }
 
@@ -278,7 +236,6 @@ impl Status {
                     None => None,
                 },
             },
-            Status::Redirected(inner, _) => inner.code(),
             _ => None,
         }
     }
@@ -315,7 +272,6 @@ impl Status {
                 CacheStatus::Excluded => "EXCLUDED".to_string(),
                 CacheStatus::Unsupported => "IGNORED".to_string(),
             },
-            Status::Redirected(inner, _) | Status::Remapped(inner, _) => inner.code_as_string(),
         }
     }
 }
@@ -344,9 +300,7 @@ impl From<ErrorKind> for Status {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        CacheStatus, ErrorKind, Status, Uri, remap::Remap, types::redirect_history::Redirects,
-    };
+    use crate::{CacheStatus, ErrorKind, Status};
     use http::StatusCode;
 
     #[test]
@@ -391,15 +345,6 @@ mod tests {
             999
         );
         assert_eq!(
-            Status::Redirected(
-                Box::new(Status::Ok(StatusCode::from_u16(300).unwrap())),
-                Redirects::new("http://example.com".try_into().unwrap())
-            )
-            .code()
-            .unwrap(),
-            300
-        );
-        assert_eq!(
             Status::Cached(CacheStatus::Ok(StatusCode::OK))
                 .code()
                 .unwrap(),
@@ -424,30 +369,5 @@ mod tests {
     fn test_status_unknown() {
         assert!(Status::UnknownStatusCode(StatusCode::from_u16(999).unwrap()).is_unknown());
         assert!(!Status::Ok(StatusCode::from_u16(200).unwrap()).is_unknown());
-    }
-
-    #[test]
-    fn test_inner_status() {
-        let erroneous = get_nested(Status::Error(ErrorKind::EmptyUrl));
-        assert!(erroneous.is_error());
-        assert!(!erroneous.is_success());
-
-        let success = get_nested(Status::Ok(200.try_into().unwrap()));
-        assert!(success.is_success());
-        assert!(!success.is_error());
-    }
-
-    fn get_nested(inner: Status) -> Status {
-        let dummy_uri = Uri::try_from("https://example.com").unwrap();
-        Status::Redirected(
-            Box::new(Status::Remapped(
-                Box::new(inner),
-                Remap {
-                    original: dummy_uri.clone(),
-                    new: dummy_uri.clone(),
-                },
-            )),
-            Redirects::new(dummy_uri.url),
-        )
     }
 }
