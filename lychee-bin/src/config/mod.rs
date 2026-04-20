@@ -33,6 +33,7 @@ use lychee_lib::{DEFAULT_USER_AGENT, Preprocessor};
 use secrecy::SecretString;
 use serde::{Deserialize, Deserializer};
 use std::collections::{HashMap, HashSet};
+use std::num::NonZeroUsize;
 use std::path::Path;
 use std::{path::PathBuf, time::Duration};
 use strum::VariantNames;
@@ -280,7 +281,7 @@ pub(crate) struct Config {
     ///
     /// [default: 128]
     #[arg(long)]
-    max_concurrency: Option<usize>,
+    max_concurrency: Option<NonZeroUsize>,
 
     /// Default maximum concurrent requests per host (default: 10)
     ///
@@ -312,7 +313,7 @@ pub(crate) struct Config {
     /// Number of threads to utilize.
     /// Defaults to number of cores available to the system
     #[arg(short = 'T', long)]
-    pub(crate) threads: Option<usize>,
+    pub(crate) threads: Option<NonZeroUsize>,
 
     /// User agent
     ///
@@ -721,13 +722,13 @@ impl Config {
         self.format.clone().unwrap_or_default()
     }
 
-    pub(crate) const fn set_max_concurrency(&mut self, concurrency: usize) {
+    pub(crate) const fn set_max_concurrency(&mut self, concurrency: NonZeroUsize) {
         self.max_concurrency = Some(concurrency);
     }
 
     /// Maximum number of concurrent network requests
-    pub(crate) fn max_concurrency(&self) -> usize {
-        const DEFAULT_MAX_CONCURRENCY: usize = 128;
+    pub(crate) fn max_concurrency(&self) -> NonZeroUsize {
+        const DEFAULT_MAX_CONCURRENCY: NonZeroUsize = NonZeroUsize::new(128).unwrap();
         self.max_concurrency.unwrap_or(DEFAULT_MAX_CONCURRENCY)
     }
 

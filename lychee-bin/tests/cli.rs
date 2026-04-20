@@ -1018,6 +1018,28 @@ mod cli {
             .stderr(contains("TOML parse error"));
     }
 
+    /// Make sure that TOML type errors include all error details (line/column
+    /// info and invalid type message), not just a generic "Failed to parse"
+    /// message.
+    ///
+    /// This is a regression test for
+    /// https://github.com/lycheeverse/lychee/issues/2146
+    #[tokio::test]
+    async fn test_invalid_config_type_error_shows_details() {
+        let config = fixtures_path!().join("configs").join("invalid-type.toml");
+        cargo_bin_cmd!()
+            .arg("--config")
+            .arg(config)
+            .arg("-")
+            .env_clear()
+            .assert()
+            .failure()
+            .stderr(contains("Cannot load configuration file"))
+            .stderr(contains("TOML parse error"))
+            .stderr(contains("invalid type"))
+            .stderr(contains("threads = 'a'"));
+    }
+
     #[tokio::test]
     async fn test_configs_precedence() {
         let path = fixtures_path!().join("configs");
@@ -4411,5 +4433,18 @@ fn test_file_limit_low_concurrency() {
     let mut assert_cmd = assert_cmd::Command::from(cmd);
     assert_cmd.assert().stderr(predicates::str::contains(
         "System file descriptor limit is 64 which is too low for the requested concurrency of 128. Lowering `max_concurrency` to 44",
+    ));
+}
+
+// Verify that lychee will fail before all checks run if the parent of the given output path does not exist
+// See https://github.com/lycheeverse/lychee/issues/2147
+#[test]
+fn test_output_invalid_path() {
+    let mut cmd = assert_cmd::Command::cargo_bin("lychee").unwrap();
+    cmd.arg("--output")
+        .arg("does/not/exist")
+        .arg("https://example.com");
+    cmd.assert().failure().stderr(predicates::str::contains(
+        "Output path `does/not/exist` is not writable: parent directory `does/not` does not exist",
     ));
 }

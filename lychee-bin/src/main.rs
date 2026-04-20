@@ -60,6 +60,7 @@
 
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, ErrorKind, IsTerminal, stdin};
+use std::num::NonZeroUsize;
 
 use anyhow::{Context, Error, Result};
 use clap::{Parser, crate_version};
@@ -156,10 +157,10 @@ fn handle_fd_limits(opts: &mut LycheeOptions) {
             reason = "max_concurrency is small in practice"
         )]
         let concurrency = soft_limit.saturating_sub(BASELINE_OVERHEAD) as usize;
+        let concurrency = NonZeroUsize::new(concurrency).unwrap_or(NonZeroUsize::MIN);
 
         let requested_concurrency = opts.config.max_concurrency();
         if requested_concurrency > concurrency {
-            let concurrency = concurrency.max(1);
             warn!(
                 "System file descriptor limit is {soft_limit} which is too low for the requested \
                 concurrency of {requested_concurrency}. Lowering `max_concurrency` to \
@@ -289,7 +290,7 @@ fn run_main() -> Result<i32> {
         Ok(opts) => opts,
         Err(e) => {
             error!(
-                "Error while loading config: {}\n\
+                "Error while loading config: {:?}\n\
                 See: https://github.com/lycheeverse/lychee/blob/lychee-v{}/lychee.example.toml",
                 e,
                 crate_version!()
@@ -297,6 +298,22 @@ fn run_main() -> Result<i32> {
             exit(ExitCode::ConfigFile as i32);
         }
     };
+
+    // Exit if output path parent directory does not exist
+    if let Some(output) = &opts.config.output {
+        // parent() returns Some("") for paths with no directory component
+        let parent = output.parent().filter(|p| !p.as_os_str().is_empty());
+        if let Some(parent) = parent
+            && !parent.exists()
+        {
+            error!(
+                "Output path `{}` is not writable: parent directory `{}` does not exist",
+                output.display(),
+                parent.display()
+            );
+            exit(ExitCode::UnexpectedFailure as i32);
+        }
+    }
 
     if let Some(mode) = opts.config.generate {
         print!("{}", generate(&mode)?);
@@ -308,7 +325,7 @@ fn run_main() -> Result<i32> {
             // We define our own runtime instead of the `tokio::main` attribute
             // since we want to make the number of threads configurable
             tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(threads)
+                .worker_threads(threads.get())
                 .enable_all()
                 .build()?
         }

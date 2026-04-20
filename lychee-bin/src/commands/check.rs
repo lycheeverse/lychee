@@ -31,7 +31,7 @@ where
     S: futures::Stream<Item = Result<Request, RequestError>>,
 {
     // Setup
-    let max_concurrency = params.cfg.max_concurrency();
+    let max_concurrency = params.cfg.max_concurrency().get();
     let (send_req, recv_req) = mpsc::channel(max_concurrency);
     let (send_resp, recv_resp) = mpsc::channel(max_concurrency);
     let (waiter, wait_guard) = WaitGroup::new();
