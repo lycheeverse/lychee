@@ -116,7 +116,7 @@ fn extract_visible_text(input: &str) -> String {
         }
     }
 
-    let mut text: String = String::new();
+    let mut text = String::new();
     let mut hidden_stack: Vec<String> = Vec::new();
 
     for Ok(token) in Tokenizer::new(input) {
