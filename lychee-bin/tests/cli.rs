@@ -832,9 +832,6 @@ mod cli {
     #[tokio::test]
     async fn test_glob_recursive() -> Result<()> {
         let dir = tempfile::tempdir()?;
-        // Use explicit non-hidden subdirectories instead of tempdir_in,
-        // which creates `.tmp*` dirs that are hidden and correctly skipped
-        // by glob when skip_hidden is true.
         let subdir_level_1 = dir.path().join("level1");
         let subdir_level_2 = subdir_level_1.join("level2");
         std::fs::create_dir_all(&subdir_level_2)?;
@@ -845,7 +842,7 @@ mod cli {
         writeln!(file, "{}", mock_server.uri().as_str())?;
 
         cargo_bin_cmd!()
-            .arg(dir.path().join("**/*.md")) // ** should be a recursive glob
+            .arg(dir.path().join("**/*.md")) // `**` should be a recursive glob
             .arg("--verbose")
             .assert()
             .success()

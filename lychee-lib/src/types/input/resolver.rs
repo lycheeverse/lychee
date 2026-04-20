@@ -119,7 +119,7 @@ impl InputResolver {
                 let mut match_opts = glob::MatchOptions::new();
                 match_opts.case_sensitive = !ignore_case;
                 // Match shell behavior: wildcards like `*` and `**` should not
-                // match hidden files/dirs unless `--hidden` is passed.
+                // match hidden files/dirs by default.
                 match_opts.require_literal_leading_dot = skip_hidden;
 
                 Box::pin(try_stream! {
