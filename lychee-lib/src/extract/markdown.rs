@@ -25,7 +25,7 @@ fn md_extensions() -> Options {
 
 /// Extract unparsed URL strings from a Markdown string.
 // TODO: Refactor the extractor to reduce the complexity and number of lines.
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines)]
 pub(crate) fn extract_markdown(
     input: &str,
     include_verbatim: bool,
@@ -51,9 +51,6 @@ pub(crate) fn extract_markdown(
                 dest_url,
                 ..
             }) => {
-                // Note: Explicitly listing all link types below to make it easier to
-                // change the behavior for a specific link type in the future.
-                #[allow(clippy::match_same_arms)]
                 match link_type {
                     // Inline link like `[foo](bar)`
                     // This is the most common link type
@@ -209,8 +206,7 @@ pub(crate) fn extract_markdown(
                 None
             }
 
-            // Skip footnote references and definitions explicitly - they're not links to check
-            #[allow(clippy::match_same_arms)]
+            #[expect(clippy::match_same_arms, reason = "Skip footnote references and definitions explicitly - they're not links to check")]
             Event::FootnoteReference(_) | Event::Start(Tag::FootnoteDefinition(_)) | Event::End(TagEnd::FootnoteDefinition) => None,
 
             // Silently skip over other events
