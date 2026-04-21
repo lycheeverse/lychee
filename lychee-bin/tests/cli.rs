@@ -635,10 +635,10 @@ mod cli {
             .failure()
             .code(2)
             .stdout(contains(
-                r#"[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 3:9) | Rejected status code: 404 Not Found (configurable with "accept" option)"#
+                r#"[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 3:9) | Rejected status code: 404 Not Found"#
             ))
             .stderr(contains(
-                "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
+                "Hint: There were issues with GitHub URLs. You could try setting a GitHub token with --github-token",
             ));
     }
 
@@ -1384,7 +1384,7 @@ The config file should contain every possible key for documentation purposes."
                 mock_server_ok.uri()
             )))
             .stderr(contains(format!(
-                "[404] {}/ (at 2:1) | Rejected status code: 404 Not Found (configurable with \"accept\" option)\n",
+                "[404] {}/ (at 2:1) | Rejected status code: 404 Not Found\n",
                 mock_server_err.uri()
             )));
 
@@ -1436,13 +1436,16 @@ The config file should contain every possible key for documentation purposes."
         // Run first without cache to generate the cache file
         test_cmd
             .assert()
-            .stderr(contains(format!("[200] {}/ (at 1:1)\n", mock_server_ok.uri())))
+            .stderr(contains(format!(
+                "[200] {}/ (at 1:1)\n",
+                mock_server_ok.uri()
+            )))
             .stderr(contains(format!(
                 "[204] {}/ (at 2:1) | 204 No Content\n",
                 mock_server_no_content.uri()
             )))
             .stderr(contains(format!(
-                "[429] {}/ (at 3:1) | Rejected status code: 429 Too Many Requests (configurable with \"accept\" option)",
+                "[429] {}/ (at 3:1) | Rejected status code: 429 Too Many Requests\n",
                 mock_server_too_many_requests.uri()
             )));
 
@@ -1500,11 +1503,11 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                r#"[418] {}/ (at 2:1) | Rejected status code: 418 I'm a teapot (configurable with "accept" option)"#,
+                r#"[418] {}/ (at 2:1) | Rejected status code: 418 I'm a teapot"#,
                 mock_server_teapot.uri()
             )))
             .stdout(contains(format!(
-                r#"[500] {}/ (at 3:1) | Rejected status code: 500 Internal Server Error (configurable with "accept" option)"#,
+                r#"[500] {}/ (at 3:1) | Rejected status code: 500 Internal Server Error"#,
                 mock_server_server_error.uri()
             )));
 
@@ -1552,7 +1555,7 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                r#"[200] {}/ (at 1:1) | Rejected status code: 200 OK (configurable with "accept" option)"#,
+                r#"[200] {}/ (at 1:1) | Rejected status code: 200 OK"#,
                 mock_server_200.uri()
             )));
 
@@ -1986,7 +1989,7 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .failure()
             .stdout(contains(r#"
-[404] http://rust-lang.org/lycheeverse (at 1:1) | Rejected status code: 404 Not Found (configurable with "accept" option) | Remaps: http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse | Followed 1 redirect. Redirects: http://rust-lang.org/lycheeverse --[301]--> https://rust-lang.org/lycheeverse
+[404] http://rust-lang.org/lycheeverse (at 1:1) | Rejected status code: 404 Not Found | Remaps: http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse | Followed 1 redirect. Redirects: http://rust-lang.org/lycheeverse --[301]--> https://rust-lang.org/lycheeverse
 "#))
         // It is debugged when URIs are remapped
         .stderr(contains("[DEBUG] Remapping http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse"))
@@ -2676,7 +2679,7 @@ The config file should contain every possible key for documentation purposes."
         // Non-verbose mode
         redirecting_mock_server!(async |redirect_url: Url, _| {
             let (json, stderr) = run(&redirect_url, false);
-            assert!(stderr.contains("[WARN] lychee detected 1 redirect. You might want to consider replacing redirecting URLs"));
+            assert!(stderr.contains("Hint: lychee detected 1 redirect. You might want to"));
             assert_eq!(json["total"], 1);
             assert_eq!(json["redirects"], 1); // there was one redirect
             assert_eq!(json["successful"], 1); // which resolved to a success

@@ -152,7 +152,7 @@ pub enum ErrorKind {
 
     /// The given status code was not accepted (this depends on the `accept` configuration)
     #[error(
-        r#"Rejected status code: {code} {reason}"#,
+        "Rejected status code: {code} {reason}",
         code = .0.as_str(),
         reason = .0.canonical_reason().unwrap_or("Unknown status code")
     )]
@@ -479,16 +479,7 @@ mod tests {
     use crate::ErrorKind;
     #[test]
     fn test_error_kind_details() {
-        // Test rejected status code
         let status_error = ErrorKind::RejectedStatusCode(http::StatusCode::NOT_FOUND);
         assert!(status_error.to_string().contains("Not Found"));
-
-        // Test redirected status code
-        let redir_error = ErrorKind::RejectedStatusCode(http::StatusCode::MOVED_PERMANENTLY);
-        assert!(
-            redir_error
-                .details()
-                .contains(r#"(configurable with "accept" option)"#)
-        );
     }
 }

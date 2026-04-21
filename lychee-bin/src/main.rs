@@ -84,13 +84,13 @@ mod commands;
 mod config;
 mod files_from;
 mod formatters;
+mod hints;
 mod parse;
 mod progress;
 mod time;
 mod verbosity;
 
-use crate::formatters::hints;
-use crate::formatters::stats::{OutputStats, ResponseStats, output_statistics};
+use crate::formatters::stats::{OutputStats, output_statistics};
 use crate::{
     cache::Cache,
     config::{Config, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE, LycheeOptions},
@@ -447,7 +447,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         commands::dump(params).await?
     } else {
         let (response_stats, cache, exit_code, host_pool) = commands::check(params).await?;
-        hints::display_hints(&response_stats, &opts.config);
+        hints::handle_stats(&response_stats, &opts.config);
 
         let stats = OutputStats {
             response_stats,
@@ -467,6 +467,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
             cookie_jar.save().context("Cannot save cookie jar")?;
         }
 
+        hints::show_hints();
         exit_code
     };
 
