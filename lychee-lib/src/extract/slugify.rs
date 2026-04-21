@@ -74,7 +74,7 @@ impl GithubSlugify {
         }
     }
 
-    /// Determines if the given slug overlaps with a slug which has been prevoiusly
+    /// Determines if the given slug overlaps with a slug which has been previously
     /// returned by [`GithubSlugify::slugify`].
     fn seen(&self, slug: &str) -> bool {
         if self.count.contains_key(slug) {
