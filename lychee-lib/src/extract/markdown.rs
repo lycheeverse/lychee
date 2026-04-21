@@ -326,7 +326,9 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{extract::slugify::slugify_without_disambiguation, types::uri::raw::span};
+    use test_utils::load_fixture;
+
+    use crate::types::uri::raw::span;
 
     use super::*;
 
@@ -350,8 +352,6 @@ or inline like `https://bar.org` for instance.
 [example](http://example.com)
 
 <span id="the-end">The End</span>
-
-# an &mdash; emdash
         "#;
 
     #[test]
@@ -362,13 +362,40 @@ or inline like `https://bar.org` for instance.
             "well-still-the-same-test",
             "some-code-in-a-heading",
             "the-end",
-            "an--emdash",
         ]
         .into_iter()
         .map(str::to_string)
         .collect();
 
         let actual = extract_markdown_fragments(MD_INPUT);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_extract_fragments_unicode() {
+        let md = load_fixture!("fragments/slugify.md");
+
+        let expected = [
+            "\u{fe0f}-c",
+            "\u{fe0f}-mit-许可证",
+            "\u{fe0f}\u{20e3}-b",
+            "a--c",
+            "a-b-c",
+            "a-b-c-1",
+            "an--emdash",
+            "foo",
+            "foo-1",
+            "foo-1-1",
+            "foo-2",
+            "foo-3",
+            "à-á-â-ã-ä-å-or-à-á-â-ã-ä-å",
+            "🅰\u{fe0f}-d",
+        ]
+        .into_iter()
+        .map(str::to_string)
+        .collect();
+
+        let actual = extract_markdown_fragments(&md);
         assert_eq!(actual, expected);
     }
 
@@ -440,28 +467,6 @@ Some pre-formatted http://pre.com
 
         let uris = extract_markdown(input, false, false);
         assert_eq!(uris, expected);
-    }
-
-    #[test]
-    fn test_kebab_case() {
-        let check = |input, expected| {
-            let actual = slugify_without_disambiguation(input);
-            assert_eq!(actual, expected);
-        };
-        check("A Heading", "a-heading");
-        check(
-            "This header has a :thumbsup: in it",
-            "this-header-has-a-thumbsup-in-it",
-        );
-        check(
-            "Header with 한글 characters (using unicode)",
-            "header-with-한글-characters-using-unicode",
-        );
-        check(
-            "Underscores foo_bar_, dots . and numbers 1.7e-3",
-            "underscores-foo_bar_-dots--and-numbers-17e-3",
-        );
-        check("Many          spaces", "many----------spaces");
     }
 
     #[test]

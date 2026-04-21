@@ -192,6 +192,28 @@ mod tests {
     }
 
     #[test]
+    fn test_slugify_kebab_case() {
+        let check = |input, expected| {
+            let actual = slugify_without_disambiguation(input);
+            assert_eq!(actual, expected);
+        };
+        check("A Heading", "a-heading");
+        check(
+            "This header has a :thumbsup: in it",
+            "this-header-has-a-thumbsup-in-it",
+        );
+        check(
+            "Header with 한글 characters (using unicode)",
+            "header-with-한글-characters-using-unicode",
+        );
+        check(
+            "Underscores foo_bar_, dots . and numbers 1.7e-3",
+            "underscores-foo_bar_-dots--and-numbers-17e-3",
+        );
+        check("Many          spaces", "many----------spaces");
+    }
+
+    #[test]
     fn test_github_slugify() {
         let headings = vec!["foo 1", "foo", "foo", "foo", "foo 1", "FOO 1"];
         let expected = vec!["foo-1", "foo", "foo-2", "foo-3", "foo-1-1", "foo-1-2"];

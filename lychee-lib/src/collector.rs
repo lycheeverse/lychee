@@ -303,7 +303,7 @@ impl Collector {
 mod tests {
     use std::borrow::Cow;
     use std::{collections::HashSet, convert::TryFrom, fs::File, io::Write};
-    use test_utils::{fixtures_path, load_fixture, mail, mock_server, website};
+    use test_utils::{load_fixture, mail, mock_server, website};
 
     use http::StatusCode;
     use reqwest::Url;
