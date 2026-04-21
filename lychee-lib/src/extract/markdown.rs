@@ -14,6 +14,8 @@ use crate::{
 
 use super::html::html5gum::extract_html_fragments;
 
+use super::slugify;
+
 /// Returns the default markdown extensions used by lychee.
 /// Sadly, `|` is not const for `Options` so we can't use a const global.
 fn md_extensions() -> Options {
