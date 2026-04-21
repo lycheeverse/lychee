@@ -3,12 +3,13 @@
 //!
 //! The core algorithm is based on [Flet/github-slugger](https://github.com/Flet/github-slugger/).
 
+use std::fmt::Write;
 use std::{collections::HashMap, num::NonZeroUsize, sync::LazyLock};
 
 use regex::Regex;
 
 /// From <https://github.com/Flet/github-slugger/blob/master/script/generate-regex.js#L8>
-static UNICODE_GENERAL_CATEGORIES_TO_REMOVE: &'static [&'static str] = &[
+static UNICODE_GENERAL_CATEGORIES_TO_REMOVE: &[&str] = &[
     // Some numbers:
     "Other_Number",
     // Some punctuation:
@@ -30,14 +31,14 @@ static UNICODE_GENERAL_CATEGORIES_TO_REMOVE: &'static [&'static str] = &[
 ];
 
 static REGEX_TO_REMOVE: LazyLock<Regex> = LazyLock::new(|| {
-    let includes = UNICODE_GENERAL_CATEGORIES_TO_REMOVE
-        .iter()
-        .map(|cls| format!(r"\p{{{cls}}}"))
-        .collect::<String>();
+    let mut includes = String::new();
+    for cat in UNICODE_GENERAL_CATEGORIES_TO_REMOVE {
+        let _ = write!(includes, r"\p{{{cat}}}");
+    }
 
     let excludes = r"\p{Alphabetic} -";
 
-    Regex::new(&format!("[{}&&[^{}]]+", includes, excludes)).expect("slugify regex failed to build")
+    Regex::new(&format!("[{includes}&&[^{excludes}]]+")).expect("slugify regex failed to build")
 });
 
 /// Slugifies the given header text, but does not guarantee that
@@ -66,6 +67,7 @@ pub struct GithubSlugify {
 
 impl GithubSlugify {
     /// Constructs a new [`GithubSlugify`].
+    #[must_use]
     pub fn new() -> Self {
         Self {
             count: HashMap::new(),
@@ -80,7 +82,7 @@ impl GithubSlugify {
             // Also handles when a new suffixed slug collides with an earlier non-suffixed
             // slug (e.g., `foo` and `foo` with an earlier `foo 1`).
             return true;
-        };
+        }
 
         if let Some((slug, n)) = slug.rsplit_once('-')
             && let Ok(n) = str::parse::<NonZeroUsize>(n)
@@ -215,7 +217,7 @@ mod tests {
 
     #[test]
     fn test_github_slugify() {
-        let headings = vec!["foo 1", "foo", "foo", "foo", "foo 1", "FOO 1"];
+        let headings = ["foo 1", "foo", "foo", "foo", "foo 1", "FOO 1"];
         let expected = vec!["foo-1", "foo", "foo-2", "foo-3", "foo-1-1", "foo-1-2"];
         let mut slugger = GithubSlugify::new();
         assert_eq!(

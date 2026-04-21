@@ -147,8 +147,8 @@ macro_rules! load_fixture {
 macro_rules! fixture_uri {
     ($subpath:expr) => {{
         use url::Url;
-        let fixture_url =
-            Url::from_directory_path(test_utils::fixtures_path!()).expect("fixture path should be a valid URL");
+        let fixture_url = Url::from_directory_path(test_utils::fixtures_path!())
+            .expect("fixture path should be a valid URL");
 
         // joining subpath onto a Url allows the subpath to contain a fragment
         fixture_url
