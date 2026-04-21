@@ -74,69 +74,36 @@ impl GithubSlugify {
         }
     }
 
-    /// Determines if the given slug overlaps with a slug which has been previously
-    /// returned by [`GithubSlugify::slugify`].
-    fn seen(&self, slug: &str) -> bool {
-        if self.count.contains_key(slug) {
-            // Handles cases of direct repetition (e.g., `foo`, then `foo`).
-            // Also handles when a new suffixed slug collides with an earlier non-suffixed
-            // slug (e.g., `foo` and `foo` with an earlier `foo 1`).
-            return true;
-        }
-
-        if let Some((slug, n)) = slug.rsplit_once('-')
-            && let Ok(n) = str::parse::<NonZeroUsize>(n)
-        {
-            // Handles cases where the new slug already ends in a number
-            // and it overlaps with an earlier suffixed slug (e.g., `foo 1` when
-            // two `foo` were seen earlier).
-            self.count
-                .get(slug)
-                .is_some_and(|&next_suffix| n < next_suffix)
-        } else {
-            false
-        }
-    }
-
     /// Disambiguates the given "base" slug by appending a hyphen and a number
     /// to the slug if it conflicts with a previously-generated slug. This function
     /// will continue trying successive numbers until a conflict is avoided.
     ///
     /// This function will mutate the [`GithubSlugify`] to record the returned
     /// string.
-    ///
-    /// # Implementation detail
-    ///
-    /// Compared to the [upstream](https://github.com/Flet/github-slugger/blob/master/index.js),
-    /// this code is slightly more complicated. The upstream code is simpler because
-    /// it adds every disambiguated slug as a new key into its "occurrences" map.
-    /// We avoid doing that and only increment the counter of the existing entry,
-    /// but this means we need to handle between headers that originally end with
-    /// a digit and disambiguated suffixed slugs. Much of this code is in
-    /// [`GithubSlugify::seen`].
     fn disambiguate(&mut self, base_slug: String) -> String {
-        let mut suffix = self.count.get(&base_slug).copied();
+        let mut suffix: Option<NonZeroUsize> = self.count.get(&base_slug).copied();
         let mut slug = base_slug.clone();
 
         let next_suffix = loop {
             slug.truncate(base_slug.len());
 
-            let next_suffix = match suffix {
-                Some(non_zero) => {
-                    slug.push('-');
-                    slug.push_str(&non_zero.to_string());
-                    non_zero.saturating_add(1)
-                }
-                None => NonZeroUsize::MIN,
+            let next_suffix = if let Some(non_zero) = suffix {
+                slug.push('-');
+                slug.push_str(&non_zero.to_string());
+                non_zero.saturating_add(1)
+            } else {
+                NonZeroUsize::MIN
             };
 
-            if !self.seen(&slug) || next_suffix == NonZeroUsize::MAX {
+            if !self.count.contains_key(&slug) || next_suffix == NonZeroUsize::MAX {
                 break next_suffix;
             }
+
             suffix = Some(next_suffix);
         };
 
-        self.count.entry(base_slug).insert_entry(next_suffix);
+        self.count.insert(base_slug, next_suffix);
+        self.count.insert(slug.clone(), NonZeroUsize::MIN);
         slug
     }
 
