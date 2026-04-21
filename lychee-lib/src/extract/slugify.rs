@@ -3,12 +3,7 @@
 //!
 //! The core algorithm is based on [Flet/github-slugger](https://github.com/Flet/github-slugger/).
 
-use std::{
-    borrow::Cow,
-    collections::{HashMap, HashSet, hash_map::Entry},
-    num::NonZeroUsize,
-    sync::LazyLock,
-};
+use std::{collections::HashMap, num::NonZeroUsize, sync::LazyLock};
 
 use regex::Regex;
 
@@ -35,20 +30,19 @@ static UNICODE_GENERAL_CATEGORIES_TO_REMOVE: &'static [&'static str] = &[
 ];
 
 static REGEX_TO_REMOVE: LazyLock<Regex> = LazyLock::new(|| {
-    let include_character_class = UNICODE_GENERAL_CATEGORIES_TO_REMOVE
+    let includes = UNICODE_GENERAL_CATEGORIES_TO_REMOVE
         .iter()
         .map(|cls| format!(r"\p{{{cls}}}"))
         .collect::<String>();
 
-    let exclude_character_class = r"\p{Alphabetic} -";
+    let excludes = r"\p{Alphabetic} -";
 
-    Regex::new(&format!(
-        "[{}&&[^{}]]+",
-        include_character_class, exclude_character_class
-    ))
-    .expect("slugify regex failed to build")
+    Regex::new(&format!("[{}&&[^{}]]+", includes, excludes)).expect("slugify regex failed to build")
 });
 
+/// Slugifies the given header text, but does not guarantee that
+/// the returned slugs are unique between calls. For most uses,
+/// [`GithubSlugify`] should be used instead.
 pub fn slugify_without_disambiguation(text: &str) -> String {
     REGEX_TO_REMOVE
         .replace_all(text, "")
@@ -56,24 +50,30 @@ pub fn slugify_without_disambiguation(text: &str) -> String {
         .to_lowercase()
 }
 
+/// A stateful type for generating "slugified" fragment identifiers in the style
+/// of Github's markdown header links.
+///
+/// A new instance of [`GithubSlugify`] should be created for each document
+/// containing headers, then [`GithubSlugify::slugify`] should be called for each
+/// heading in the document.
 #[derive(Debug, Clone, Default)]
 pub struct GithubSlugify {
-    /// Map of base slug to suffix which should be used for the *next* occurrence
+    /// Map of base slug to suffix which should be tried for the *next* occurrence
     /// of that base slug. If a slug is not present in this map, it means that it
-    /// hasn't been seen before and no suffix is necessary.
-    ///
-    /// This allows headings with the same text to be disambiguated by an
-    /// incrementing suffix.
+    /// hasn't been seen before.
     count: HashMap<String, NonZeroUsize>,
 }
 
 impl GithubSlugify {
+    /// Constructs a new [`GithubSlugify`].
     pub fn new() -> Self {
         Self {
             count: HashMap::new(),
         }
     }
 
+    /// Determines if the given slug overlaps with a slug which has been prevoiusly
+    /// returned by [`GithubSlugify::slugify`].
     fn seen(&self, slug: &str) -> bool {
         if self.count.contains_key(slug) {
             // Handles cases of direct repetition (e.g., `foo`, then `foo`).
@@ -96,6 +96,22 @@ impl GithubSlugify {
         }
     }
 
+    /// Disambiguates the given "base" slug by appending a hyphen and a number
+    /// to the slug if it conflicts with a previously-generated slug. This function
+    /// will continue trying successive numbers until a conflict is avoided.
+    ///
+    /// This function will mutate the [`GithubSlugify`] to record the returned
+    /// string.
+    ///
+    /// # Implementation detail
+    ///
+    /// Compared to the [upstream](https://github.com/Flet/github-slugger/blob/master/index.js),
+    /// this code is slightly more complicated. The upstream code is simpler because
+    /// it adds every disambiguated slug as a new key into its "occurrences" map.
+    /// We avoid doing that and only increment the counter of the existing entry,
+    /// but this means we need to handle between headers that originally end with
+    /// a digit and disambiguated suffixed slugs. Much of this code is in
+    /// [`GithubSlugify::seen`].
     fn disambiguate(&mut self, base_slug: String) -> String {
         let mut suffix = self.count.get(&base_slug).copied();
         let mut slug = base_slug.clone();
@@ -122,6 +138,19 @@ impl GithubSlugify {
         slug
     }
 
+    /// Slugifies the given header text into a slug (a lowercase hyphen-separated
+    /// string suitable for use as a fragment identifier). Additionally, this
+    /// function ensures returned slugs are distinct from any earlier slug returned
+    /// by this [`GithubSlugify`].
+    ///
+    /// For example,
+    /// ```
+    /// # use lychee_lib::extract::slugify::GithubSlugify;
+    /// let mut slugger = GithubSlugify::new();
+    /// assert_eq!(slugger.slugify("foo bar"), "foo-bar");
+    /// assert_eq!(slugger.slugify("foo bar"), "foo-bar-1");
+    /// assert_eq!(slugger.slugify("foo, bar!"), "foo-bar-2");
+    /// ```
     pub fn slugify(&mut self, text: &str) -> String {
         self.disambiguate(slugify_without_disambiguation(text))
     }
@@ -131,9 +160,7 @@ impl GithubSlugify {
 mod tests {
     use percent_encoding::percent_decode_str;
 
-    use crate::extract::slugify::GithubSlugify;
-
-    use super::slugify_without_disambiguation;
+    use super::{GithubSlugify, slugify_without_disambiguation};
 
     fn unpercent(percent_str: &str) -> String {
         percent_decode_str(percent_str)

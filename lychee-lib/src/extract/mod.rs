@@ -5,7 +5,7 @@ use crate::types::{
 
 pub mod css;
 pub mod html;
-mod slugify;
+pub mod slugify;
 pub mod markdown;
 mod plaintext;
 pub mod xml;
