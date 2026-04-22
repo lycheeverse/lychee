@@ -7,8 +7,8 @@ use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd, Text
 use crate::{
     checker::wikilink::wikilink,
     extract::{
-        html::html5gum::extract_html_with_span, plaintext::extract_raw_uri_from_plaintext,
-        slugify::GithubSlugify,
+        fragments::GithubHeadingIdGenerator, html::html5gum::extract_html_with_span,
+        plaintext::extract_raw_uri_from_plaintext,
     },
     types::uri::raw::{
         OffsetSpanProvider, RawUri, RawUriSpan, SourceSpanProvider, SpanProvider as _,
@@ -285,7 +285,7 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
     let mut in_heading = false;
     let mut heading_text = String::new();
     let mut heading_id: Option<CowStr<'_>> = None;
-    let mut id_generator = GithubSlugify::new();
+    let mut id_generator = GithubHeadingIdGenerator::new();
 
     let mut out = HashSet::new();
 
@@ -301,7 +301,7 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
                 }
 
                 if !heading_text.is_empty() {
-                    let id = id_generator.slugify(&heading_text);
+                    let id = id_generator.generate(&heading_text);
                     out.insert(id);
                     heading_text.clear();
                 }
@@ -373,7 +373,7 @@ or inline like `https://bar.org` for instance.
 
     #[test]
     fn test_extract_fragments_unicode() {
-        let md = load_fixture!("fragments/slugify.md");
+        let md = load_fixture!("fragments/heading-ids.md");
 
         let expected = [
             "\u{fe0f}-c",

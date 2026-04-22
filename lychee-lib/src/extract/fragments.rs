@@ -1,5 +1,5 @@
-//! Converts heading text into "slugs" for use as fragment identifiers, mimicking
-//! the algorithm which GitHub uses for generating Markdown fragment links.
+//! Converts heading text into hyphen-separated strings for use as fragment identifiers,
+//! mimicking the algorithm which GitHub uses for generating Markdown fragment IDs.
 //!
 //! The core algorithm is based on [Flet/github-slugger](https://github.com/Flet/github-slugger/).
 
@@ -38,35 +38,36 @@ static REGEX_TO_REMOVE: LazyLock<Regex> = LazyLock::new(|| {
 
     let excludes = r"\p{Alphabetic} -";
 
-    Regex::new(&format!("[{includes}&&[^{excludes}]]+")).expect("slugify regex failed to build")
+    Regex::new(&format!("[{includes}&&[^{excludes}]]+")).expect("fragment regex failed to build")
 });
 
-/// Slugifies the given header text, but does not guarantee that
-/// the returned slugs are unique between calls. For most uses,
-/// [`GithubSlugify`] should be used instead.
-pub fn slugify_without_disambiguation(text: &str) -> String {
+/// Converts the given header text into a hyphen-separated fragment ID, mimicking
+/// the algorithm used by GitHub. However, does not guarantee that the returned
+/// IDs are unique between calls. For most uses, [`GithubHeadingIdGenerator`]
+/// should be used instead.
+pub fn generate_without_disambiguation(text: &str) -> String {
     REGEX_TO_REMOVE
         .replace_all(text, "")
         .replace(' ', "-")
         .to_lowercase()
 }
 
-/// A stateful type for generating "slugified" fragment identifiers in the style
+/// A stateful type for generating fragment identifiers in the style
 /// of Github's markdown header links.
 ///
-/// A new instance of [`GithubSlugify`] should be created for each document
-/// containing headers, then [`GithubSlugify::slugify`] should be called for each
-/// heading in the document.
+/// A new instance of [`GithubHeadingIdGenerator`] should be created for each document
+/// containing headers, then [`GithubHeadingIdGenerator::generate`] should be called
+/// for each heading in the document.
 #[derive(Debug, Clone, Default)]
-pub struct GithubSlugify {
-    /// Map of base slug to suffix which should be tried for the *next* occurrence
-    /// of that base slug. If a slug is not present in this map, it means that it
-    /// hasn't been seen before.
+pub struct GithubHeadingIdGenerator {
+    /// Map of ID to suffix which should be used for the *next* occurrence
+    /// of that ID. If an ID is not present in this map, it means that it
+    /// hasn't been seen before and no suffix is necessary.
     count: HashMap<String, NonZeroUsize>,
 }
 
-impl GithubSlugify {
-    /// Constructs a new [`GithubSlugify`].
+impl GithubHeadingIdGenerator {
+    /// Constructs a new [`GithubHeadingIdGenerator`].
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -74,54 +75,54 @@ impl GithubSlugify {
         }
     }
 
-    /// Disambiguates the given "base" slug by appending a hyphen and a number
-    /// to the slug if it conflicts with a previously-generated slug. This function
+    /// Disambiguates the given "base" ID by appending a hyphen and a number
+    /// to the ID if it conflicts with a previously-generated ID. This function
     /// will continue trying successive numbers until a conflict is avoided.
     ///
-    /// This function will mutate the [`GithubSlugify`] to record the returned
-    /// string.
-    fn disambiguate(&mut self, base_slug: String) -> String {
-        let mut suffix: Option<NonZeroUsize> = self.count.get(&base_slug).copied();
-        let mut slug = base_slug.clone();
+    /// This function will mutate the [`GithubHeadingIdGenerator`] to record
+    /// the returned string.
+    fn disambiguate(&mut self, base_id: String) -> String {
+        let mut suffix: Option<NonZeroUsize> = self.count.get(&base_id).copied();
+        let mut result = base_id.clone();
 
         let next_suffix = loop {
-            slug.truncate(base_slug.len());
+            result.truncate(base_id.len());
 
             let next_suffix = if let Some(non_zero) = suffix {
-                slug.push('-');
-                slug.push_str(&non_zero.to_string());
+                result.push('-');
+                result.push_str(&non_zero.to_string());
                 non_zero.saturating_add(1)
             } else {
                 NonZeroUsize::MIN
             };
 
-            if !self.count.contains_key(&slug) || next_suffix == NonZeroUsize::MAX {
+            if !self.count.contains_key(&result) || next_suffix == NonZeroUsize::MAX {
                 break next_suffix;
             }
 
             suffix = Some(next_suffix);
         };
 
-        self.count.insert(base_slug, next_suffix);
-        self.count.insert(slug.clone(), NonZeroUsize::MIN);
-        slug
+        self.count.insert(base_id, next_suffix);
+        self.count.insert(result.clone(), NonZeroUsize::MIN);
+        result
     }
 
-    /// Slugifies the given header text into a slug (a lowercase hyphen-separated
-    /// string suitable for use as a fragment identifier). Additionally, this
-    /// function ensures returned slugs are distinct from any earlier slug returned
-    /// by this [`GithubSlugify`].
+    /// Converts the given header text into a lowercase hyphen-separated
+    /// string suitable for use as a fragment identifier. Additionally, this
+    /// function ensures returned IDs are distinct from any earlier ID returned
+    /// by this [`GithubHeadingIdGenerator::generate`].
     ///
     /// For example,
     /// ```
-    /// # use lychee_lib::extract::slugify::GithubSlugify;
-    /// let mut slugger = GithubSlugify::new();
-    /// assert_eq!(slugger.slugify("foo bar"), "foo-bar");
-    /// assert_eq!(slugger.slugify("foo bar"), "foo-bar-1");
-    /// assert_eq!(slugger.slugify("foo, bar!"), "foo-bar-2");
+    /// # use lychee_lib::extract::fragments::GithubHeadingIdGenerator;
+    /// let mut generator = GithubHeadingIdGenerator::new();
+    /// assert_eq!(generator.generate("foo bar"), "foo-bar");
+    /// assert_eq!(generator.generate("foo bar"), "foo-bar-1");
+    /// assert_eq!(generator.generate("foo, bar!"), "foo-bar-2");
     /// ```
-    pub fn slugify(&mut self, text: &str) -> String {
-        self.disambiguate(slugify_without_disambiguation(text))
+    pub fn generate(&mut self, text: &str) -> String {
+        self.disambiguate(generate_without_disambiguation(text))
     }
 }
 
@@ -129,7 +130,7 @@ impl GithubSlugify {
 mod tests {
     use percent_encoding::percent_decode_str;
 
-    use super::{GithubSlugify, slugify_without_disambiguation};
+    use super::{GithubHeadingIdGenerator, generate_without_disambiguation};
 
     fn unpercent(percent_str: &str) -> String {
         percent_decode_str(percent_str)
@@ -139,31 +140,31 @@ mod tests {
     }
 
     #[test]
-    fn test_slugify_without_disambiguation() {
-        assert_eq!("a-b", slugify_without_disambiguation("a b"));
+    fn test_generate_without_disambiguation() {
+        assert_eq!("a-b", generate_without_disambiguation("a b"));
         assert_eq!(
             unpercent("%EF%B8%8F⃣-b"),
-            slugify_without_disambiguation("#️⃣ b")
+            generate_without_disambiguation("#️⃣ b")
         );
         assert_eq!(
             unpercent("%EF%B8%8F-c"),
-            slugify_without_disambiguation("☔️ c")
+            generate_without_disambiguation("☔️ c")
         );
         assert_eq!(
             unpercent("🅰%EF%B8%8F-d"),
-            slugify_without_disambiguation("🅰️ d")
+            generate_without_disambiguation("🅰️ d")
         );
 
         assert_eq!(
             unpercent("à-á-â-ã-ä-å-or-à-á-â-ã-ä-å"),
-            slugify_without_disambiguation("À, Á, Â, Ã, Ä, Å or à, á, â, ã, ä, å")
+            generate_without_disambiguation("À, Á, Â, Ã, Ä, Å or à, á, â, ã, ä, å")
         );
     }
 
     #[test]
-    fn test_slugify_kebab_case() {
+    fn test_generate_kebab_case() {
         let check = |input, expected| {
-            let actual = slugify_without_disambiguation(input);
+            let actual = generate_without_disambiguation(input);
             assert_eq!(actual, expected);
         };
         check("A Heading", "a-heading");
@@ -183,15 +184,15 @@ mod tests {
     }
 
     #[test]
-    fn test_github_slugify() {
+    fn test_github_generate_with_repeats() {
         let headings = ["foo 1", "foo", "foo", "foo", "foo 1", "FOO 1"];
         let expected = vec!["foo-1", "foo", "foo-2", "foo-3", "foo-1-1", "foo-1-2"];
-        let mut slugger = GithubSlugify::new();
+        let mut generator = GithubHeadingIdGenerator::new();
         assert_eq!(
             expected,
             headings
                 .iter()
-                .map(|h| slugger.slugify(h))
+                .map(|h| generator.generate(h))
                 .collect::<Vec<_>>()
         );
     }

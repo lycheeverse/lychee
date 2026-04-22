@@ -4,10 +4,10 @@ use crate::types::{
 };
 
 pub mod css;
+pub mod fragments;
 pub mod html;
 pub mod markdown;
 mod plaintext;
-pub mod slugify;
 pub mod xml;
 
 use css::extract_css;
