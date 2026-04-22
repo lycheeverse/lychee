@@ -46,10 +46,12 @@ pub(crate) fn handle_stats(stats: &ResponseStats, config: &Config) {
     github_token(stats, config);
     any_redirects(stats, config);
     rejected_status_codes(stats, config);
+    unfollowed_redirects(stats, config);
 }
 
 fn github_token(stats: &ResponseStats, config: &Config) {
-    const MESSAGE: &str = "There were issues with GitHub URLs. You could try setting a GitHub token with --github-token";
+    const MESSAGE: &str = "There were issues with GitHub URLs. \
+    You could try setting a GitHub token with --github-token";
 
     let any_github_errors = stats
         .error_map
@@ -63,7 +65,8 @@ fn github_token(stats: &ResponseStats, config: &Config) {
 }
 
 fn any_redirects(stats: &ResponseStats, config: &Config) {
-    const DETAILS: &str = "You might want to consider replacing redirecting URLs with the resolved URLs. Run lychee in verbose mode (-v/--verbose) to see details about the redirections.";
+    const DETAILS: &str = "You might want to consider replacing redirecting URLs with the resolved URLs. \
+    Use verbose mode (-vv) to see redirection details.";
 
     let count = stats.redirects;
     let has_redirects = count > 0;
@@ -71,7 +74,7 @@ fn any_redirects(stats: &ResponseStats, config: &Config) {
 
     if has_redirects && hides_redirects {
         let noun = if count == 1 { "redirect" } else { "redirects" };
-        add_hint(format!("lychee detected {count} {noun}. {DETAILS}").into());
+        add_hint(format!("Followed {count} {noun}. {DETAILS}").into());
     }
 }
 
@@ -89,6 +92,26 @@ fn rejected_status_codes(stats: &ResponseStats, config: &Config) {
     });
 
     if is_default && any_rejected_codes {
+        add_hint(MESSAGE.into());
+    }
+}
+
+fn unfollowed_redirects(stats: &ResponseStats, config: &Config) {
+    const MESSAGE: &str = "Rejected redirecional status codes. \
+    This means some redirects were not followed. \
+    You might want to increase the limit for -m/--max-redirects.";
+
+    let is_small_limit = config.max_redirects() <= lychee_lib::DEFAULT_MAX_REDIRECTS;
+    let any_rejected_redirection_codes = stats.error_map.values().any(|v| {
+        v.iter().any(|v| {
+            matches!(
+                v.status,
+                lychee_lib::Status::Error(lychee_lib::ErrorKind::RejectedStatusCode(s)) if s.is_redirection()
+            )
+        })
+    });
+
+    if is_small_limit && any_rejected_redirection_codes {
         add_hint(MESSAGE.into());
     }
 }

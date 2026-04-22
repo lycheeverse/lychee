@@ -2679,7 +2679,7 @@ The config file should contain every possible key for documentation purposes."
         // Non-verbose mode
         redirecting_mock_server!(async |redirect_url: Url, _| {
             let (json, stderr) = run(&redirect_url, false);
-            assert!(stderr.contains("Hint: lychee detected 1 redirect. You might want to"));
+            assert!(stderr.contains("Hint: Followed 1 redirect. You might want to"));
             assert_eq!(json["total"], 1);
             assert_eq!(json["redirects"], 1); // there was one redirect
             assert_eq!(json["successful"], 1); // which resolved to a success
