@@ -25,3 +25,7 @@
 # an &mdash; emdash
 
 # 🏛️ MIT 许可证
+
+# Σκοπός κάθε sigma initial position
+
+# ΝΑΤΟΥ, ΓΙΑΝΝΗΣ sigma final position

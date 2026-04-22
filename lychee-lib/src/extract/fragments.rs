@@ -46,10 +46,14 @@ static REGEX_TO_REMOVE: LazyLock<Regex> = LazyLock::new(|| {
 /// IDs are unique between calls. For most uses, [`GithubHeadingIdGenerator`]
 /// should be used instead.
 pub fn generate_without_disambiguation(text: &str) -> String {
-    REGEX_TO_REMOVE
-        .replace_all(text, "")
-        .replace(' ', "-")
-        .to_lowercase()
+    // Rust's to_lowercase handles the special cases as in
+    // <https://www.unicode.org/Public/3.2-Update/SpecialCasing-3.2.0.txt>,
+    // but GitHub's algorithm does not.
+    let text = text
+        .replace('Σ', "σ") // github does not emit GREEK SMALL LETTER FINAL SIGMA, rust does
+        .replace('\u{0130}', "i") // github emits "i" for but rust emits "i\u{0307}"
+        .to_lowercase();
+    REGEX_TO_REMOVE.replace_all(&text, "").replace(' ', "-")
 }
 
 /// A stateful type for generating fragment identifiers in the style
@@ -157,6 +161,24 @@ mod tests {
         assert_eq!(
             unpercent("à-á-â-ã-ä-å-or-à-á-â-ã-ä-å"),
             generate_without_disambiguation("À, Á, Â, Ã, Ä, Å or à, á, â, ã, ä, å")
+        );
+
+        assert_eq!("aib", generate_without_disambiguation("aİb"));
+
+        assert_eq!(
+            unpercent(
+                "%CE%BD%CE%B1%CF%84%CE%BF%CF%85-%CE%B3%CE%B9%CE%B1%CE%BD%CE%BD%CE%B7%CF%83-sigma-final-position"
+            ),
+            generate_without_disambiguation("ΝΑΤΟΥ, ΓΙΑΝΝΗΣ sigma final position"),
+            "greek capital sigma in final position should lowercase with cedilla"
+        );
+
+        assert_eq!(
+            unpercent(
+                "%CF%83%CE%BA%CE%BF%CF%80%CF%8C%CF%82-%CE%BA%CE%AC%CE%B8%CE%B5-sigma-initial-position"
+            ),
+            generate_without_disambiguation("Σκοπός κάθε sigma initial position"),
+            "greek capital sigma in non-final position is a normal sigma"
         );
     }
 

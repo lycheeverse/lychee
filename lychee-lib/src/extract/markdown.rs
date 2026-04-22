@@ -389,6 +389,8 @@ or inline like `https://bar.org` for instance.
             "foo-2",
             "foo-3",
             "à-á-â-ã-ä-å-or-à-á-â-ã-ä-å",
+            "νατου-γιαννησ-sigma-final-position",
+            "σκοπός-κάθε-sigma-initial-position",
             "🅰\u{fe0f}-d",
         ]
         .into_iter()
