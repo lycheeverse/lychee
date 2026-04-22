@@ -4136,6 +4136,7 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
             .assert()
             .success();
     }
+
     /// Verifies that loading an older, legacy `.lycheecache` file containing a cached error
     /// correctly drops the error and successfully retries the link.
     /// This ensures we don't break existing user CI workflows that have older cache files
@@ -4442,8 +4443,7 @@ exclude_path = ["exclude_package.txt"]
         std::fs::write(dir.path().join("exclude_workspace.txt"), "")?;
         std::fs::write(dir.path().join("exclude_package.txt"), "")?;
 
-        let mut cmd = cargo_bin_cmd!();
-        let assert = cmd
+        let assert = cargo_bin_cmd!()
             .current_dir(dir.path())
             .arg("--dump-inputs")
             .arg(".")
@@ -4455,6 +4455,19 @@ exclude_path = ["exclude_package.txt"]
         assert!(!output.contains("exclude_package.txt"));
         assert!(output.contains("exclude_workspace.txt"));
         Ok(())
+    }
+
+    /// Verify that lychee will fail before all checks run if the parent of the given output path does not exist
+    /// See https://github.com/lycheeverse/lychee/issues/2147
+    #[test]
+    fn test_output_invalid_path() {
+        cargo_bin_cmd!()
+            .arg("--output")
+            .arg("does/not/exist")
+            .arg("-")
+            .assert().failure().stderr(contains(
+            "Output path `does/not/exist` is not writable: parent directory `does/not` does not exist",
+        ));
     }
 }
 
@@ -4480,18 +4493,5 @@ fn test_file_limit_low_concurrency() {
     let mut assert_cmd = assert_cmd::Command::from(cmd);
     assert_cmd.assert().stderr(predicates::str::contains(
         "System file descriptor limit is 64 which is too low for the requested concurrency of 128. Lowering `max_concurrency` to 44",
-    ));
-}
-
-// Verify that lychee will fail before all checks run if the parent of the given output path does not exist
-// See https://github.com/lycheeverse/lychee/issues/2147
-#[test]
-fn test_output_invalid_path() {
-    let mut cmd = assert_cmd::Command::cargo_bin("lychee").unwrap();
-    cmd.arg("--output")
-        .arg("does/not/exist")
-        .arg("https://example.com");
-    cmd.assert().failure().stderr(predicates::str::contains(
-        "Output path `does/not/exist` is not writable: parent directory `does/not` does not exist",
     ));
 }
