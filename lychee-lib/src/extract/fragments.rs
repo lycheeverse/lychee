@@ -50,7 +50,7 @@ pub fn generate_without_disambiguation(text: &str) -> String {
     // <https://www.unicode.org/Public/3.2-Update/SpecialCasing-3.2.0.txt>,
     // but GitHub's algorithm does not.
     REGEX_TO_REMOVE
-        .split(&text)
+        .split(text)
         .flat_map(str::chars)
         .map(|c| {
             match c {
