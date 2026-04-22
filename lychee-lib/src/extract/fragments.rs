@@ -49,11 +49,19 @@ pub fn generate_without_disambiguation(text: &str) -> String {
     // Rust's to_lowercase handles the special cases as in
     // <https://www.unicode.org/Public/3.2-Update/SpecialCasing-3.2.0.txt>,
     // but GitHub's algorithm does not.
-    let text = text
-        .replace('Σ', "σ") // github does not emit GREEK SMALL LETTER FINAL SIGMA, rust does
-        .replace('\u{0130}', "i") // github emits "i" for but rust emits "i\u{0307}"
-        .to_lowercase();
-    REGEX_TO_REMOVE.replace_all(&text, "").replace(' ', "-")
+    REGEX_TO_REMOVE
+        .split(&text)
+        .flat_map(str::chars)
+        .map(|c| {
+            match c {
+                ' ' => '-',
+                '\u{0130}' => 'i', // U+0130 LATIN CAPITAL LETTER I WITH DOT ABOVE
+                'Σ' => 'σ',        // U+03A3 GREEK CAPITAL LETTER SIGMA
+                c => c,
+            }
+        })
+        .collect::<String>()
+        .to_lowercase()
 }
 
 /// A stateful type for generating fragment identifiers in the style
