@@ -4468,6 +4468,13 @@ exclude_path = ["exclude_package.txt"]
 
         cargo_bin_cmd!()
             .arg("-")
+            .arg("--max-retries=0")
+            .write_stdin("https://http.codes/429")
+            .assert()
+            .stderr(contains(r#"Hint: Encountered rate limit responses. You can might be able to work around this issue by adding `[hosts."http.codes"]` to the TOML config to adjust the 'concurrency' and 'request_interval' values."#));
+
+        cargo_bin_cmd!()
+            .arg("-")
             .arg("--max-redirects=0")
             .write_stdin("http://rust-lang.org")
             .arg("-q") // hide user hints

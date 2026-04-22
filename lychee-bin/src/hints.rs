@@ -46,10 +46,34 @@ pub(crate) fn show_hints(verbosity: &Verbosity) {
 
 /// Collect hints based on the resulting statistics.
 pub(crate) fn handle_stats(stats: &ResponseStats, config: &Config) {
+    rate_limit(stats, config);
     github_rate_limit(stats, config);
     any_redirects(stats, config);
     rejected_status_codes(stats, config);
     unfollowed_redirects(stats, config);
+}
+
+fn rate_limit(stats: &ResponseStats, config: &Config) {
+    let default_host_config = config.hosts.is_empty();
+    let first_rate_limited_domain = stats
+        .error_map
+        .values()
+        .flatten()
+        .find(|r| {
+            matches!(
+                r.status,
+                Status::Error(ErrorKind::RejectedStatusCode(StatusCode::TOO_MANY_REQUESTS))
+            )
+        })
+        .and_then(|b| b.uri.domain());
+
+    if default_host_config && let Some(domain) = first_rate_limited_domain {
+        add_hint(format!(
+            "Encountered rate limit responses. \
+            You can might be able to work around this issue by adding `[hosts.\"{domain}\"]` to the TOML config \
+            to adjust the 'concurrency' and 'request_interval' values."
+        ).into());
+    }
 }
 
 /// Github rate limits can be circumvented by specifying a token.

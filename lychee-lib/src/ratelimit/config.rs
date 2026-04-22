@@ -65,9 +65,15 @@ impl HostConfigs {
     }
 
     /// Get the number of [`HostConfig`]s
-    #[cfg(test)]
-    pub(crate) fn len(&self) -> usize {
+    #[must_use]
+    pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    /// Get the number of [`HostConfig`]s
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     /// Get the iterator over all elements
