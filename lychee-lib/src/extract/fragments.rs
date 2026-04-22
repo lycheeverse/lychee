@@ -63,7 +63,7 @@ pub struct GithubHeadingIdGenerator {
     /// Map of ID to suffix which should be used for the *next* occurrence
     /// of that ID. If an ID is not present in this map, it means that it
     /// hasn't been seen before and no suffix is necessary.
-    count: HashMap<String, NonZeroUsize>,
+    next_suffixes: HashMap<String, NonZeroUsize>,
 }
 
 impl GithubHeadingIdGenerator {
@@ -71,7 +71,7 @@ impl GithubHeadingIdGenerator {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            count: HashMap::new(),
+            next_suffixes: HashMap::new(),
         }
     }
 
@@ -82,30 +82,29 @@ impl GithubHeadingIdGenerator {
     /// This function will mutate the [`GithubHeadingIdGenerator`] to record
     /// the returned string.
     fn disambiguate(&mut self, base_id: String) -> String {
-        let mut suffix: Option<NonZeroUsize> = self.count.get(&base_id).copied();
-        let mut result = base_id.clone();
+        const ONE: NonZeroUsize = NonZeroUsize::MIN;
+        let mut candidate = base_id.clone();
 
-        let next_suffix = loop {
-            result.truncate(base_id.len());
+        let this_suffix = self.next_suffixes.get(&base_id).map(|&initial_suffix| {
+            (initial_suffix.into()..=usize::MAX)
+                .find(|suffix| {
+                    candidate.truncate(base_id.len());
+                    candidate.push('-');
+                    candidate.push_str(&suffix.to_string());
 
-            let next_suffix = if let Some(non_zero) = suffix {
-                result.push('-');
-                result.push_str(&non_zero.to_string());
-                non_zero.saturating_add(1)
-            } else {
-                NonZeroUsize::MIN
-            };
+                    !self.next_suffixes.contains_key(&candidate)
+                })
+                .unwrap_or(/* in case of overflow only */ usize::MAX)
+        });
 
-            if !self.count.contains_key(&result) || next_suffix == NonZeroUsize::MAX {
-                break next_suffix;
-            }
+        let next_suffix = ONE.saturating_add(this_suffix.unwrap_or(0));
+        self.next_suffixes.insert(base_id, next_suffix);
 
-            suffix = Some(next_suffix);
-        };
+        if this_suffix.is_some() {
+            self.next_suffixes.insert(candidate.clone(), ONE);
+        }
 
-        self.count.insert(base_id, next_suffix);
-        self.count.insert(result.clone(), NonZeroUsize::MIN);
-        result
+        candidate
     }
 
     /// Converts the given header text into a lowercase hyphen-separated
