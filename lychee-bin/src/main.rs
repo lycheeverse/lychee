@@ -467,7 +467,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
             cookie_jar.save().context("Cannot save cookie jar")?;
         }
 
-        hints::show_hints();
+        hints::show_hints(&opts.config.verbose());
         exit_code
     };
 

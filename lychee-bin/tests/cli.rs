@@ -4469,6 +4469,32 @@ exclude_path = ["exclude_package.txt"]
             "Output path `does/not/exist` is not writable: parent directory `does/not` does not exist",
         ));
     }
+
+    #[tokio::test]
+    async fn test_user_hints() {
+        cargo_bin_cmd!()
+            .arg("-")
+            .write_stdin("http://github.com/this/does/not/exist")
+            .assert()
+            .stderr(contains("Hint: There were issues with GitHub URLs. You could try setting a GitHub token with --github-token\n"))
+            .stderr(contains("Hint: Followed 1 redirect. You might want to consider replacing redirecting URLs with the resolved URLs. Use verbose mode (-v/-vv) to see redirection details.\n"))
+            .stderr(contains("Hint: You can configure accepted response codes with -a or --accept\n"));
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--max-redirects=0")
+            .write_stdin("http://rust-lang.org")
+            .assert()
+            .stderr(contains("Hint: Rejected redirectional status codes. This means some redirects were not followed. You might want to increase the limit for -m/--max-redirects."));
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--max-redirects=0")
+            .write_stdin("http://rust-lang.org")
+            .arg("-q") // hide user hints
+            .assert()
+            .stderr(contains("Hint").not());
+    }
 }
 
 #[cfg(unix)]

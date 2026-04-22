@@ -4,12 +4,12 @@ use std::{fmt::Display, sync::Mutex};
 
 use lychee_lib::StatusCodeSelector;
 
-use crate::{config::Config, formatters::stats::ResponseStats};
+use crate::{config::Config, formatters::stats::ResponseStats, verbosity::Verbosity};
 
 /// Hints are accumulated during a single program invocation.
 static HINTS: Mutex<Vec<Hint>> = Mutex::new(vec![]);
 
-/// A informative and friendly message created during the invocation of the program
+/// An informative and friendly message created during the invocation of the program
 /// to be displayed before termination, to improve user experience.
 pub(crate) struct Hint(String);
 
@@ -35,9 +35,11 @@ pub(crate) fn add_hint(hint: Hint) {
     HINTS.lock().unwrap().push(hint);
 }
 
-pub(crate) fn show_hints() {
-    for hint in HINTS.lock().unwrap().iter() {
-        eprintln!("Hint: {hint}");
+pub(crate) fn show_hints(verbosity: &Verbosity) {
+    if verbosity.log_level() > log::Level::Error {
+        for hint in HINTS.lock().unwrap().iter() {
+            eprintln!("Hint: {hint}");
+        }
     }
 }
 
@@ -66,7 +68,7 @@ fn github_token(stats: &ResponseStats, config: &Config) {
 
 fn any_redirects(stats: &ResponseStats, config: &Config) {
     const DETAILS: &str = "You might want to consider replacing redirecting URLs with the resolved URLs. \
-    Use verbose mode (-vv) to see redirection details.";
+    Use verbose mode (-v/-vv) to see redirection details.";
 
     let count = stats.redirects;
     let has_redirects = count > 0;
@@ -97,7 +99,7 @@ fn rejected_status_codes(stats: &ResponseStats, config: &Config) {
 }
 
 fn unfollowed_redirects(stats: &ResponseStats, config: &Config) {
-    const MESSAGE: &str = "Rejected redirecional status codes. \
+    const MESSAGE: &str = "Rejected redirectional status codes. \
     This means some redirects were not followed. \
     You might want to increase the limit for -m/--max-redirects.";
 
