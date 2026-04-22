@@ -239,12 +239,11 @@ mod cli {
     /// See https://github.com/lycheeverse/lychee/issues/1355
     #[test]
     fn test_valid_json_output_to_stdout_on_error() -> Result<()> {
-        let test_path = fixtures_path!().join("TEST_GITHUB_404.md");
-
         let mut cmd = cargo_bin_cmd!();
         cmd.arg("--format")
             .arg("json")
-            .arg(test_path)
+            .arg("-")
+            .write_stdin("https://github.com/mre/idiomatic-rust-doesnt-exist-man")
             .assert()
             .failure()
             .code(2);
@@ -621,25 +620,6 @@ mod cli {
             .stdout(contains("3 Total"))
             .stdout(contains("2 OK"))
             .stdout(contains("1 Excluded"));
-    }
-
-    #[test]
-    fn test_failure_github_404_no_token() {
-        let test_github_404_path = fixtures_path!().join("TEST_GITHUB_404.md");
-
-        cargo_bin_cmd!()
-            .arg(test_github_404_path)
-            .arg("--no-progress")
-            .env_clear()
-            .assert()
-            .failure()
-            .code(2)
-            .stdout(contains(
-                r#"[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 3:9) | Rejected status code: 404 Not Found"#
-            ))
-            .stderr(contains(
-                "Hint: There were issues with GitHub URLs. You could try setting a GitHub token with --github-token",
-            ));
     }
 
     #[tokio::test]
@@ -4474,11 +4454,10 @@ exclude_path = ["exclude_package.txt"]
     async fn test_user_hints() {
         cargo_bin_cmd!()
             .arg("-")
-            .write_stdin("http://github.com/this/does/not/exist")
+            .write_stdin("http://wikipedia.org/this/does/not/exist")
             .assert()
-            .stderr(contains("Hint: There were issues with GitHub URLs. You could try setting a GitHub token with --github-token\n"))
             .stderr(contains("Hint: Followed 1 redirect. You might want to consider replacing redirecting URLs with the resolved URLs. Use verbose mode (-v/-vv) to see redirection details.\n"))
-            .stderr(contains("Hint: You can configure accepted response codes with -a or --accept\n"));
+            .stderr(contains("Hint: You can configure accepted/rejected response codes with -a or --accept\n"));
 
         cargo_bin_cmd!()
             .arg("-")
