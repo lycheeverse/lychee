@@ -20,7 +20,7 @@ mod cli {
         io::{BufRead, Write},
         ops::Not,
         path::Path,
-        time::{Duration, Instant},
+        time::Duration,
     };
     use tempfile::{NamedTempFile, tempdir};
     use test_utils::{fixtures_path, mock_server, redirecting_mock_server, root_path};
@@ -28,7 +28,7 @@ mod cli {
 
     use uuid::Uuid;
     use wiremock::{
-        Mock, Request, ResponseTemplate,
+        Mock, ResponseTemplate,
         matchers::{basic_auth, method, path},
     };
 

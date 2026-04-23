@@ -115,6 +115,10 @@ impl Host {
 
     /// Record a cache hit from the persistent disk cache.
     /// Cache misses are tracked internally, so we don't expose such a method.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal stats mutex is poisoned.
     pub fn record_cache_hit(&self) {
         self.stats
             .lock()
@@ -282,12 +286,12 @@ impl Host {
     fn parse_rate_limit_headers(&self, response: &ReqwestResponse) {
         let headers = response.headers();
 
-        if let Ok(rate_limit) = rate_limits::RateLimit::new(headers) {
-            if rate_limit.is_limited() {
-                let duration = rate_limit.reset().duration();
-                if !duration.is_zero() {
-                    self.increase_backoff(duration);
-                }
+        if let Ok(rate_limit) = rate_limits::RateLimit::new(headers)
+            && rate_limit.is_limited()
+        {
+            let duration = rate_limit.reset().duration();
+            if !duration.is_zero() {
+                self.increase_backoff(duration);
             }
         }
     }
