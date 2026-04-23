@@ -149,10 +149,12 @@ mod tests {
         "underscores-foo_bar_-dots--and-numbers-17e-3"
     )]
     #[case("Many          spaces", "many----------spaces")]
+    #[case("À, Á, Â, Ã, Ä, Å or à, á, â, ã, ä, å", "à-á-â-ã-ä-å-or-à-á-â-ã-ä-å")]
+    // Regression tests for https://github.com/lycheeverse/lychee/issues/2112
     #[case::emoji_variation_selector_kept("#️⃣ b", unpercent("%EF%B8%8F⃣-b"))]
     #[case::emoji_variation_selector_kept("☔️ c", unpercent("%EF%B8%8F-c"))]
     #[case::alphabetic_emoji_kept("🅰️ d", unpercent("🅰%EF%B8%8F-d"))]
-    #[case::accents("À, Á, Â, Ã, Ä, Å or à, á, â, ã, ä, å", "à-á-â-ã-ä-å-or-à-á-â-ã-ä-å")]
+    // Should NOT apply Unicode's special casing rules: https://www.unicode.org/Public/3.2-Update/SpecialCasing-3.2.0.txt
     #[case::capital_dotted_i("aİb", "aib")]
     #[case::sigma_final_position(
         "ΝΑΤΟΥ, ΓΙΑΝΝΗΣ",
@@ -162,6 +164,7 @@ mod tests {
         "Σκοπός κάθε",
         unpercent("%CF%83%CE%BA%CE%BF%CF%80%CF%8C%CF%82-%CE%BA%CE%AC%CE%B8%CE%B5")
     )]
+    // Case missed by github-slugger's algorithm
     #[case::zero_width_joiners(
         "joiners a\u{200c} b\u{200d} end",
         unpercent("joiners-a%E2%80%8C-b%E2%80%8D-end")
