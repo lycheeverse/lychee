@@ -29,8 +29,8 @@ jobs:
     name: create-release
     runs-on: ubuntu-latest
     outputs:
-      tag_name: ${{ steps.get_release.outputs.tag_name || 'test-tag' }}
-      upload_url: ${{ steps.get_release.outputs.upload_url || '' }}
+      tag_name: ${{ steps.get_release.outputs.tag_name }}
+      upload_url: ${{ steps.get_release.outputs.upload_url }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -38,9 +38,6 @@ jobs:
       - name: Get release
         id: get_release
         uses: bruceadams/get-release@v1.3.2
-        # Skip step if not in the official repository as it would fail.
-        # Instead fail at the end of this workflow.
-        if: ${{ github.repository == 'lycheeverse/lychee' && github.event_name == 'release' }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
@@ -188,6 +185,13 @@ jobs:
         shell: bash
         run: strip "$BIN"
 
+      - name: Strip release binary (native Linux host)
+        # The native x86_64-unknown-linux-gnu build does not go through cross,
+        # so strip it directly on the runner.
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        shell: bash
+        run: strip "$BIN"
+
       - name: Strip release binary (cross)
         if: env.CARGO == 'cross'
         shell: bash
@@ -292,16 +296,19 @@ jobs:
           echo "ASSET_SUM=$ARCHIVE.tar.gz.sha256" >> $GITHUB_ENV
 
       - name: Build macOS DMG (aarch64 only)
+        # We only build a DMG for Apple Silicon (aarch64). The x86_64 macOS
+        # build ships as a tar.gz only, as demand for that target is low.
+        # If you need an x86_64 macOS DMG, please open an issue.
         if: matrix.build == 'aarch64-macos'
         shell: bash
         run: |
-          # Create DMG for macOS arm64
+          # Create DMG for macOS arm64 and append it to the assets to upload
           mkdir -p dmg
           cp "$BIN" dmg/
           hdiutil create -fs HFS+ -srcfolder dmg -volname lychee "$ARCHIVE.dmg"
           shasum -a 256 "$ARCHIVE.dmg" > "$ARCHIVE.dmg.sha256"
-          echo "ASSET_DMG=$ARCHIVE.dmg" >> $GITHUB_ENV
-          echo "ASSET_DMG_SUM=$ARCHIVE.dmg.sha256" >> $GITHUB_ENV
+          echo "ASSET=${ASSET} $ARCHIVE.dmg" >> $GITHUB_ENV
+          echo "ASSET_SUM=${ASSET_SUM} $ARCHIVE.dmg.sha256" >> $GITHUB_ENV
 
       - name: Check if possible to release
         if: ${{ needs.create-release.outputs.upload_url == '' }}
@@ -317,13 +324,3 @@ jobs:
         run: |
           version="${{ needs.create-release.outputs.tag_name }}"
           gh release upload "$version" ${{ env.ASSET }} ${{ env.ASSET_SUM }}
-
-      - name: Upload macOS DMG
-        if: matrix.build == 'aarch64-macos'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-        shell: bash
-        run: |
-          version="${{ needs.create-release.outputs.tag_name }}"
-          gh release upload "$version" ${{ env.ASSET_DMG }} ${{ env.ASSET_DMG_SUM }}
