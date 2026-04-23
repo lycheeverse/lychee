@@ -4471,7 +4471,7 @@ exclude_path = ["exclude_package.txt"]
             .arg("--max-retries=0")
             .write_stdin("https://http.codes/429")
             .assert()
-            .stderr(contains(r#"Hint: Encountered rate limit responses. You can might be able to work around this issue by adding `[hosts."http.codes"]` to the TOML config to adjust the 'concurrency' and 'request_interval' values."#));
+            .stderr(contains(r#"Hint: Encountered rate limit responses. You might be able to work around this by adding `[hosts."http.codes"]` to the TOML config to adjust the `concurrency` and `request_interval` values."#));
 
         cargo_bin_cmd!()
             .arg("-")

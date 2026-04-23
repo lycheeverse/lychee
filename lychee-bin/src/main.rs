@@ -90,7 +90,7 @@ mod progress;
 mod time;
 mod verbosity;
 
-use crate::formatters::stats::{OutputStats, output_statistics};
+use crate::formatters::stats::{OutputStats, output_hints, output_statistics};
 use crate::{
     cache::Cache,
     config::{Config, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE, LycheeOptions},
@@ -467,7 +467,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
             cookie_jar.save().context("Cannot save cookie jar")?;
         }
 
-        hints::show_hints(&opts.config.verbose());
+        output_hints(&hints::get_hints(), &opts.config);
         exit_code
     };
 

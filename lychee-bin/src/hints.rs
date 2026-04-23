@@ -5,13 +5,14 @@ use std::{fmt::Display, sync::Mutex};
 use http::StatusCode;
 use lychee_lib::{ErrorKind, Status, StatusCodeSelector};
 
-use crate::{config::Config, formatters::stats::ResponseStats, verbosity::Verbosity};
+use crate::{config::Config, formatters::stats::ResponseStats};
 
 /// Hints are accumulated during a single program invocation.
 static HINTS: Mutex<Vec<Hint>> = Mutex::new(vec![]);
 
 /// An informative and friendly message created during the invocation of the program
 /// to be displayed before termination, to improve user experience.
+#[derive(Clone)]
 pub(crate) struct Hint(String);
 
 impl Display for Hint {
@@ -32,16 +33,13 @@ impl From<&str> for Hint {
     }
 }
 
+/// Add a [`Hint`] to be shown to users before program termination
 pub(crate) fn add_hint(hint: Hint) {
     HINTS.lock().unwrap().push(hint);
 }
 
-pub(crate) fn show_hints(verbosity: &Verbosity) {
-    if verbosity.log_level() > log::Level::Error {
-        for hint in HINTS.lock().unwrap().iter() {
-            eprintln!("Hint: {hint}");
-        }
-    }
+pub(crate) fn get_hints() -> Vec<Hint> {
+    HINTS.lock().unwrap().clone()
 }
 
 /// Collect hints based on the resulting statistics.
@@ -70,8 +68,8 @@ fn rate_limit(stats: &ResponseStats, config: &Config) {
     if default_host_config && let Some(domain) = first_rate_limited_domain {
         add_hint(format!(
             "Encountered rate limit responses. \
-            You can might be able to work around this issue by adding `[hosts.\"{domain}\"]` to the TOML config \
-            to adjust the 'concurrency' and 'request_interval' values."
+            You might be able to work around this by adding `[hosts.\"{domain}\"]` to the TOML config \
+            to adjust the `concurrency` and `request_interval` values."
         ).into());
     }
 }
