@@ -16,7 +16,13 @@ const RATE_LIMIT_RESET_OFFSET_SECONDS: u64 = RATE_LIMIT_DELAY_SECONDS + 1;
 
 /// How far below the expected delay is still considered a passing result,
 /// accounting for timing imprecision in the test environment.
-const TIMING_TOLERANCE: Duration = Duration::from_millis(500);
+///
+/// For tests that encode an *absolute* Unix timestamp (GitHub, GitLab), the
+/// measured server-side delay is `RATE_LIMIT_RESET_OFFSET_SECONDS` minus the
+/// time between `calculate_reset_time()` and lychee parsing the response
+/// headers. That includes process spawn, TLS setup, and the first HTTP
+/// round-trip, which can be well over 500ms on slow CI runners.
+const TIMING_TOLERANCE: Duration = Duration::from_millis(1000);
 
 /// Maximum additional time beyond the expected delay before the test fails.
 /// Intentionally generous to handle slow CI environments while still catching
@@ -80,20 +86,21 @@ async fn run_rate_limit_test(headers: &[(&str, &str)], expected_delay: Duration)
         .assert()
         .success();
 
-    let times = request_times.lock().unwrap();
-    assert_eq!(
-        times.len(),
-        paths.len(),
-        "Expected {} requests but recorded {}; backoff timing is meaningless",
-        paths.len(),
-        times.len()
-    );
+    let elapsed = {
+        let times = request_times.lock().unwrap();
+        assert_eq!(
+            times.len(),
+            paths.len(),
+            "Expected {} requests but recorded {}; backoff timing is meaningless",
+            paths.len(),
+            times.len()
+        );
 
-    let elapsed = times
-        .last()
-        .unwrap()
-        .duration_since(*times.first().unwrap());
-    drop(times);
+        times
+            .last()
+            .unwrap()
+            .duration_since(*times.first().unwrap())
+    };
 
     let expected_min = expected_delay.saturating_sub(TIMING_TOLERANCE);
     let expected_max = expected_delay + MAX_OVERHEAD;
@@ -297,15 +304,16 @@ async fn test_retry_after_seconds() {
         .assert()
         .success();
 
-    let times = request_times.lock().unwrap();
-    assert_eq!(
-        times.len(),
-        2,
-        "Expected 2 recorded requests (path1 first hit + path2), got {}",
-        times.len()
-    );
-    let elapsed = times[1].duration_since(times[0]);
-    drop(times);
+    let elapsed = {
+        let times = request_times.lock().unwrap();
+        assert_eq!(
+            times.len(),
+            2,
+            "Expected 2 recorded requests (path1 first hit + path2), got {}",
+            times.len()
+        );
+        times[1].duration_since(times[0])
+    };
 
     let expected_delay = Duration::from_secs(RATE_LIMIT_DELAY_SECONDS);
     let expected_min = expected_delay.saturating_sub(TIMING_TOLERANCE);
