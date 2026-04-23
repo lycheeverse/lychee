@@ -1,19 +1,19 @@
 //! Converts heading text into hyphen-separated strings for use as fragment identifiers,
 //! mimicking the algorithm which GitHub uses for generating Markdown fragment IDs.
 //!
-/// This is from the [`html-pipeline` Ruby library][1], which is cited in [markdownlint].
-/// markdownlint doesn't provide a justification for this citation, but the change was
-/// [committed][] by someone who works at Microsoft so I think it's likely this is the
-/// real algorithm which is used. This also lines up with GitHub being built in Ruby.
-///
-/// There is also [Flet/github-slugger][], but their regex is based on observation and
-/// experiments, and we find there are discrepancies which suggest `html-pipeline` is
-/// more likely.
-///
-/// [1]: https://github.com/gjtorikian/html-pipeline/blob/f13a1534cb650ba17af400d1acd3a22c28004c09/lib/html/pipeline/toc_filter.rb#L30
-/// [markdownlint]: https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md051.md
-/// [committed]: https://github.com/DavidAnson/markdownlint/commit/30353cc733561af72bf5d226105429c07b43a666
-/// [Flet/github-slugger]: https://github.com/Flet/github-slugger
+//! This is from the [`html-pipeline` Ruby library][1], which is cited in [markdownlint].
+//! markdownlint doesn't provide a justification for this citation, but the change was
+//! [committed][] by someone who works at Microsoft so I think it's likely this is the
+//! real algorithm which is used. This also lines up with GitHub being built in Ruby.
+//!
+//! There is also [Flet/github-slugger][], but their regex is based on observation and
+//! experiments, and we find there are discrepancies which suggest `html-pipeline` is
+//! more likely.
+//!
+//! [1]: https://github.com/gjtorikian/html-pipeline/blob/f13a1534cb650ba17af400d1acd3a22c28004c09/lib/html/pipeline/toc_filter.rb#L30
+//! [markdownlint]: https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md051.md
+//! [committed]: https://github.com/DavidAnson/markdownlint/commit/30353cc733561af72bf5d226105429c07b43a666
+//! [Flet/github-slugger]: https://github.com/Flet/github-slugger
 use std::{collections::HashMap, num::NonZeroUsize, sync::LazyLock};
 
 use regex::Regex;
