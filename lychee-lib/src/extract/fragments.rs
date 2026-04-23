@@ -1,45 +1,26 @@
 //! Converts heading text into hyphen-separated strings for use as fragment identifiers,
 //! mimicking the algorithm which GitHub uses for generating Markdown fragment IDs.
 //!
-//! The core algorithm is based on [Flet/github-slugger](https://github.com/Flet/github-slugger/).
-
-use std::fmt::Write;
+/// This is from the [`html-pipeline` Ruby library][1], which is cited in [markdownlint].
+/// markdownlint doesn't provide a justification for this citation, but the change was
+/// [committed][] by someone who works at Microsoft so I think it's likely this is the
+/// real algorithm which is used. This also lines up with GitHub being built in Ruby.
+///
+/// There is also [Flet/github-slugger][], but their regex is based on observation and
+/// experiments, and we find there are discrepancies which suggest `html-pipeline` is
+/// more likely.
+///
+/// [1]: https://github.com/gjtorikian/html-pipeline/blob/f13a1534cb650ba17af400d1acd3a22c28004c09/lib/html/pipeline/toc_filter.rb#L30
+/// [markdownlint]: https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md051.md
+/// [committed]: https://github.com/DavidAnson/markdownlint/commit/30353cc733561af72bf5d226105429c07b43a666
+/// [Flet/github-slugger]: https://github.com/Flet/github-slugger
 use std::{collections::HashMap, num::NonZeroUsize, sync::LazyLock};
 
 use regex::Regex;
 
-/// From <https://github.com/Flet/github-slugger/blob/master/script/generate-regex.js#L8>
-static UNICODE_GENERAL_CATEGORIES_TO_REMOVE: &[&str] = &[
-    // Some numbers:
-    "Other_Number",
-    // Some punctuation:
-    "Close_Punctuation",
-    "Final_Punctuation",
-    "Initial_Punctuation",
-    "Open_Punctuation",
-    "Other_Punctuation",
-    // All except a normal `-` (dash)
-    "Dash_Punctuation",
-    // All:
-    "Symbol",
-    "Control",
-    "Private_Use",
-    "Format",
-    "Unassigned",
-    // All except a normal ` ` (space)
-    "Separator",
-];
-
-static REGEX_TO_REMOVE: LazyLock<Regex> = LazyLock::new(|| {
-    let mut includes = String::new();
-    for cat in UNICODE_GENERAL_CATEGORIES_TO_REMOVE {
-        let _ = write!(includes, r"\p{{{cat}}}");
-    }
-
-    let excludes = r"\p{Alphabetic} -";
-
-    Regex::new(&format!("[{includes}&&[^{excludes}]]+")).expect("fragment regex failed to build")
-});
+/// From <https://github.com/gjtorikian/html-pipeline/blob/f13a1534cb650ba17af400d1acd3a22c28004c09/lib/html/pipeline/toc_filter.rb#L30>
+static REGEX_TO_REMOVE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"[^\w -]").expect("fragment regex failed"));
 
 /// Converts the given header text into a hyphen-separated fragment ID, mimicking
 /// the algorithm used by GitHub. However, does not guarantee that the returned
@@ -48,7 +29,8 @@ static REGEX_TO_REMOVE: LazyLock<Regex> = LazyLock::new(|| {
 pub fn generate_without_disambiguation(text: &str) -> String {
     // Rust's to_lowercase handles the special cases as in
     // <https://www.unicode.org/Public/3.2-Update/SpecialCasing-3.2.0.txt>,
-    // but GitHub's algorithm does not.
+    // but GitHub's algorithm does not, presumably because it is implemented
+    // in Ruby: https://ruby-doc.org/3.4.1/case_mapping_rdoc.html#label-Default+Case+Mapping
     REGEX_TO_REMOVE
         .split(text)
         .flat_map(str::chars)
@@ -187,6 +169,16 @@ mod tests {
             ),
             generate_without_disambiguation("Σκοπός κάθε sigma initial position"),
             "greek capital sigma in non-final position is a normal sigma"
+        );
+
+        assert_eq!(
+            unpercent(
+                "joiners-a%E2%80%8C-b%E2%80%8D-c%E2%93%A9-d%E1%BD%81-e%F0%9F%85%A9-f%F0%9F%86%89-end"
+            ),
+            generate_without_disambiguation(
+                "joiners a\u{200c} b\u{200d} c\u{24e9} d\u{1f49} e\u{1f169} f\u{1f189} end"
+            ),
+            "join_control and derived alphabetics"
         );
     }
 
