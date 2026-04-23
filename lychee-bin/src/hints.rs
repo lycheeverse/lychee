@@ -12,7 +12,7 @@ static HINTS: Mutex<Vec<Hint>> = Mutex::new(vec![]);
 
 /// An informative and friendly message created during the invocation of the program
 /// to be displayed before termination, to improve user experience.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Hint(String);
 
 impl Display for Hint {
@@ -38,8 +38,11 @@ pub(crate) fn add_hint(hint: Hint) {
     HINTS.lock().unwrap().push(hint);
 }
 
+/// Get [`Hint`]s to report to users
 pub(crate) fn get_hints() -> Vec<Hint> {
-    HINTS.lock().unwrap().clone()
+    let mut hints = HINTS.lock().unwrap().clone();
+    hints.sort(); // for reproducible reporting
+    hints
 }
 
 /// Collect hints based on the resulting statistics.
