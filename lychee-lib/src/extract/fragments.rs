@@ -122,6 +122,7 @@ impl GithubHeadingIdGenerator {
 #[cfg(test)]
 mod tests {
     use percent_encoding::percent_decode_str;
+    use rstest::rstest;
 
     use super::{GithubHeadingIdGenerator, generate_without_disambiguation};
 
@@ -132,78 +133,44 @@ mod tests {
             .into_owned()
     }
 
-    #[test]
-    fn test_generate_without_disambiguation() {
-        assert_eq!("a-b", generate_without_disambiguation("a b"));
-        assert_eq!(
-            unpercent("%EF%B8%8F⃣-b"),
-            generate_without_disambiguation("#️⃣ b")
-        );
-        assert_eq!(
-            unpercent("%EF%B8%8F-c"),
-            generate_without_disambiguation("☔️ c")
-        );
-        assert_eq!(
-            unpercent("🅰%EF%B8%8F-d"),
-            generate_without_disambiguation("🅰️ d")
-        );
-
-        assert_eq!(
-            unpercent("à-á-â-ã-ä-å-or-à-á-â-ã-ä-å"),
-            generate_without_disambiguation("À, Á, Â, Ã, Ä, Å or à, á, â, ã, ä, å")
-        );
-
-        assert_eq!("aib", generate_without_disambiguation("aİb"));
-
-        assert_eq!(
-            unpercent(
-                "%CE%BD%CE%B1%CF%84%CE%BF%CF%85-%CE%B3%CE%B9%CE%B1%CE%BD%CE%BD%CE%B7%CF%83-sigma-final-position"
-            ),
-            generate_without_disambiguation("ΝΑΤΟΥ, ΓΙΑΝΝΗΣ sigma final position"),
-            "greek capital sigma in final position should lowercase with cedilla"
-        );
-
-        assert_eq!(
-            unpercent(
-                "%CF%83%CE%BA%CE%BF%CF%80%CF%8C%CF%82-%CE%BA%CE%AC%CE%B8%CE%B5-sigma-initial-position"
-            ),
-            generate_without_disambiguation("Σκοπός κάθε sigma initial position"),
-            "greek capital sigma in non-final position is a normal sigma"
-        );
-
-        assert_eq!(
-            unpercent(
-                "joiners-a%E2%80%8C-b%E2%80%8D-c%E2%93%A9-d%E1%BD%81-e%F0%9F%85%A9-f%F0%9F%86%89-end"
-            ),
-            generate_without_disambiguation(
-                "joiners a\u{200c} b\u{200d} c\u{24e9} d\u{1f49} e\u{1f169} f\u{1f189} end"
-            ),
-            "join_control and derived alphabetics"
-        );
+    #[rstest]
+    #[case(" a b", "-a-b")]
+    #[case("A Heading", "a-heading")]
+    #[case(
+        "This header has a :thumbsup: in it",
+        "this-header-has-a-thumbsup-in-it"
+    )]
+    #[case(
+        "Header with 한글 characters (using unicode)",
+        "header-with-한글-characters-using-unicode"
+    )]
+    #[case(
+        "Underscores foo_bar_, dots . and numbers 1.7e-3",
+        "underscores-foo_bar_-dots--and-numbers-17e-3"
+    )]
+    #[case("Many          spaces", "many----------spaces")]
+    #[case::emoji_variation_selector_kept("#️⃣ b", unpercent("%EF%B8%8F⃣-b"))]
+    #[case::emoji_variation_selector_kept("☔️ c", unpercent("%EF%B8%8F-c"))]
+    #[case::alphabetic_emoji_kept("🅰️ d", unpercent("🅰%EF%B8%8F-d"))]
+    #[case::accents("À, Á, Â, Ã, Ä, Å or à, á, â, ã, ä, å", "à-á-â-ã-ä-å-or-à-á-â-ã-ä-å")]
+    #[case::capital_dotted_i("aİb", "aib")]
+    #[case::sigma_final_position(
+        "ΝΑΤΟΥ, ΓΙΑΝΝΗΣ",
+        unpercent("%CE%BD%CE%B1%CF%84%CE%BF%CF%85-%CE%B3%CE%B9%CE%B1%CE%BD%CE%BD%CE%B7%CF%83")
+    )]
+    #[case::sigma_nonfinal_position(
+        "Σκοπός κάθε",
+        unpercent("%CF%83%CE%BA%CE%BF%CF%80%CF%8C%CF%82-%CE%BA%CE%AC%CE%B8%CE%B5")
+    )]
+    #[case::zero_width_joiners(
+        "joiners a\u{200c} b\u{200d} end",
+        unpercent("joiners-a%E2%80%8C-b%E2%80%8D-end")
+    )]
+    fn test_generate_without_disambiguation(#[case] input: String, #[case] expected: String) {
+        assert_eq!(expected, generate_without_disambiguation(&input));
     }
 
-    #[test]
-    fn test_generate_kebab_case() {
-        let check = |input, expected| {
-            let actual = generate_without_disambiguation(input);
-            assert_eq!(actual, expected);
-        };
-        check("A Heading", "a-heading");
-        check(
-            "This header has a :thumbsup: in it",
-            "this-header-has-a-thumbsup-in-it",
-        );
-        check(
-            "Header with 한글 characters (using unicode)",
-            "header-with-한글-characters-using-unicode",
-        );
-        check(
-            "Underscores foo_bar_, dots . and numbers 1.7e-3",
-            "underscores-foo_bar_-dots--and-numbers-17e-3",
-        );
-        check("Many          spaces", "many----------spaces");
-    }
-
+    /// Tests suffixes when repeated IDs occur.
     #[test]
     fn test_github_generate_with_repeats() {
         let headings = ["foo 1", "foo", "foo", "foo", "foo 1", "FOO 1"];
