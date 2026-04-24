@@ -1,6 +1,6 @@
 use std::{borrow::Cow, convert::TryFrom, fmt::Display};
 
-use crate::{BasicAuthCredentials, ErrorKind, Uri, types::uri::raw::RawUriSpan};
+use crate::{ErrorKind, Uri, types::uri::raw::RawUriSpan};
 
 use super::ResolvedInputSource;
 

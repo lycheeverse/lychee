@@ -1,7 +1,5 @@
 use crate::{
-    BasicAuthCredentials, ErrorKind, FileType, FragmentCheckerOptions, Status, Uri,
-    BasicAuthCredentials, BasicAuthExtractor, ErrorKind, FileType, Status, Uri,
-    basic_auth::BasicAuthExtractorError,
+    BasicAuthExtractor, ErrorKind, FileType, FragmentCheckerOptions, Status, Uri,
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
     quirks::Quirks,
     ratelimit::HostPool,
@@ -213,10 +211,7 @@ impl WebsiteChecker {
     /// - The request failed.
     /// - The response status code is not accepted.
     /// - The URI cannot be converted to HTTPS.
-    pub(crate) async fn check_website(
-        &self,
-        uri: &Uri,
-    ) -> (Status, Option<Redirects>) {
+    pub(crate) async fn check_website(&self, uri: &Uri) -> (Status, Option<Redirects>) {
         let credentials = self.basic_auth.matches(uri);
 
         let default_chain: RequestChain = Chain::new(vec![
@@ -359,8 +354,7 @@ mod tests {
     use octocrab::Octocrab;
 
     use crate::{
-        FragmentCheckerOptions, Uri,
-        BasicAuthExtractor, Uri,
+        BasicAuthExtractor, FragmentCheckerOptions, Uri,
         chain::RequestChain,
         checker::website::WebsiteChecker,
         ratelimit::HostPool,
