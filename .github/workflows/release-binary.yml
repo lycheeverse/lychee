@@ -40,10 +40,13 @@ jobs:
         uses: bruceadams/get-release@v1.3.2
         env:
           GITHUB_TOKEN: ${{ github.token }}
+        # Skip step if not in the official repository as it would fail.
+        # Instead fail at the end of this workflow.
+        if: ${{ github.repository == 'lycheeverse/lychee' }}
 
   build-release:
     name: build-release
-    needs: ['create-release']
+    needs: ["create-release"]
     runs-on: ${{ matrix.os }}
     env:
       # For some builds, we use cross to test on 32-bit and big-endian systems.
@@ -205,8 +208,7 @@ jobs:
       - name: Determine archive name
         shell: bash
         run: |
-          version="${{ needs.create-release.outputs.tag_name }}"
-          echo "ARCHIVE=lychee-$version-${{ matrix.target }}" >> $GITHUB_ENV
+          echo "ARCHIVE=lychee-${{ matrix.target }}" >> $GITHUB_ENV
 
       - name: Creating directory for archive
         shell: bash
