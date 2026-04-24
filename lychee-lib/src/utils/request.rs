@@ -37,6 +37,7 @@ fn create_request(
         element,
         attribute,
         span,
+        credentials,
     })
 }
 
