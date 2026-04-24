@@ -61,12 +61,6 @@ mod cli {
         };
 
         Mock::given(method("GET"))
-            .and(path("/"))
-            .respond_with(html_response("index.html")?)
-            .mount(&mock_server)
-            .await;
-
-        Mock::given(method("GET"))
             .and(path("/index.html"))
             .respond_with(html_response("index.html")?)
             .mount(&mock_server)
