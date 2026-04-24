@@ -1,6 +1,5 @@
 use reqwest::{Error, Url};
 use serde::Deserialize;
-use std::time::Duration;
 use strum::{Display, EnumIter, EnumString, VariantNames};
 
 mod wayback;
@@ -24,17 +23,12 @@ impl Archive {
     ///
     /// # Errors
     ///
-    /// Returns an error if the `reqwest` client cannot be built, the request itself fails
-    /// or the API response cannot be parsed.
-    pub async fn get_archive_snapshot(
-        &self,
-        url: &Url,
-        timeout: Duration,
-    ) -> Result<Option<Url>, Error> {
+    /// Returns an error if the underlying HTTP request fails.
+    pub async fn get_archive_snapshot(&self, url: &Url) -> Result<Option<Url>, Error> {
         let function = match self {
             Archive::WaybackMachine => wayback::get_archive_snapshot,
         };
 
-        function(url, timeout).await
+        function(url).await
     }
 }
