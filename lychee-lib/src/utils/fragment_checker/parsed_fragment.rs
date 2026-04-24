@@ -290,8 +290,7 @@ mod tests {
         const NBSP_ENCODED: &str = "%C2%A0";
 
         let url = Url::parse(&format!(
-            "http://127.0.0.1:8000/a.html#:~:text=b{}cd",
-            NBSP_ENCODED
+            "http://127.0.0.1:8000/a.html#:~:text=b{NBSP_ENCODED}cd"
         ))
         .unwrap();
         let parsed = ParsedFragment::parse(&url);
@@ -300,7 +299,7 @@ mod tests {
             parsed.text_directives,
             vec![TextDirective {
                 prefix: None,
-                start: format!("b{}cd", NBSP),
+                start: format!("b{NBSP}cd"),
                 end: None,
                 suffix: None
             }]
