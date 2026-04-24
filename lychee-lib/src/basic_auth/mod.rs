@@ -62,6 +62,7 @@ impl BasicAuthExtractor {
     }
 
     /// Creates a new empty [`BasicAuthExtractor`] with no credentials.
+    #[must_use]
     pub fn empty() -> Self {
         Self {
             credentials: vec![],
