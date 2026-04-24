@@ -284,15 +284,23 @@ mod tests {
     }
 
     #[test]
+    /// This test checks that percent-encoded non-breaking space (NBSP) in the text directive is correctly decoded.
     fn parses_text_directive_with_encoded_utf8() {
-        let url = Url::parse("http://127.0.0.1:8000/a.html#:~:text=b%C2%A0cd").unwrap();
+        const NBSP: &str = "\u{a0}";
+        const NBSP_ENCODED: &str = "%C2%A0";
+
+        let url = Url::parse(&format!(
+            "http://127.0.0.1:8000/a.html#:~:text=b{}cd",
+            NBSP_ENCODED
+        ))
+        .unwrap();
         let parsed = ParsedFragment::parse(&url);
 
         assert_eq!(
             parsed.text_directives,
             vec![TextDirective {
                 prefix: None,
-                start: "b\u{a0}cd".to_string(),
+                start: format!("b{}cd", NBSP),
                 end: None,
                 suffix: None
             }]
