@@ -74,13 +74,10 @@ impl BasicAuthExtractor {
     /// that only the first match will be used to return the appropriate
     /// credentials.
     pub(crate) fn matches(&self, uri: &Uri) -> Option<BasicAuthCredentials> {
-        let matches: Vec<_> = self.regex_set.matches(uri.as_str()).into_iter().collect();
+        let matches = self.regex_set.matches(uri.as_str());
+        let match_index = matches.into_iter().next()?;
 
-        if matches.is_empty() {
-            return None;
-        }
-
-        Some(self.credentials[matches[0]].clone())
+        Some(self.credentials[match_index].clone())
     }
 }
 
