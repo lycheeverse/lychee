@@ -26,8 +26,8 @@ use const_format::formatcp;
 use lychee_lib::ratelimit::HostConfigs;
 use lychee_lib::{
     BaseInfo, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
-    DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, FileExtensions, FileType, Input,
-    StatusCodeSelector, archive::Archive,
+    DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, FileExtensions, FileType,
+    FragmentCheckerOptions, Input, StatusCodeSelector, archive::Archive,
 };
 use lychee_lib::{DEFAULT_USER_AGENT, Preprocessor};
 use secrecy::SecretString;
@@ -36,7 +36,7 @@ use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
 use std::path::Path;
 use std::{path::PathBuf, time::Duration};
-use strum::VariantNames;
+use strum::{EnumString, VariantNames};
 
 pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
 pub(crate) const LYCHEE_CACHE_FILE: &str = ".lycheecache";
@@ -71,6 +71,37 @@ impl ArgBoolOptionalExt for Arg {
             .require_equals(true) // Ensure that `--flag value` is not misinterpreted as `--flag=true value`
             .value_name("false|true") // Set the value name for help messages
             .hide_possible_values(true) // We already provide the values
+    }
+}
+
+/// Values for `--include-fragments` option, which controls how URL fragments are checked.
+#[derive(Debug, Clone, Copy, Deserialize, EnumString)]
+#[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
+enum FragmentMode {
+    None, // User explicitly does not want to check fragments. This is needed for merging configs, to distinguish from the case where the user simply didn't specify the option.
+    AnchorOnly, // Check only anchor fragments (e.g. `#section`)
+    TextOnly, // Check only text fragments (e.g. `#:~:text=example`)
+    Full, // Check both anchor and text fragments
+}
+
+impl From<FragmentMode> for FragmentCheckerOptions {
+    fn from(mode: FragmentMode) -> Self {
+        match mode {
+            FragmentMode::None => FragmentCheckerOptions::default(),
+            FragmentMode::AnchorOnly => FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
+            FragmentMode::TextOnly => FragmentCheckerOptions {
+                check_anchor_fragments: false,
+                check_text_fragments: true,
+            },
+            FragmentMode::Full => FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: true,
+            },
+        }
     }
 }
 
@@ -479,9 +510,22 @@ pub(crate) struct Config {
     accept_timeouts: Option<bool>,
 
     /// Enable the checking of fragments in links.
-    #[arg(long, optional_bool_flag())]
+    ///
+    /// Use `none` to disable fragment checks, `anchor-only` for anchor fragments
+    /// like `#section`, `text-only` for text fragments like `#:~:text=example`,
+    /// or `full` to check both.
+    ///
+    /// If provided without a value, defaults to `anchor-only`.
+    #[arg(
+        long,
+        default_missing_value = "anchor-only",
+        num_args = 0..=1,
+        require_equals = true,
+        value_name = "none|anchor-only|text-only|full",
+        verbatim_doc_comment,
+    )]
     #[serde(default)]
-    include_fragments: Option<bool>,
+    include_fragments: Option<FragmentMode>,
 
     /// Website timeout in seconds from connect to response finished
     ///
@@ -797,8 +841,8 @@ impl Config {
         self.host_stats.unwrap_or(false)
     }
 
-    pub(crate) fn include_fragments(&self) -> bool {
-        self.include_fragments.unwrap_or(false)
+    pub(crate) fn fragment_checker_options(&self) -> FragmentCheckerOptions {
+        self.include_fragments.unwrap_or(FragmentMode::None).into()
     }
 
     pub(crate) fn include_mail(&self) -> bool {
@@ -1096,6 +1140,33 @@ This convention also simplifies our default value testing."
         // They default to `false`
         let default = parse_options(vec!["lychee", "-"]);
         assert_eq!(default.config.dump(), false);
+    }
+
+    #[test]
+    fn test_fragment_option_values() {
+        let p = parse_options(vec!["lychee", "-"]);
+        assert!(!p.config.fragment_checker_options().check_anchor_fragments);
+        assert!(!p.config.fragment_checker_options().check_text_fragments);
+
+        let p = parse_options(vec!["lychee", "-", "--include-fragments=none"]);
+        assert!(!p.config.fragment_checker_options().check_anchor_fragments);
+        assert!(!p.config.fragment_checker_options().check_text_fragments);
+
+        let p = parse_options(vec!["lychee", "-", "--include-fragments"]);
+        assert!(p.config.fragment_checker_options().check_anchor_fragments);
+        assert!(!p.config.fragment_checker_options().check_text_fragments);
+
+        let p = parse_options(vec!["lychee", "-", "--include-fragments=anchor-only"]);
+        assert!(p.config.fragment_checker_options().check_anchor_fragments);
+        assert!(!p.config.fragment_checker_options().check_text_fragments);
+
+        let p = parse_options(vec!["lychee", "-", "--include-fragments=text-only"]);
+        assert!(!p.config.fragment_checker_options().check_anchor_fragments);
+        assert!(p.config.fragment_checker_options().check_text_fragments);
+
+        let p = parse_options(vec!["lychee", "-", "--include-fragments=full"]);
+        assert!(p.config.fragment_checker_options().check_anchor_fragments);
+        assert!(p.config.fragment_checker_options().check_text_fragments);
     }
 
     #[test]

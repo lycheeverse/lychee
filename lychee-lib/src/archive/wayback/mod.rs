@@ -34,6 +34,7 @@ async fn get_archive_snapshot_internal(
         .get(api)
         .send()
         .await?
+        .error_for_status()?
         .json::<InternetArchiveResponse>()
         .await?;
 
@@ -166,12 +167,20 @@ mod tests {
 
     #[tokio::test]
     /// This tests the real Wayback API without any mocks.
-    /// The flakiness of the API shouldn't affect this test because it originates from
-    /// the `archived_snapshots` field.
+    /// The flakiness of the API doesn't affect this test because it originates from
+    /// the `archived_snapshots` field. However, this test is flaky due to the API
+    /// server's flakiness.
     async fn wayback_suggestion_real_unknown() -> Result<(), Box<dyn StdError>> {
         let url = &"https://github.com/mre/idiomatic-rust-doesnt-exist-man".try_into()?;
-        let response = get_archive_snapshot(url, TIMEOUT).await?;
-        assert_eq!(response, None);
+        match get_archive_snapshot(url, TIMEOUT).await {
+            Ok(response) => {
+                assert_eq!(response, None);
+            }
+            Err(e) if e.status() == Some(StatusCode::SERVICE_UNAVAILABLE) => {
+                // ignore 503s which are *probably* transient
+            }
+            Err(e) => Err(e)?,
+        }
         Ok(())
     }
 }

@@ -1,3 +1,6 @@
+mod parsed_fragment;
+mod text;
+
 use log::info;
 use std::{
     borrow::Cow,
@@ -7,13 +10,15 @@ use std::{
 };
 
 use crate::{
-    Result,
+    FragmentCheckerOptions, Result,
     extract::{html::html5gum::extract_html_fragments, markdown::extract_markdown_fragments},
     types::{ErrorKind, FileType},
 };
 use percent_encoding::percent_decode_str;
 use tokio::{fs, sync::Mutex};
 use url::Url;
+
+use self::parsed_fragment::ParsedFragment;
 
 /// Holds the content and file type of the fragment input.
 pub(crate) struct FragmentInput<'a> {
@@ -119,31 +124,69 @@ impl FragmentChecker {
     /// and the path is to a Markdown file, which doesn't contain the given fragment.
     /// (Empty # and #top fragments are always valid, triggering the browser to scroll to top.)
     ///
+    /// For HTML files, also checks for text fragments, if the options specify to do so.
+    /// Returns false if any of the text fragments are not found in the content.
+    ///
     /// In all other cases, returns true.
-    pub(crate) async fn check(&self, input: FragmentInput<'_>, url: &Url) -> Result<bool> {
-        let Some(fragment) = url.fragment() else {
+    pub(crate) async fn check(
+        &self,
+        input: FragmentInput<'_>,
+        url: &Url,
+        options: FragmentCheckerOptions,
+    ) -> Result<bool> {
+        let parsed = ParsedFragment::parse(url);
+        let FragmentInput { content, file_type } = input;
+
+        if options.check_anchor_fragments
+            && parsed.element_id.is_some()
+            && !self
+                .check_anchor_fragment(&content, file_type, url, parsed.element_id)
+                .await?
+        {
+            return Ok(false);
+        }
+
+        if options.check_text_fragments
+            && !parsed.text_directives.is_empty()
+            && !text::check_text_fragments(&parsed.text_directives, &content, file_type)
+        {
+            return Ok(false);
+        }
+
+        Ok(true)
+    }
+
+    async fn check_anchor_fragment(
+        &self,
+        content: &str,
+        file_type: FileType,
+        url: &Url,
+        anchor_fragment: Option<&str>,
+    ) -> Result<bool> {
+        let Some(fragment) = anchor_fragment else {
             return Ok(true);
         };
+
         if fragment.is_empty() || fragment.eq_ignore_ascii_case("top") {
             return Ok(true);
         }
 
         let url_without_frag = Self::remove_fragment(url.clone());
+        let anchor_url = Self::with_element_fragment(url, anchor_fragment);
 
-        let FragmentInput { content, file_type } = input;
         let extractor = match file_type {
             FileType::Markdown => extract_markdown_fragments,
             FileType::Html => extract_html_fragments,
             FileType::Css | FileType::Plaintext | FileType::Xml => {
-                info!("Skipping fragment check for {url} within a {file_type} file");
+                info!("Skipping fragment check for {anchor_url} within a {file_type} file");
                 return Ok(true);
             }
         };
 
-        let fragment_candidates = FragmentBuilder::new(fragment, url, file_type)?;
+        let fragment_candidates = FragmentBuilder::new(fragment, &anchor_url, file_type)?;
         match self.cache.lock().await.entry(url_without_frag) {
             Entry::Vacant(entry) => {
-                let file_frags = extractor(&content);
+                let file_frags = extractor(content);
                 let contains_fragment = fragment_candidates.any_matches(&file_frags);
                 entry.insert(file_frags);
                 Ok(contains_fragment)
@@ -158,5 +201,11 @@ impl FragmentChecker {
     fn remove_fragment(mut url: Url) -> String {
         url.set_fragment(None);
         url.into()
+    }
+
+    fn with_element_fragment(url: &Url, fragment: Option<&str>) -> Url {
+        let mut updated = url.clone();
+        updated.set_fragment(fragment);
+        updated
     }
 }
