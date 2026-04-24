@@ -208,8 +208,7 @@ jobs:
       - name: Determine archive name
         shell: bash
         run: |
-          version="${{ needs.create-release.outputs.tag_name }}"
-          echo "ARCHIVE=lychee-$version-${{ matrix.target }}" >> $GITHUB_ENV
+          echo "ARCHIVE=lychee-${{ matrix.target }}" >> $GITHUB_ENV
 
       - name: Creating directory for archive
         shell: bash
