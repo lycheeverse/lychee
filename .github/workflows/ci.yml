@@ -68,6 +68,13 @@ jobs:
       - name: Verify the MSRV
         run: make verify
 
+  binstall-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: cargo-bins/cargo-binstall@main
+      - run: cargo binstall --manifest-path . --strategies crate-meta-data lychee --no-confirm
+
   publish-check:
     runs-on: ubuntu-latest
     steps:
