@@ -58,6 +58,23 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// information.
 const TCP_KEEPALIVE: Duration = Duration::from_secs(60);
 
+/// Controls which fragment types should be checked for supported links.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FragmentCheckerOptions {
+    /// Check anchor fragments like `#section`.
+    pub check_anchor_fragments: bool,
+    /// Check text fragments like `#:~:text=example`.
+    pub check_text_fragments: bool,
+}
+
+impl FragmentCheckerOptions {
+    /// Returns `true` if either anchor or text fragment checking is enabled.
+    #[must_use]
+    pub const fn any_enabled(self) -> bool {
+        self.check_anchor_fragments || self.check_text_fragments
+    }
+}
+
 /// Builder for [`Client`].
 ///
 /// See crate-level documentation for usage example.
@@ -298,8 +315,8 @@ pub struct ClientBuilder {
     /// See <https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.cookie_store>
     cookie_jar: Option<Arc<CookieStoreMutex>>,
 
-    /// Enable the checking of fragments in links.
-    include_fragments: bool,
+    /// Controls which fragment types are checked in links.
+    fragment_checker_options: FragmentCheckerOptions,
 
     /// Enable the checking of wikilinks in markdown files.
     /// Note that base must not be `None` if you set this `true`.
@@ -389,7 +406,7 @@ impl ClientBuilder {
             github_client,
             self.require_https,
             self.plugin_request_chain,
-            self.include_fragments,
+            self.fragment_checker_options,
             Arc::new(host_pool),
         );
 
@@ -402,7 +419,7 @@ impl ClientBuilder {
                 &self.base,
                 self.fallback_extensions,
                 self.index_files,
-                self.include_fragments,
+                self.fragment_checker_options,
                 self.include_wikilinks,
             )?,
         })

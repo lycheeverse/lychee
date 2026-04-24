@@ -52,7 +52,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .require_https(cfg.require_https())
         .cookie_jar(cookie_jar.cloned())
         .min_tls_version(cfg.min_tls.clone().map(Into::into))
-        .include_fragments(cfg.include_fragments())
+        .fragment_checker_options(cfg.fragment_checker_options())
         .fallback_extensions(cfg.fallback_extensions.clone())
         .index_files(cfg.index_files.clone())
         .include_wikilinks(cfg.include_wikilinks())
