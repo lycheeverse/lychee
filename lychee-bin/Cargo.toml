@@ -93,5 +93,3 @@ required-features = ["check_example_domains"]
 # Metadata for cargo-binstall to get the right artifacts
 [package.metadata.binstall]
 pkg-url = "{ repo }/releases/download/{ name }-v{ version }/{ name }-{ target }{ archive-suffix }"
-bin-dir = "{ bin }{ binary-ext }"
-pkg-fmt = "tgz"
