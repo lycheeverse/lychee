@@ -551,7 +551,6 @@ impl Client {
     {
         let Request {
             mut uri,
-            credentials,
             source,
             span,
             ..
@@ -565,7 +564,7 @@ impl Client {
             _ if uri.is_tel() => (Status::Excluded, None), // We don't check tel: URIs
             _ if uri.is_file() => (self.check_file(&uri).await, None),
             _ if uri.is_mail() => (self.check_mail(&uri).await, None),
-            _ => self.check_website(&uri, credentials).await,
+            _ => self.check_website(&uri, None).await,
         };
 
         Ok(Response::new(
@@ -734,10 +733,10 @@ mod tests {
         let res = get_mock_client_response!(r.clone()).await;
         assert_eq!(res.status().code(), Some(401.try_into().unwrap()));
 
-        r.credentials = Some(crate::BasicAuthCredentials {
-            username: "user".into(),
-            password: "pass".into(),
-        });
+        // r.credentials = Some(crate::BasicAuthCredentials {
+        //     username: "user".into(),
+        //     password: "pass".into(),
+        // });
 
         let res = get_mock_client_response!(r).await;
         assert!(res.status().is_success());
