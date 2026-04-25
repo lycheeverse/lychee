@@ -15,7 +15,7 @@ rust-version = "1.88.0"
 [dependencies]
 # NOTE: We need to specify the version of lychee-lib here because crates.io
 # requires all dependencies to have a version number.
-lychee-lib = { path = "../lychee-lib", version = "0.23.0", default-features = false }
+lychee-lib = { path = "../lychee-lib", version = "0.24.1", default-features = false }
 
 anyhow = "1.0.102"
 assert-json-diff = "2.0.2"
@@ -93,5 +93,3 @@ required-features = ["check_example_domains"]
 # Metadata for cargo-binstall to get the right artifacts
 [package.metadata.binstall]
 pkg-url = "{ repo }/releases/download/{ name }-v{ version }/{ name }-{ target }{ archive-suffix }"
-bin-dir = "{ bin }{ binary-ext }"
-pkg-fmt = "tgz"

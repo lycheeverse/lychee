@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.1](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.24.0...lychee-lib-v0.24.1) - 2026-04-24
+
+### Other
+
+- Update changelogs
+
+## [0.24.0](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.23.0...lychee-lib-v0.24.0) - 2026-04-24
+
+### Added
+
+- Check text fragments ([#2138](https://github.com/lycheeverse/lychee/pull/2138))
+- Allow bool flag merging ([#2137](https://github.com/lycheeverse/lychee/pull/2137))
+- Show redirects & remaps ([#2094](https://github.com/lycheeverse/lychee/pull/2094))
+- Support sitemap.xml ([#2071](https://github.com/lycheeverse/lychee/pull/2071))
+- Allow accepting timeouts ([#2063](https://github.com/lycheeverse/lychee/pull/2063))
+- Support multiple config files ([#2007](https://github.com/lycheeverse/lychee/pull/2007))
+- Show line & column numbers ([#2056](https://github.com/lycheeverse/lychee/pull/2056))
+- Add JUnit format ([#2066](https://github.com/lycheeverse/lychee/pull/2066))
+- Respect HTTP error codes in CLI inputs ([#2101](https://github.com/lycheeverse/lychee/pull/2101))
+- Add shell completions for lychee ([#1972](https://github.com/lycheeverse/lychee/pull/1972))
+- Document file format support ([#2052](https://github.com/lycheeverse/lychee/pull/2052))
+- Increase value for --max-redirects ([#2087](https://github.com/lycheeverse/lychee/pull/2087))
+
+### Fixed
+
+- Check HTTP status in archive snapshots, and ignore 503 in test ([#2158](https://github.com/lycheeverse/lychee/pull/2158))
+- Prevent autolink duplication ([#2151](https://github.com/lycheeverse/lychee/pull/2151))
+- Prevent 0 value for max-concurrency and threads ([#2145](https://github.com/lycheeverse/lychee/pull/2145))
+- Quirk: remove line number fragments from github URLs ([#2116](https://github.com/lycheeverse/lychee/pull/2116))
+- Use the remapped URI for the cache key ([#1818](https://github.com/lycheeverse/lychee/pull/1818)) ([#2109](https://github.com/lycheeverse/lychee/pull/2109))
+- Fix matching logic for glob hidden files ([#2130](https://github.com/lycheeverse/lychee/pull/2130))
+- Fix toc action ([#2055](https://github.com/lycheeverse/lychee/pull/2055))
+- Prevent duplicate requests to the same URLs ([#2067](https://github.com/lycheeverse/lychee/pull/2067))
+- Fix Windows Absolute Path Parsing and Remove HTTP Assumption ([#1837](https://github.com/lycheeverse/lychee/pull/1837))
+
+### Other
+
+- Make website checker return Status always, rather than Result ([#2140](https://github.com/lycheeverse/lychee/pull/2140))
+- Remove the `Redirect` and `Remapped` wrapper variants from the `Status` enum. ([#2129](https://github.com/lycheeverse/lychee/pull/2129))
+- Allow root-dir that doesn't exist ([#2127](https://github.com/lycheeverse/lychee/pull/2127))
+- Unify input URL fetching with the link-checker's HostPool ([#2100](https://github.com/lycheeverse/lychee/pull/2100))
+- Add RelativeUri enum for types of relative links ([#2078](https://github.com/lycheeverse/lychee/pull/2078))
+- Remove raw mode ([#2086](https://github.com/lycheeverse/lychee/pull/2086))
+- Remove file url trailing slash warning ([#2083](https://github.com/lycheeverse/lychee/pull/2083))
+- Box ErrorKind & RawUri within RequestError to fix oversize lint  ([#2079](https://github.com/lycheeverse/lychee/pull/2079))
+- Remove deduplication of requests ([#2075](https://github.com/lycheeverse/lychee/pull/2075))
+- Add WaitGroup for waiting for a dynamic set of tasks  ([#2046](https://github.com/lycheeverse/lychee/pull/2046))
+- [**breaking**] add BaseInfo for resolving links, delete Base, cleanup utils ([#2005](https://github.com/lycheeverse/lychee/pull/2005))
+
 ## [0.23.0](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.22.0...lychee-lib-v0.23.0) - 2026-02-13
 
 ### Added
@@ -55,36 +104,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- add github markdown fragment quirk ([#1940](https://github.com/lycheeverse/lychee/pull/1940))
-- support relative --root-dir ([#1912](https://github.com/lycheeverse/lychee/pull/1912))
-- propagate input loading/collecting errors to top level  ([#1864](https://github.com/lycheeverse/lychee/pull/1864))
-- file preprocessing ([#1891](https://github.com/lycheeverse/lychee/pull/1891))
+- Add github markdown fragment quirk ([#1940](https://github.com/lycheeverse/lychee/pull/1940))
+- Support relative --root-dir ([#1912](https://github.com/lycheeverse/lychee/pull/1912))
+- Propagate input loading/collecting errors to top level  ([#1864](https://github.com/lycheeverse/lychee/pull/1864))
+- File preprocessing ([#1891](https://github.com/lycheeverse/lychee/pull/1891))
 
 ### Fixed
 
-- make file matcher respect the hidden option ([#1936](https://github.com/lycheeverse/lychee/pull/1936))
-- parsing of srcset URLs after the first URL ([#1890](https://github.com/lycheeverse/lychee/pull/1890))
+- Make file matcher respect the hidden option ([#1936](https://github.com/lycheeverse/lychee/pull/1936))
+- Parsing of srcset URLs after the first URL ([#1890](https://github.com/lycheeverse/lychee/pull/1890))
 
 ### Other
 
 - *(deps)* bump the dependencies group with 5 updates ([#1944](https://github.com/lycheeverse/lychee/pull/1944))
-- progress bar ([#1914](https://github.com/lycheeverse/lychee/pull/1914))
+- Progress bar ([#1914](https://github.com/lycheeverse/lychee/pull/1914))
 - Bump the dependencies group with 3 updates ([#1933](https://github.com/lycheeverse/lychee/pull/1933))
 - Provide a more helpful error message in case of TLS protocol issues ([#1927](https://github.com/lycheeverse/lychee/pull/1927))
 - Fix parsing larger HTML blocks in MDX files ([#1924](https://github.com/lycheeverse/lychee/pull/1924))
 - Bump the dependencies group with 3 updates ([#1921](https://github.com/lycheeverse/lychee/pull/1921))
 - Fix outdated reference to pre
 - Make use of more explicit LazyLock::force
-- use markdown formatting for files-from help text ([#1917](https://github.com/lycheeverse/lychee/pull/1917))
+- Use markdown formatting for files-from help text ([#1917](https://github.com/lycheeverse/lychee/pull/1917))
 - Bump the dependencies group across 1 directory with 8 updates ([#1916](https://github.com/lycheeverse/lychee/pull/1916))
-- use InputResolver to implement Input::get_sources  ([#1880](https://github.com/lycheeverse/lychee/pull/1880))
+- Use InputResolver to implement Input::get_sources  ([#1880](https://github.com/lycheeverse/lychee/pull/1880))
 - Fix extracting links after `<pre><code></code></pre>` ([#1911](https://github.com/lycheeverse/lychee/pull/1911))
-- check glob validity when parsing input source arguments ([#1869](https://github.com/lycheeverse/lychee/pull/1869))
-- remove unimportant public library function ([#1893](https://github.com/lycheeverse/lychee/pull/1893))
+- Check glob validity when parsing input source arguments ([#1869](https://github.com/lycheeverse/lychee/pull/1869))
+- Remove unimportant public library function ([#1893](https://github.com/lycheeverse/lychee/pull/1893))
 - Fix typos, and configure the typos tool ([#1895](https://github.com/lycheeverse/lychee/pull/1895))
 - Remove an unneeded clone ([#1897](https://github.com/lycheeverse/lychee/pull/1897))
 - Address new clippy lints with version 1.91
-- clippy --fix
 - Bump MSRV
 - Bump the dependencies group across 1 directory with 7 updates
 

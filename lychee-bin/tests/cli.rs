@@ -29,7 +29,7 @@ mod cli {
     use uuid::Uuid;
     use wiremock::{
         Mock, Request, ResponseTemplate,
-        matchers::{basic_auth, method},
+        matchers::{basic_auth, method, path},
     };
 
     type Result<T> = std::result::Result<T, Box<dyn Error>>;
@@ -52,6 +52,35 @@ mod cli {
         }};
     }
 
+    async fn text_fragments_server() -> Result<wiremock::MockServer> {
+        let mock_server = wiremock::MockServer::start().await;
+        let fixtures_dir = fixtures_path!().join("text_fragments");
+        let html_response = |name: &str| -> Result<ResponseTemplate> {
+            let body = fs::read(fixtures_dir.join(name))?;
+            Ok(ResponseTemplate::new(200).set_body_raw(body, "text/html"))
+        };
+
+        Mock::given(method("GET"))
+            .and(path("/index.html"))
+            .respond_with(html_response("index.html")?)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/should-match.html"))
+            .respond_with(html_response("should-match.html")?)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/should-not-match.html"))
+            .respond_with(html_response("should-not-match.html")?)
+            .mount(&mock_server)
+            .await;
+
+        Ok(mock_server)
+    }
+
     /// Convert a relative path to an absolute path string
     /// starting from a base directory.
     fn path_str(base: &Path, relative_path: &str) -> String {
@@ -62,18 +91,12 @@ mod cli {
     /// Order of the lines is ignored.
     fn assert_lines_eq<S: AsRef<str> + Ord>(result: Assert, mut expected_lines: Vec<S>) {
         let output = &result.get_output().stdout;
-        let mut actual_lines: Vec<String> = output
-            .lines()
-            .map(|line| line.unwrap().to_string())
-            .collect();
+        let mut actual_lines: Vec<String> = output.lines().map(|line| line.unwrap()).collect();
 
         actual_lines.sort();
         expected_lines.sort();
 
-        let expected_lines: Vec<String> = expected_lines
-            .into_iter()
-            .map(|l| l.as_ref().to_owned())
-            .collect();
+        let expected_lines: Vec<&str> = expected_lines.iter().map(|l| l.as_ref()).collect();
 
         assert_eq!(actual_lines, expected_lines);
     }
@@ -838,22 +861,72 @@ mod cli {
     #[tokio::test]
     async fn test_glob_recursive() -> Result<()> {
         let dir = tempfile::tempdir()?;
-        let subdir_level_1 = tempfile::tempdir_in(&dir)?;
-        let subdir_level_2 = tempfile::tempdir_in(&subdir_level_1)?;
+        let subdir_level_1 = dir.path().join("level1");
+        let subdir_level_2 = subdir_level_1.join("level2");
+        std::fs::create_dir_all(&subdir_level_2)?;
 
         let mock_server = mock_server!(StatusCode::OK);
-        let mut file = File::create(subdir_level_2.path().join("test.md"))?;
+        let mut file = File::create(subdir_level_2.join("test.md"))?;
 
         writeln!(file, "{}", mock_server.uri().as_str())?;
 
         cargo_bin_cmd!()
-            .arg(dir.path().join("**/*.md")) // ** should be a recursive glob
+            .arg(dir.path().join("**/*.md")) // `**` should be a recursive glob
             .arg("--verbose")
             .assert()
             .success()
             .stdout(contains("1 Total"));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_glob_skips_hidden_files_by_default() {
+        let test_dir = fixtures_path!().join("hidden");
+
+        // Glob should skip hidden files by default (matching shell behavior)
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(test_dir.join("**/*"))
+            .assert()
+            .success()
+            .stdout(is_empty());
+
+        // Glob should skip hidden files for --dump-inputs too
+        cargo_bin_cmd!()
+            .arg("--dump-inputs")
+            .arg(test_dir.join("**/*"))
+            .assert()
+            .success()
+            .stdout(is_empty());
+    }
+
+    #[test]
+    fn test_glob_includes_hidden_files_with_flag() {
+        let test_dir = fixtures_path!().join("hidden");
+
+        // Glob should include hidden files when --hidden is passed
+        let result = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg("--hidden")
+            .arg(test_dir.join("**/*"))
+            .assert()
+            .success();
+
+        assert_lines_eq(
+            result,
+            vec!["https://rust-lang.org/", "https://rust-lang.org/"],
+        );
+
+        // --dump-inputs with --hidden should list hidden files
+        cargo_bin_cmd!()
+            .arg("--dump-inputs")
+            .arg("--hidden")
+            .arg(test_dir.join("**/*"))
+            .assert()
+            .success()
+            .stdout(contains(".file.md"))
+            .stdout(contains(".hidden/file.md"));
     }
 
     /// Test formatted file output
@@ -1016,6 +1089,28 @@ mod cli {
             .stderr(contains("Cannot load configuration file"))
             .stderr(contains("Failed to parse"))
             .stderr(contains("TOML parse error"));
+    }
+
+    /// Make sure that TOML type errors include all error details (line/column
+    /// info and invalid type message), not just a generic "Failed to parse"
+    /// message.
+    ///
+    /// This is a regression test for
+    /// https://github.com/lycheeverse/lychee/issues/2146
+    #[tokio::test]
+    async fn test_invalid_config_type_error_shows_details() {
+        let config = fixtures_path!().join("configs").join("invalid-type.toml");
+        cargo_bin_cmd!()
+            .arg("--config")
+            .arg(config)
+            .arg("-")
+            .env_clear()
+            .assert()
+            .failure()
+            .stderr(contains("Cannot load configuration file"))
+            .stderr(contains("TOML parse error"))
+            .stderr(contains("invalid type"))
+            .stderr(contains("threads = 'a'"));
     }
 
     #[tokio::test]
@@ -1920,7 +2015,7 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .failure()
             .stdout(contains(r#"
-[404] http://rust-lang.org/lycheeverse (at 1:1) | Rejected status code: 404 Not Found (configurable with "accept" option) | Followed 1 redirect. Redirects: http://rust-lang.org/lycheeverse --[301]--> https://rust-lang.org/lycheeverse | Remaps: http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse
+[404] http://rust-lang.org/lycheeverse (at 1:1) | Rejected status code: 404 Not Found (configurable with "accept" option) | Remaps: http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse | Followed 1 redirect. Redirects: http://rust-lang.org/lycheeverse --[301]--> https://rust-lang.org/lycheeverse
 "#))
         // It is debugged when URIs are remapped
         .stderr(contains("[DEBUG] Remapping http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse"))
@@ -1969,7 +2064,15 @@ The config file should contain every possible key for documentation purposes."
                 "url": "https://bbb.com/",
                 "status": {
                   "text": "Excluded",
-                  "details": "This is due to your 'exclude' values | Remaps: https://aaa.com/ --> https://bbb.com/"
+                  "details": "This is due to your 'exclude' values"
+                },
+                "remap": {
+                    "new": {
+                        "url": "https://bbb.com/",
+                    },
+                    "original": {
+                        "url": "https://aaa.com/",
+                     },
                 },
                 "span": {
                   "line": 1,
@@ -2632,6 +2735,13 @@ The config file should contain every possible key for documentation purposes."
                 json["success_map"],
                 json!({
                 "stdin":[{
+                    "redirects": {
+                        "origin": redirect_url,
+                        "redirects": [{
+                            "code": 308,
+                            "url": ok_url,
+                        }]
+                    },
                     "span": {
                         "column": 1,
                         "line": 1,
@@ -2639,13 +2749,6 @@ The config file should contain every possible key for documentation purposes."
                     "status": {
                         "code": 200,
                         "text": "200 OK",
-                        "redirects": {
-                            "origin": redirect_url,
-                            "redirects": [{
-                                "code": 308,
-                                "url": ok_url,
-                            }]
-                        },
                     },
                     "url": redirect_url
                 }]})
@@ -4120,6 +4223,73 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
     }
 
     #[tokio::test]
+    async fn test_text_fragments() -> Result<()> {
+        let mock_server = text_fragments_server().await?;
+
+        // Make sure --include-fragments ignores text fragments and doesn't cause false positives.
+        cargo_bin_cmd!()
+            .arg("--include-fragments")
+            .arg(format!("{}/should-match.html", mock_server.uri()))
+            .assert()
+            .success()
+            .stdout(contains("5 Total"))
+            .stdout(contains("0 Errors"));
+
+        cargo_bin_cmd!()
+            .arg("--include-fragments")
+            .arg(format!("{}/should-not-match.html", mock_server.uri()))
+            .assert()
+            .success()
+            .stdout(contains("4 Total"))
+            .stdout(contains("0 Errors"));
+
+        cargo_bin_cmd!()
+            .arg("--include-fragments=text-only")
+            .arg(format!("{}/should-match.html", mock_server.uri()))
+            .assert()
+            .success()
+            .stdout(contains("5 Total"))
+            .stdout(contains("0 Errors"));
+
+        cargo_bin_cmd!()
+            .arg("--include-fragments=text-only")
+            .arg(format!("{}/should-not-match.html", mock_server.uri()))
+            .assert()
+            .failure()
+            .stdout(contains("4 Total"))
+            .stdout(contains("4 Errors"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_text_fragments_in_files() -> Result<()> {
+        let fixtures_dir = fixtures_path!().join("text_fragments");
+
+        cargo_bin_cmd!()
+            .arg("--include-fragments=full")
+            .arg("--root-dir")
+            .arg(&fixtures_dir)
+            .arg(fixtures_dir.join("should-match.html"))
+            .assert()
+            .success()
+            .stdout(contains("5 Total"))
+            .stdout(contains("0 Errors"));
+
+        cargo_bin_cmd!()
+            .arg("--include-fragments=full")
+            .arg("--root-dir")
+            .arg(&fixtures_dir)
+            .arg(fixtures_dir.join("should-not-match.html"))
+            .assert()
+            .failure()
+            .stdout(contains("4 Total"))
+            .stdout(contains("4 Errors"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_pyproject_toml() -> Result<()> {
         let dir = tempfile::tempdir()?;
         let pyproject = dir.path().join("pyproject.toml");
@@ -4403,5 +4573,18 @@ fn test_file_limit_low_concurrency() {
     let mut assert_cmd = assert_cmd::Command::from(cmd);
     assert_cmd.assert().stderr(predicates::str::contains(
         "System file descriptor limit is 64 which is too low for the requested concurrency of 128. Lowering `max_concurrency` to 44",
+    ));
+}
+
+// Verify that lychee will fail before all checks run if the parent of the given output path does not exist
+// See https://github.com/lycheeverse/lychee/issues/2147
+#[test]
+fn test_output_invalid_path() {
+    let mut cmd = assert_cmd::Command::cargo_bin("lychee").unwrap();
+    cmd.arg("--output")
+        .arg("does/not/exist")
+        .arg("https://example.com");
+    cmd.assert().failure().stderr(predicates::str::contains(
+        "Output path `does/not/exist` is not writable: parent directory `does/not` does not exist",
     ));
 }

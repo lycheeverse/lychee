@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use crate::checker::wikilink::resolver::WikilinkResolver;
 use crate::{
-    BaseInfo, ErrorKind, Result, Status, Uri,
+    BaseInfo, ErrorKind, FragmentCheckerOptions, Result, Status, Uri,
     utils::fragment_checker::{FragmentChecker, FragmentInput},
 };
 
@@ -29,8 +29,8 @@ pub(crate) struct FileChecker {
     /// If `None`, index file checking is disabled and directory links are valid
     /// as long as the directory exists on disk.
     index_files: Option<Vec<String>>,
-    /// Whether to check for the existence of fragments (e.g., `#section-id`) in HTML files.
-    include_fragments: bool,
+    /// Controls which fragment types should be checked for local files.
+    fragment_checker_options: FragmentCheckerOptions,
     /// Utility for performing fragment checks in HTML files.
     fragment_checker: FragmentChecker,
     /// Utility for optionally resolving Wikilinks.
@@ -45,7 +45,7 @@ impl FileChecker {
     /// * `base` - Optional base path or URL for resolving wikilinks.
     /// * `fallback_extensions` - List of extensions to try if the original file is not found.
     /// * `index_files` - Optional list of index file names to search for if the path is a directory.
-    /// * `include_fragments` - Whether to check for fragment existence in HTML files.
+    /// * `fragment_option` - Controls which fragment types are checked in supported files.
     /// * `include_wikilinks` - Whether to check the existence of Wikilinks found in Markdown files .
     ///
     /// # Errors
@@ -55,7 +55,7 @@ impl FileChecker {
         base: &BaseInfo,
         fallback_extensions: Vec<String>,
         index_files: Option<Vec<String>>,
-        include_fragments: bool,
+        fragment_checker_options: FragmentCheckerOptions,
         include_wikilinks: bool,
     ) -> Result<Self> {
         let wikilink_resolver = if include_wikilinks {
@@ -67,7 +67,7 @@ impl FileChecker {
         Ok(Self {
             fallback_extensions,
             index_files,
-            include_fragments,
+            fragment_checker_options,
             fragment_checker: FragmentChecker::new(),
             wikilink_resolver,
         })
@@ -252,7 +252,7 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the check.
     async fn check_file(&self, path: &Path, uri: &Uri) -> Status {
-        if self.include_fragments {
+        if self.fragment_checker_options.check_anchor_fragments {
             self.check_fragment(path, uri).await
         } else {
             Status::Ok(StatusCode::OK)
@@ -286,7 +286,11 @@ impl FileChecker {
         }
 
         match FragmentInput::from_path(path).await {
-            Ok(input) => match self.fragment_checker.check(input, &uri.url).await {
+            Ok(input) => match self
+                .fragment_checker
+                .check(input, &uri.url, self.fragment_checker_options)
+                .await
+            {
                 Ok(true) => Status::Ok(StatusCode::OK),
                 Ok(false) => ErrorKind::InvalidFragment(uri.clone()).into(),
                 Err(err) => {
@@ -308,7 +312,7 @@ mod tests {
     use crate::{
         BaseInfo,
         ErrorKind::{InvalidFilePath, InvalidFragment, InvalidIndexFile},
-        Status, Uri,
+        FragmentCheckerOptions, Status, Uri,
     };
     use test_utils::{fixture_uri, fixtures_path};
 
@@ -360,7 +364,17 @@ mod tests {
     #[tokio::test]
     async fn test_default() {
         // default behaviour accepts dir links as long as the directory exists.
-        let checker = FileChecker::new(&BaseInfo::none(), vec![], None, true, false).unwrap();
+        let checker = FileChecker::new(
+            &BaseInfo::none(),
+            vec![],
+            None,
+            FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
+            false,
+        )
+        .unwrap();
 
         assert_filecheck!(&checker, "filechecker/index_dir", Status::Ok(_));
 
@@ -417,7 +431,10 @@ mod tests {
             &BaseInfo::none(),
             vec![],
             Some(vec!["index.html".to_owned(), "index.md".to_owned()]),
-            true,
+            FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
             false,
         )
         .unwrap();
@@ -457,7 +474,7 @@ mod tests {
             &BaseInfo::none(),
             vec!["html".to_owned()],
             Some(vec!["index".to_owned()]),
-            false,
+            FragmentCheckerOptions::default(),
             false,
         )
         .unwrap();
@@ -484,8 +501,14 @@ mod tests {
     #[tokio::test]
     async fn test_empty_index_list_corner() {
         // empty index_files list will reject all directory links
-        let checker_no_indexes =
-            FileChecker::new(&BaseInfo::none(), vec![], Some(vec![]), false, false).unwrap();
+        let checker_no_indexes = FileChecker::new(
+            &BaseInfo::none(),
+            vec![],
+            Some(vec![]),
+            FragmentCheckerOptions::default(),
+            false,
+        )
+        .unwrap();
         assert_resolves!(
             &checker_no_indexes,
             "filechecker/index_dir",
@@ -509,8 +532,14 @@ mod tests {
             "..".to_owned(),
             "/".to_owned(),
         ];
-        let checker_dir_indexes =
-            FileChecker::new(&BaseInfo::none(), vec![], Some(dir_names), false, false).unwrap();
+        let checker_dir_indexes = FileChecker::new(
+            &BaseInfo::none(),
+            vec![],
+            Some(dir_names),
+            FragmentCheckerOptions::default(),
+            false,
+        )
+        .unwrap();
         assert_resolves!(
             &checker_dir_indexes,
             "filechecker/index_dir",
@@ -530,7 +559,10 @@ mod tests {
             &BaseInfo::none(),
             vec![],
             Some(vec!["../index_dir/index.html".to_owned()]),
-            true,
+            FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
             false,
         )
         .unwrap();
@@ -550,7 +582,10 @@ mod tests {
             &BaseInfo::none(),
             vec![],
             Some(vec![absolute_html]),
-            true,
+            FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
             false,
         )
         .unwrap();
@@ -567,7 +602,10 @@ mod tests {
             &BaseInfo::none(),
             vec!["html".to_owned()],
             None,
-            true,
+            FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
             false,
         )
         .unwrap();

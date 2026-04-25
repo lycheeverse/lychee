@@ -163,6 +163,8 @@ fn cache_hit(
     Response::new(
         cache_key.clone(),
         status,
+        None,
+        None,
         request.source.into(),
         request.span,
         None,

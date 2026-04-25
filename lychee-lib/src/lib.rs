@@ -90,10 +90,12 @@ pub use crate::{
     // Constants get exposed so that the CLI can use the same defaults as the library
     client::{
         Client, ClientBuilder, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
-        DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, check,
+        DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
+        FragmentCheckerOptions, check,
     },
     collector::Collector,
     filter::{Excludes, Filter, Includes},
+    remap::Remap,
     types::{
         BaseInfo, BasicAuthCredentials, BasicAuthSelector, CacheStatus, CookieJar, ErrorKind,
         FileExtensions, FileType, Input, InputContent, InputResolver, InputSource, LycheeResult,

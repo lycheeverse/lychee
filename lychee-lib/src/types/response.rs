@@ -5,6 +5,9 @@ use serde::Serialize;
 
 use crate::{InputSource, Status, Uri, types::uri::raw::RawUriSpan};
 
+use super::redirect_history::Redirects;
+use crate::remap::Remap;
+
 /// Response type returned by lychee after checking a URI
 //
 // Body is public to allow inserting into stats maps (error_map, success_map,
@@ -26,6 +29,8 @@ impl Response {
     pub const fn new(
         uri: Uri,
         status: Status,
+        redirects: Option<Redirects>,
+        remap: Option<Remap>,
         input_source: InputSource,
         span: Option<RawUriSpan>,
         duration: Option<Duration>,
@@ -35,6 +40,8 @@ impl Response {
             response_body: ResponseBody {
                 uri,
                 status,
+                redirects,
+                remap,
                 span,
                 duration,
             },
@@ -46,6 +53,20 @@ impl Response {
     /// Retrieve the underlying status of the response
     pub const fn status(&self) -> &Status {
         &self.response_body.status
+    }
+
+    #[inline]
+    #[must_use]
+    /// Retrieve the redirect chain (if any)
+    pub const fn redirects(&self) -> Option<&Redirects> {
+        self.response_body.redirects.as_ref()
+    }
+
+    #[inline]
+    #[must_use]
+    /// Retrieve the remap applied before checking (if any)
+    pub const fn remap(&self) -> Option<&Remap> {
+        self.response_body.remap.as_ref()
     }
 
     #[inline]
@@ -95,6 +116,12 @@ pub struct ResponseBody {
     pub uri: Uri,
     /// The status of the check
     pub status: Status,
+    /// Redirect chain followed during the check (if any)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redirects: Option<Redirects>,
+    /// Remap applied before checking (if any)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remap: Option<Remap>,
     /// The location of the URI
     #[serde(skip_serializing_if = "Option::is_none")]
     pub span: Option<RawUriSpan>,
@@ -116,12 +143,27 @@ impl Display for ResponseBody {
             write!(f, " (at {span})")?;
         }
 
-        // Early return for OK status to avoid verbose output
-        if matches!(self.status, Status::Ok(StatusCode::OK)) {
+        // Early return for OK status without redirects/remaps to avoid verbose output
+        if matches!(self.status, Status::Ok(StatusCode::OK))
+            && self.redirects.is_none()
+            && self.remap.is_none()
+        {
             return Ok(());
         }
 
         let details = self.status.details();
-        write!(f, " | {details}")
+        write!(f, " | {details}")?;
+
+        if let Some(remap) = &self.remap {
+            write!(f, " | Remaps: {remap}")?;
+        }
+
+        if let Some(redirects) = &self.redirects {
+            let count = redirects.count();
+            let noun = if count == 1 { "redirect" } else { "redirects" };
+            write!(f, " | Followed {count} {noun}. Redirects: {redirects}")?;
+        }
+
+        Ok(())
     }
 }

@@ -141,15 +141,14 @@ fn read_lines(file: &File) -> Result<Vec<String>> {
 /// 1. We try to increase the soft limit.
 /// 2. If the soft limit is low we reduce lychee's `max_concurrency` accordingly
 fn handle_fd_limits(opts: &mut LycheeOptions) {
-    use rlimit::{Resource, getrlimit, increase_nofile_limit};
+    use rlimit::increase_nofile_limit;
+
     /// Baseline overhead estimate to account for file descriptors
     /// which are opened before lychee actually does any link checking.
     /// Estimate is based on observing `lsof -p $(pgrep lychee)`.
     const BASELINE_OVERHEAD: u64 = 20;
 
-    if let Ok(soft_limit) = increase_nofile_limit(u64::MAX)
-        .or_else(|_| getrlimit(Resource::NOFILE).map(|(soft, _)| soft))
-    {
+    if let Ok(soft_limit) = increase_nofile_limit(u64::MAX) {
         // The relation between `concurrency` and `soft_limit` is roughly:
         // `soft_limit` ≈ `baseline_overhead` + `concurrency`
         #[expect(
@@ -290,7 +289,7 @@ fn run_main() -> Result<i32> {
         Ok(opts) => opts,
         Err(e) => {
             error!(
-                "Error while loading config: {}\n\
+                "Error while loading config: {:?}\n\
                 See: https://github.com/lycheeverse/lychee/blob/lychee-v{}/lychee.example.toml",
                 e,
                 crate_version!()
@@ -298,6 +297,22 @@ fn run_main() -> Result<i32> {
             exit(ExitCode::ConfigFile as i32);
         }
     };
+
+    // Exit if output path parent directory does not exist
+    if let Some(output) = &opts.config.output {
+        // parent() returns Some("") for paths with no directory component
+        let parent = output.parent().filter(|p| !p.as_os_str().is_empty());
+        if let Some(parent) = parent
+            && !parent.exists()
+        {
+            error!(
+                "Output path `{}` is not writable: parent directory `{}` does not exist",
+                output.display(),
+                parent.display()
+            );
+            exit(ExitCode::UnexpectedFailure as i32);
+        }
+    }
 
     if let Some(mode) = opts.config.generate {
         print!("{}", generate(&mode)?);

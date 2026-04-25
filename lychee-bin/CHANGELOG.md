@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.1](https://github.com/lycheeverse/lychee/compare/lychee-v0.24.0...lychee-v0.24.1) - 2026-04-24
+
+### Other
+
+- Update changelogs
+
+## [0.24.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.23.0...lychee-v0.24.0) - 2026-04-24
+
+### Added
+
+- Check text fragments ([#2138](https://github.com/lycheeverse/lychee/pull/2138))
+- Allow bool flag merging ([#2137](https://github.com/lycheeverse/lychee/pull/2137))
+- Show redirects & remaps ([#2094](https://github.com/lycheeverse/lychee/pull/2094))
+- Hide progress bar if input is `stdin` only ([#1938](https://github.com/lycheeverse/lychee/pull/1938))
+- Support sitemap.xml ([#2071](https://github.com/lycheeverse/lychee/pull/2071))
+- Allow accepting timeouts ([#2063](https://github.com/lycheeverse/lychee/pull/2063))
+- Support multiple config files ([#2007](https://github.com/lycheeverse/lychee/pull/2007))
+- Show line & column numbers ([#2056](https://github.com/lycheeverse/lychee/pull/2056))
+- Add JUnit format ([#2066](https://github.com/lycheeverse/lychee/pull/2066))
+- Respect HTTP error codes in CLI inputs ([#2101](https://github.com/lycheeverse/lychee/pull/2101))
+- Add shell completions for lychee ([#1972](https://github.com/lycheeverse/lychee/pull/1972))
+- Document file format support ([#2052](https://github.com/lycheeverse/lychee/pull/2052))
+- Increase value for --max-redirects ([#2087](https://github.com/lycheeverse/lychee/pull/2087))
+
+### Fixed
+
+- Prevent 0 value for max-concurrency and threads ([#2145](https://github.com/lycheeverse/lychee/pull/2145))
+- Use the remapped URI for the cache key ([#1818](https://github.com/lycheeverse/lychee/pull/1818)) ([#2109](https://github.com/lycheeverse/lychee/pull/2109))
+- *(cli)* bump open files limit on macOS and Linux ([#2106](https://github.com/lycheeverse/lychee/pull/2106))
+- Fix matching logic for glob hidden files ([#2130](https://github.com/lycheeverse/lychee/pull/2130))
+- Fix output path not validated before the run ([#2148](https://github.com/lycheeverse/lychee/pull/2148))
+- Fix double count ([#2088](https://github.com/lycheeverse/lychee/pull/2088))
+- Prevent duplicate requests to the same URLs ([#2067](https://github.com/lycheeverse/lychee/pull/2067))
+- Fix Windows Absolute Path Parsing and Remove HTTP Assumption ([#1837](https://github.com/lycheeverse/lychee/pull/1837))
+
+### Other
+
+- Make website checker return Status always, rather than Result ([#2140](https://github.com/lycheeverse/lychee/pull/2140))
+- Remove the `Redirect` and `Remapped` wrapper variants from the `Status` enum. ([#2129](https://github.com/lycheeverse/lychee/pull/2129))
+- Allow root-dir that doesn't exist ([#2127](https://github.com/lycheeverse/lychee/pull/2127))
+- Unify input URL fetching with the link-checker's HostPool ([#2100](https://github.com/lycheeverse/lychee/pull/2100))
+- Unify Releases Across Operating Systems ([#1957](https://github.com/lycheeverse/lychee/pull/1957))
+- Remove raw mode ([#2086](https://github.com/lycheeverse/lychee/pull/2086))
+- Always show full config parse errors with full details in output ([#2149](https://github.com/lycheeverse/lychee/pull/2149))
+- Add tests for the current state of "Checking a Local Folder with URL Remapping" ([#1965](https://github.com/lycheeverse/lychee/pull/1965))
+- Move caching logic to cache ([#2123](https://github.com/lycheeverse/lychee/pull/2123))
+- Support multiple config file formats and refactor config module ([#2104](https://github.com/lycheeverse/lychee/pull/2104))
+- Never cache errors on disk
+- Report input source errors rather than tokio panics ([#2074](https://github.com/lycheeverse/lychee/pull/2074))
+- Add WaitGroup for waiting for a dynamic set of tasks  ([#2046](https://github.com/lycheeverse/lychee/pull/2046))
+- [**breaking**] add BaseInfo for resolving links, delete Base, cleanup utils ([#2005](https://github.com/lycheeverse/lychee/pull/2005))
+
 ## [0.23.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.22.0...lychee-v0.23.0) - 2026-02-13
 
 ### Added
@@ -51,26 +103,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- support relative --root-dir ([#1912](https://github.com/lycheeverse/lychee/pull/1912))
-- propagate input loading/collecting errors to top level  ([#1864](https://github.com/lycheeverse/lychee/pull/1864))
-- file preprocessing ([#1891](https://github.com/lycheeverse/lychee/pull/1891))
+- Support relative --root-dir ([#1912](https://github.com/lycheeverse/lychee/pull/1912))
+- Propagate input loading/collecting errors to top level  ([#1864](https://github.com/lycheeverse/lychee/pull/1864))
+- File preprocessing ([#1891](https://github.com/lycheeverse/lychee/pull/1891))
 
 ### Fixed
 
-- make file matcher respect the hidden option ([#1936](https://github.com/lycheeverse/lychee/pull/1936))
-- inverted gitignore behaviour for --dump-inputs  ([#1882](https://github.com/lycheeverse/lychee/pull/1882))
+- Make file matcher respect the hidden option ([#1936](https://github.com/lycheeverse/lychee/pull/1936))
+- Inverted gitignore behaviour for --dump-inputs  ([#1882](https://github.com/lycheeverse/lychee/pull/1882))
 
 ### Other
 
 - *(deps)* bump the dependencies group with 5 updates ([#1944](https://github.com/lycheeverse/lychee/pull/1944))
-- progress bar ([#1914](https://github.com/lycheeverse/lychee/pull/1914))
+- Progress bar ([#1914](https://github.com/lycheeverse/lychee/pull/1914))
 - Bump the dependencies group with 3 updates ([#1933](https://github.com/lycheeverse/lychee/pull/1933))
 - Fix parsing larger HTML blocks in MDX files ([#1924](https://github.com/lycheeverse/lychee/pull/1924))
-- use markdown formatting for files-from help text ([#1917](https://github.com/lycheeverse/lychee/pull/1917))
+- Use markdown formatting for files-from help text ([#1917](https://github.com/lycheeverse/lychee/pull/1917))
 - Bump the dependencies group across 1 directory with 8 updates ([#1916](https://github.com/lycheeverse/lychee/pull/1916))
-- use log::Level's deserialiser, and link example TOML ([#1907](https://github.com/lycheeverse/lychee/pull/1907))
+- Use log::Level's deserialiser, and link example TOML ([#1907](https://github.com/lycheeverse/lychee/pull/1907))
 - Config file up to date ([#1906](https://github.com/lycheeverse/lychee/pull/1906))
-- check glob validity when parsing input source arguments ([#1869](https://github.com/lycheeverse/lychee/pull/1869))
+- Check glob validity when parsing input source arguments ([#1869](https://github.com/lycheeverse/lychee/pull/1869))
 - Fix typos, and configure the typos tool ([#1895](https://github.com/lycheeverse/lychee/pull/1895))
 - Address new clippy lints with version 1.91
 - Bump MSRV

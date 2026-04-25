@@ -35,7 +35,7 @@ use crate::{
     filter::Filter,
     ratelimit::{ClientMap, HostConfigs, HostKey, HostPool, RateLimitConfig},
     remap::Remaps,
-    types::{DEFAULT_ACCEPTED_STATUS_CODES, redirect_history::RedirectHistory},
+    types::{DEFAULT_ACCEPTED_STATUS_CODES, Redirects, redirect_history::RedirectHistory},
 };
 
 /// Default number of redirects that are followed.
@@ -57,6 +57,23 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// See <https://tldp.org/HOWTO/TCP-Keepalive-HOWTO/overview.html> for more
 /// information.
 const TCP_KEEPALIVE: Duration = Duration::from_secs(60);
+
+/// Controls which fragment types should be checked for supported links.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FragmentCheckerOptions {
+    /// Check anchor fragments like `#section`.
+    pub check_anchor_fragments: bool,
+    /// Check text fragments like `#:~:text=example`.
+    pub check_text_fragments: bool,
+}
+
+impl FragmentCheckerOptions {
+    /// Returns `true` if either anchor or text fragment checking is enabled.
+    #[must_use]
+    pub const fn any_enabled(self) -> bool {
+        self.check_anchor_fragments || self.check_text_fragments
+    }
+}
 
 /// Builder for [`Client`].
 ///
@@ -298,8 +315,8 @@ pub struct ClientBuilder {
     /// See <https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.cookie_store>
     cookie_jar: Option<Arc<CookieStoreMutex>>,
 
-    /// Enable the checking of fragments in links.
-    include_fragments: bool,
+    /// Controls which fragment types are checked in links.
+    fragment_checker_options: FragmentCheckerOptions,
 
     /// Enable the checking of wikilinks in markdown files.
     /// Note that base must not be `None` if you set this `true`.
@@ -389,7 +406,7 @@ impl ClientBuilder {
             github_client,
             self.require_https,
             self.plugin_request_chain,
-            self.include_fragments,
+            self.fragment_checker_options,
             Arc::new(host_pool),
         );
 
@@ -402,7 +419,7 @@ impl ClientBuilder {
                 &self.base,
                 self.fallback_extensions,
                 self.index_files,
-                self.include_fragments,
+                self.fragment_checker_options,
                 self.include_wikilinks,
             )?,
         })
@@ -543,22 +560,19 @@ impl Client {
         let start = std::time::Instant::now(); // Measure check time
         let remap = self.remap(&mut uri)?.inspect(|r| debug!("Remapping {r}"));
 
-        let status = match uri.scheme() {
-            _ if self.is_excluded(&uri) => Status::Excluded,
-            _ if uri.is_tel() => Status::Excluded, // We don't check tel: URIs
-            _ if uri.is_file() => self.check_file(&uri).await,
-            _ if uri.is_mail() => self.check_mail(&uri).await,
-            _ => self.check_website(&uri, credentials).await?,
-        };
-
-        let status = match remap {
-            Some(remap) => Status::Remapped(Box::new(status), remap),
-            None => status,
+        let (status, redirects) = match uri.scheme() {
+            _ if self.is_excluded(&uri) => (Status::Excluded, None),
+            _ if uri.is_tel() => (Status::Excluded, None), // We don't check tel: URIs
+            _ if uri.is_file() => (self.check_file(&uri).await, None),
+            _ if uri.is_mail() => (self.check_mail(&uri).await, None),
+            _ => self.check_website(&uri, credentials).await,
         };
 
         Ok(Response::new(
             uri,
             status,
+            redirects,
+            remap,
             source.into(),
             span,
             Some(start.elapsed()),
@@ -609,7 +623,7 @@ impl Client {
         &self,
         uri: &Uri,
         credentials: Option<BasicAuthCredentials>,
-    ) -> Result<Status> {
+    ) -> (Status, Option<Redirects>) {
         self.website_checker.check_website(uri, credentials).await
     }
 
@@ -726,10 +740,7 @@ mod tests {
         });
 
         let res = get_mock_client_response!(r).await;
-        assert!(matches!(
-            res.status(),
-            Status::Redirected(inner, _) if **inner == Status::Ok(StatusCode::OK)
-        ));
+        assert!(res.status().is_success());
     }
 
     #[tokio::test]
@@ -956,9 +967,13 @@ mod tests {
 
         assert!(matches!(
             res.status(),
-            Status::Redirected(inner, redirects) if **inner == Status::Error(
-                ErrorKind::RejectedStatusCode(StatusCode::PERMANENT_REDIRECT)
-            ) && redirects.count() == redirect_count,
+            Status::Error(ErrorKind::RejectedStatusCode(
+                StatusCode::PERMANENT_REDIRECT
+            ))
+        ));
+        assert!(matches!(
+            res.redirects(),
+            Some(redirects) if redirects.count() == redirect_count,
         ));
     }
 
@@ -980,10 +995,8 @@ mod tests {
                 code: StatusCode::PERMANENT_REDIRECT,
             });
 
-            assert_eq!(
-                res.status(),
-                &Status::Redirected(Box::new(Status::Ok(StatusCode::OK)), redirects)
-            );
+            assert_eq!(res.status(), &Status::Ok(StatusCode::OK));
+            assert_eq!(res.redirects(), Some(&redirects));
         })
         .await;
     }
@@ -1005,15 +1018,16 @@ mod tests {
 
         assert_eq!(
             res.status(),
-            &Status::Remapped(
-                Box::new(Status::Error(ErrorKind::InvalidFilePath(
-                    format!("{mapped}/").try_into().unwrap(),
-                ))),
-                Remap {
-                    original: input,
-                    new: format!("{mapped}/").try_into().unwrap(),
-                },
-            )
+            &Status::Error(ErrorKind::InvalidFilePath(
+                format!("{mapped}/").try_into().unwrap(),
+            ))
+        );
+        assert_eq!(
+            res.remap(),
+            Some(&Remap {
+                original: input,
+                new: format!("{mapped}/").try_into().unwrap(),
+            })
         );
     }
 

@@ -25,17 +25,15 @@ fn md_extensions() -> Options {
 
 /// Extract unparsed URL strings from a Markdown string.
 // TODO: Refactor the extractor to reduce the complexity and number of lines.
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines)]
 pub(crate) fn extract_markdown(
     input: &str,
     include_verbatim: bool,
     include_wikilinks: bool,
 ) -> Vec<RawUri> {
-    // In some cases it is undesirable to extract links from within code blocks,
-    // which is why we keep track of entries and exits while traversing the input.
     let mut inside_code_block = false;
-    let mut inside_link_block = false;
-    let mut inside_wikilink_block = false;
+    let mut inside_link_label = false; // encountering `X` in `[X]()`
+    let mut inside_extracted_link = false; // prevent double extraction when encountering `Text(X)` in `<X>` or `[[X]]`
 
     // HTML blocks come in chunks from pulldown_cmark, so we need to accumulate them
     let mut inside_html_block = false;
@@ -53,14 +51,11 @@ pub(crate) fn extract_markdown(
                 dest_url,
                 ..
             }) => {
-                // Note: Explicitly listing all link types below to make it easier to
-                // change the behavior for a specific link type in the future.
-                #[allow(clippy::match_same_arms)]
                 match link_type {
                     // Inline link like `[foo](bar)`
                     // This is the most common link type
                     LinkType::Inline => {
-                        inside_link_block = true;
+                        inside_link_label = true;
                         Some(raw_uri(&dest_url, span_provider.span(span.start)))
                     }
                     // Reference without destination in the document, but resolved by the `broken_link_callback`
@@ -75,7 +70,7 @@ pub(crate) fn extract_markdown(
                     LinkType::Shortcut |
                     // Shortcut without destination in the document, but resolved by the `broken_link_callback`
                     LinkType::ShortcutUnknown => {
-                        inside_link_block = true;
+                        inside_link_label = true;
                         // For reference links, create RawUri directly to handle relative file paths
                         // that linkify doesn't recognize as URLs
                         Some(raw_uri(&dest_url, span_provider.span(span.start)))
@@ -84,6 +79,7 @@ pub(crate) fn extract_markdown(
                     LinkType::Autolink |
                     // Email address in autolink like `<john@example.org>`
                     LinkType::Email => {
+                        inside_extracted_link  = true;
                         let span_provider = get_email_span_provider(&span_provider, &span, link_type);
                         Some(extract_raw_uri_from_plaintext(&dest_url, &span_provider))
                     }
@@ -93,7 +89,7 @@ pub(crate) fn extract_markdown(
                         if !include_wikilinks {
                             return None;
                         }
-                        inside_wikilink_block = true;
+                        inside_extracted_link = true;
                         // Ignore gitlab toc notation: https://docs.gitlab.com/user/markdown/#table-of-contents
                         if ["_TOC_".to_string(), "TOC".to_string()].contains(&dest_url.to_string()) {
                             return None;
@@ -129,8 +125,8 @@ pub(crate) fn extract_markdown(
 
             // A text node.
             Event::Text(txt) => {
-                if inside_wikilink_block
-                    || (inside_link_block && !include_verbatim)
+                if inside_extracted_link
+                    || (inside_link_label && !include_verbatim)
                     || (inside_code_block && !include_verbatim) {
                     None
                 } else {
@@ -205,13 +201,12 @@ pub(crate) fn extract_markdown(
             }
 
             Event::End(TagEnd::Link) => {
-                inside_link_block = false;
-                inside_wikilink_block = false;
+                inside_link_label = false;
+                inside_extracted_link = false;
                 None
             }
 
-            // Skip footnote references and definitions explicitly - they're not links to check
-            #[allow(clippy::match_same_arms)]
+            #[expect(clippy::match_same_arms, reason = "Skip footnote references and definitions explicitly - they're not links to check")]
             Event::FootnoteReference(_) | Event::Start(Tag::FootnoteDefinition(_)) | Event::End(TagEnd::FootnoteDefinition) => None,
 
             // Silently skip over other events
@@ -573,6 +568,15 @@ $$
         let markdown = r"[[_TOC_]][TOC]";
         let uris = extract_markdown(markdown, true, true);
         assert!(uris.is_empty());
+    }
+
+    /// Don't extract the text of autolinks, as this is the link itself already.
+    /// Prevents a regression of <https://github.com/lycheeverse/lychee/issues/2150>
+    #[test]
+    fn test_autolink() {
+        let markdown = "<http://example>";
+        assert_eq!(extract_markdown(markdown, false, false).len(), 1);
+        assert_eq!(extract_markdown(markdown, true, false).len(), 1);
     }
 
     #[test]

@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: crate-ci/typos@v1.45.0
+      - uses: crate-ci/typos@v1.45.1
 
   test:
     runs-on: ubuntu-latest
@@ -67,6 +67,13 @@ jobs:
         run: cargo msrv --version
       - name: Verify the MSRV
         run: make verify
+
+  binstall-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: cargo-bins/cargo-binstall@main
+      - run: cargo binstall --manifest-path . --strategies crate-meta-data lychee --no-confirm
 
   publish-check:
     runs-on: ubuntu-latest

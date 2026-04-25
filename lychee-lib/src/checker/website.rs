@@ -1,10 +1,13 @@
 use crate::{
-    BasicAuthCredentials, ErrorKind, FileType, Status, Uri,
+    BasicAuthCredentials, ErrorKind, FileType, FragmentCheckerOptions, Status, Uri,
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
     quirks::Quirks,
     ratelimit::HostPool,
     retry::RetryExt,
-    types::{redirect_history::RedirectHistory, uri::github::GithubUri},
+    types::{
+        redirect_history::{RedirectHistory, Redirects},
+        uri::github::GithubUri,
+    },
     utils::fragment_checker::{FragmentChecker, FragmentInput},
 };
 use async_trait::async_trait;
@@ -42,10 +45,10 @@ pub(crate) struct WebsiteChecker {
     /// This would treat unencrypted links as errors when HTTPS is available.
     require_https: bool,
 
-    /// Whether to check the existence of fragments in the response HTML files.
+    /// Controls which fragment types are checked in the response body.
     ///
-    /// Will be disabled if the request method is `HEAD`.
-    include_fragments: bool,
+    /// No fragments are checked if the request method is `HEAD`.
+    fragment_checker_options: FragmentCheckerOptions,
 
     /// Utility for performing fragment checks in HTML files.
     fragment_checker: FragmentChecker,
@@ -77,7 +80,7 @@ impl WebsiteChecker {
         github_client: Option<Octocrab>,
         require_https: bool,
         plugin_request_chain: RequestChain,
-        include_fragments: bool,
+        fragment_checker_options: FragmentCheckerOptions,
         host_pool: Arc<HostPool>,
     ) -> Self {
         Self {
@@ -89,7 +92,7 @@ impl WebsiteChecker {
             retry_wait_time,
             accepted,
             require_https,
-            include_fragments,
+            fragment_checker_options,
             fragment_checker: FragmentChecker::new(),
             host_pool,
         }
@@ -120,9 +123,9 @@ impl WebsiteChecker {
     async fn check_default(&self, request: Request) -> Status {
         let method = request.method().clone();
         let request_url = request.url().clone();
-
-        let check_request_fragments = self.include_fragments
+        let check_request_fragments = self.fragment_checker_options.any_enabled()
             && method == Method::GET
+            // This last part ensures empty and top fragments do not trigger body retrieval.
             && request_url.fragment().is_some_and(|x| !x.is_empty());
 
         match self
@@ -184,6 +187,7 @@ impl WebsiteChecker {
                     file_type,
                 },
                 &url,
+                self.fragment_checker_options,
             )
             .await
         {
@@ -206,7 +210,7 @@ impl WebsiteChecker {
         &self,
         uri: &Uri,
         credentials: Option<BasicAuthCredentials>,
-    ) -> Result<Status, ErrorKind> {
+    ) -> (Status, Option<Redirects>) {
         let default_chain: RequestChain = Chain::new(vec![
             Box::<Quirks>::default(),
             Box::new(credentials),
@@ -214,11 +218,10 @@ impl WebsiteChecker {
         ]);
 
         let status = self.check_website_inner(uri, &default_chain).await;
-        let status = self
-            .handle_insecure_url(uri, &default_chain, status)
-            .await?;
+        let status = self.handle_insecure_url(uri, &default_chain, status).await;
 
-        Ok(self.redirect_history.handle_redirected(&uri.url, status))
+        let redirects = self.redirect_history.resolve(&uri.url);
+        (status, redirects)
     }
 
     /// Mark HTTP URLs as insecure, if the user required HTTPS
@@ -228,23 +231,23 @@ impl WebsiteChecker {
         uri: &Uri,
         default_chain: &Chain<Request, Status>,
         status: Status,
-    ) -> Result<Status, ErrorKind> {
+    ) -> Status {
         if self.require_https
             && uri.scheme() == "http"
             && let Status::Ok(_) = status
+            && let Ok(https_uri) = uri.to_https()
         {
-            let https_uri = uri.to_https()?;
             let is_https_available = self
                 .check_website_inner(&https_uri, default_chain)
                 .await
                 .is_success();
 
             if is_https_available {
-                return Ok(Status::Error(ErrorKind::InsecureURL(https_uri)));
+                return Status::Error(ErrorKind::InsecureURL(https_uri));
             }
         }
 
-        Ok(status)
+        status
     }
 
     /// Checks the given URI of a website.
@@ -348,7 +351,7 @@ mod tests {
     use octocrab::Octocrab;
 
     use crate::{
-        Uri,
+        FragmentCheckerOptions, Uri,
         chain::RequestChain,
         checker::website::WebsiteChecker,
         ratelimit::HostPool,
@@ -385,7 +388,7 @@ mod tests {
             Some(client),
             false,
             RequestChain::default(),
-            false,
+            FragmentCheckerOptions::default(),
             Arc::new(host_pool),
         )
     }

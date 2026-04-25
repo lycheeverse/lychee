@@ -122,8 +122,9 @@ root_dir = "/dist"
 # <https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization>
 basic_auth = ["example.com user:pwd"]
 
-# Enable the checking of fragments in links.
-include_fragments = true
+# Enable the checking of fragments in links, both anchor fragments and text fragments.
+# See <https://developer.mozilla.org/en-US/docs/Web/URI/Reference/Fragment/Text_fragments>
+include_fragments = "full"
 
 # Minimum accepted TLS Version
 min_tls = "TLSv1_3"
