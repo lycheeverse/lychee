@@ -213,14 +213,14 @@ outdated information.
 | Include patterns      | ![yes]️      | ![yes]        | ![no]    | ![yes]                | ![no]        | ![no]                | ![no]                 | ![no]  |
 | Exclude patterns      | ![yes]      | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
 | Filter by scheme      | ![yes]      | ![no]         | ![no]    | ![yes]                | ![no]        | ![yes]               | ![no]                 | ![no]  |
-| Skip private domains  | [![yes]][7] | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]                | ![no]                 | ![no]  |
+| Skip private domains  | [![yes]<sup>*</sup>][7] | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]                | ![no]                 | ![no]  |
 | **HTTP features**     |             |               |          |                       |              |                      |                       |        |
-| Custom user agent     | [![yes]][2] | ![no]         | ![no]    | ![yes]                | ![no]        | ![yes]               | ![no]                 | ![no]  |
-| Basic Auth            | [![yes]][1] | ![no]         | ![no]    | ![yes]                | ![no]        | ![yes]               | ![no]                 | ![no]  |
+| Custom user agent     | [![yes]<sup>*</sup>][2] | ![no]         | ![no]    | ![yes]                | ![no]        | ![yes]               | ![no]                 | ![no]  |
+| Basic Auth            | [![yes]<sup>*</sup>][1] | ![no]         | ![no]    | ![yes]                | ![no]        | ![yes]               | ![no]                 | ![no]  |
 | [Filter status code]  | ![yes]      | ![yes]        | ![no]    | ![no]                 | ![no]        | ![no]                | ![yes]                | ![no]  |
-| [Custom headers]      | [![yes]][4] | ![no]         | ![yes]   | ![no]                 | ![no]        | ![no]                | ![yes]                | ![yes] |
+| [Custom headers]      | [![yes]<sup>*</sup>][4] | ![no]         | ![yes]   | ![no]                 | ![no]        | ![no]                | ![yes]                | ![yes] |
 | Custom timeout        | ![yes]      | ![yes]        | ![yes]   | ![no]                 | ![yes]       | ![yes]               | ![no]                 | ![yes] |
-| `HEAD` requests       | [![yes]][5] | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![yes]               | ![no]                 | ![no]  |
+| `HEAD` requests       | [![yes]<sup>*</sup>][5] | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![yes]               | ![no]                 | ![no]  |
 | Handle redirects      | ![yes]      | ![yes]        | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
 | Per-host throttling   | ![yes]      | ![no]         | ![yes]   | ![yes]                | ![no]        | ![yes]               | ![no]                 | ![no]  |
 | Respect rate limits   | ![yes]      | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]                | ![no]                 | ![no]  |
@@ -231,9 +231,9 @@ outdated information.
 | Cookies               | ![yes]      | ![no]         | ![yes]   | ![no]                 | ![no]        | ![yes]               | ![no]                 | ![yes] |
 | **URL features**      |             |               |          |                       |              |                      |                       |        |
 | Relative URLs         | ![yes]      | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
-| [URL anchor fragments]| [![yes]][3] | ![no]         | ![no]    | ![no]                 | ![no]        | ![yes]               | ![yes]                | ![no]  |
-| [URL text fragments]  | [![yes]][3] | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]                | ![no]                 | ![no]  |
-| E-mail addresses      | [![yes]][6] | ![no]         | ![no]    | ![no]                 | ![no]        | ![yes]               | ![no]                 | ![no]  |
+| [URL anchor fragments]| [![yes]<sup>*</sup>][3] | ![no]         | ![no]    | ![no]                 | ![no]        | ![yes]               | ![yes]                | ![no]  |
+| [URL text fragments]  | [![yes]<sup>*</sup>][3] | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]                | ![no]                 | ![no]  |
+| E-mail addresses      | [![yes]<sup>*</sup>][6] | ![no]         | ![no]    | ![no]                 | ![no]        | ![yes]               | ![no]                 | ![no]  |
 | **Other**             |             |               |          |                       |              |                      |                       |        |
 | Recursion             | ![no]       | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![no]  |
 | Amazing lychee logo   | ![yes]      | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]                | ![no]                 | ![no]  |
@@ -266,6 +266,7 @@ outdated information.
 [URL anchor fragments]: https://developer.mozilla.org/en-US/docs/Web/URI/Reference/Fragment
 [URL text fragments]: https://developer.mozilla.org/en-US/docs/Web/URI/Reference/Fragment/Text_fragments
 
+<sup>*</sup> May need configuration. Click the ![yes] icon for more information.
 <sup>1</sup> Other machine-readable formats like CSV are supported.
 
 ## Commandline usage
