@@ -81,9 +81,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: cargo-bins/cargo-binstall@main
-      # Drop `--manifest-path .` so binstall resolves the latest published
-      # version of `lychee` instead of the in-tree (possibly unreleased) one.
-      - run: cargo binstall --strategies crate-meta-data lychee --no-confirm
+      # Use `--manifest-path .` so binstall validates the in-tree binstall
+      # metadata. Resolving against the latest published version would mask
+      # metadata fixes (e.g. #2165) until after the next release ships.
+      - run: cargo binstall --manifest-path . --strategies crate-meta-data lychee --no-confirm
 
   publish-check:
     runs-on: ubuntu-latest
