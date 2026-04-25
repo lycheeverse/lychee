@@ -190,47 +190,53 @@ Please tell us if this this negatively affects you in any way.
 This comparison is made on a best-effort basis. Please create a PR to fix
 outdated information.
 
-|                      | lychee  | [awesome_bot] | [muffet] | [broken-link-checker] | [linkinator] | [linkchecker]        | [markdown-link-check] | [fink] |
-| -------------------- | ------- | ------------- | -------- | --------------------- | ------------ | -------------------- | --------------------- | ------ |
-| Language             | Rust    | Ruby          | Go       | JS                    | TypeScript   | Python               | JS                    | PHP    |
-| Async/Parallel       | ![yes]  | ![yes]        | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
-| JSON output          | ![yes]  | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![maybe]<sup>1</sup> | ![yes]                | ![yes] |
-| Static binary        | ![yes]  | ![no]         | ![yes]   | ![no]                 | ![no]        | ️![no]               | ![no]                 | ![no]  |
-| Markdown files       | ![yes]  | ![yes]        | ![no]    | ![no]                 | ![no]        | ![yes]               | ![yes]                | ![no]  |
-| HTML files           | ![yes]  | ![no]         | ![no]    | ![yes]                | ![yes]       | ![no]                | ![yes]                | ![no]  |
-| Text files           | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]                | ![no]                 | ![no]  |
-| Website support      | ![yes]  | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![no]                 | ![yes] |
-| Chunked encodings    | ![yes]  | ![maybe]      | ![maybe] | ![maybe]              | ![maybe]     | ![no]                | ![yes]                | ![yes] |
-| GZIP compression     | ![yes]  | ![maybe]      | ![maybe] | ![yes]                | ![maybe]     | ![yes]               | ![maybe]              | ![no]  |
-| Basic Auth           | ![yes]  | ![no]         | ![no]    | ![yes]                | ![no]        | ![yes]               | ![no]                 | ![no]  |
-| Custom user agent    | ![yes]  | ![no]         | ![no]    | ![yes]                | ![no]        | ![yes]               | ![no]                 | ![no]  |
-| Relative URLs        | ![yes]  | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
-| [URL anchor fragments]| ![yes] | ![no]         | ![no]    | ![no]                 | ![no]        | ![yes]               | ![yes]                | ![no]  |
-| [URL text fragments] | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]                | ![no]                 | ![no]  |
-| Include patterns     | ![yes]️  | ![yes]        | ![no]    | ![yes]                | ![no]        | ![no]                | ![no]                 | ![no]  |
-| Exclude patterns     | ![yes]  | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
-| Handle redirects     | ![yes]  | ![yes]        | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
-| Ignore insecure SSL  | ![yes]  | ![yes]        | ![yes]   | ![no]                 | ![no]        | ![yes]               | ![no]                 | ![yes] |
-| File globbing        | ![yes]  | ![yes]        | ![no]    | ![no]                 | ![yes]       | ![no]                | ![yes]                | ![no]  |
-| Limit scheme         | ![yes]  | ![no]         | ![no]    | ![yes]                | ![no]        | ![yes]               | ![no]                 | ![no]  |
-| [Custom headers]     | ![yes]  | ![no]         | ![yes]   | ![no]                 | ![no]        | ![no]                | ![yes]                | ![yes] |
-| Summary              | ![yes]  | ![yes]        | ![yes]   | ![maybe]              | ![yes]       | ![yes]               | ![no]                 | ![yes] |
-| `HEAD` requests      | ![yes]  | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![yes]               | ![no]                 | ![no]  |
-| Colored output       | ![yes]  | ![maybe]      | ![yes]   | ![maybe]              | ![yes]       | ![yes]               | ![no]                 | ![yes] |
-| [Filter status code] | ![yes]  | ![yes]        | ![no]    | ![no]                 | ![no]        | ![no]                | ![yes]                | ![no]  |
-| Custom timeout       | ![yes]  | ![yes]        | ![yes]   | ![no]                 | ![yes]       | ![yes]               | ![no]                 | ![yes] |
-| E-mail links         | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![yes]               | ![no]                 | ![no]  |
-| Progress bar         | ![yes]  | ![yes]        | ![no]    | ![no]                 | ![no]        | ![yes]               | ![yes]                | ![yes] |
-| Retry and backoff    | ![yes]  | ![no]         | ![no]    | ![no]                 | ![yes]       | ![no]                | ![yes]                | ![no]  |
-| Per-host throttling  | ![yes]  | ![no]         | ![yes]   | ![yes]                | ![no]        | ![yes]               | ![no]                 | ![no]  |
-| Respect rate limits  | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]                | ![no]                 | ![no]  |
-| Skip private domains | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]                | ![no]                 | ![no]  |
-| [Use as library]     | ![yes]  | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![no]                | ![yes]                | ![no]  |
-| Quiet mode           | ![yes]  | ![no]         | ![no]    | ![no]                 | ![yes]       | ![yes]               | ![yes]                | ![yes] |
-| [Config file]        | ![yes]  | ![no]         | ![no]    | ![no]                 | ![yes]       | ![yes]               | ![yes]                | ![no]  |
-| Cookies              | ![yes]  | ![no]         | ![yes]   | ![no]                 | ![no]        | ![yes]               | ![no]                 | ![yes] |
-| Recursion            | ![no]   | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![no]  |
-| Amazing lychee logo  | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]                | ![no]                 | ![no]  |
+|                       | lychee      | [awesome_bot] | [muffet] | [broken-link-checker] | [linkinator] | [linkchecker]        | [markdown-link-check] | [fink] |
+| --------------------- | ----------- | ------------- | -------- | --------------------- | ------------ | -------------------- | --------------------- | ------ |
+| Language              | Rust        | Ruby          | Go       | JS                    | TypeScript   | Python               | JS                    | PHP    |
+| **Basic features**    |             |               |          |                       |              |                      |                       |        |
+| Async/Parallel        | ![yes]      | ![yes]        | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
+| Static binary         | ![yes]      | ![no]         | ![yes]   | ![no]                 | ![no]        | ️![no]                | ![no]                 | ![no]  |
+| Check Markdown files  | ![yes]      | ![yes]        | ![no]    | ![no]                 | ![no]        | ![yes]               | ![yes]                | ![no]  |
+| Check HTML files      | ![yes]      | ![no]         | ![no]    | ![yes]                | ![yes]       | ![no]                | ![yes]                | ![no]  |
+| Check text files      | ![yes]      | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]                | ![no]                 | ![no]  |
+| Check a website       | ![yes]      | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![no]                 | ![yes] |
+| File globbing         | ![yes]      | ![yes]        | ![no]    | ![no]                 | ![yes]       | ![no]                | ![yes]                | ![no]  |
+| **User interface**    |             |               |          |                       |              |                      |                       |        |
+| Progress bar          | ![yes]      | ![yes]        | ![no]    | ![no]                 | ![no]        | ![yes]               | ![yes]                | ![yes] |
+| Colored output        | ![yes]      | ![maybe]      | ![yes]   | ![maybe]              | ![yes]       | ![yes]               | ![no]                 | ![yes] |
+| Summary               | ![yes]      | ![yes]        | ![yes]   | ![maybe]              | ![yes]       | ![yes]               | ![no]                 | ![yes] |
+| Quiet mode            | ![yes]      | ![no]         | ![no]    | ![no]                 | ![yes]       | ![yes]               | ![yes]                | ![yes] |
+| JSON output           | ![yes]      | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![maybe]<sup>1</sup> | ![yes]                | ![yes] |
+| [Config file]         | ![yes]      | ![no]         | ![no]    | ![no]                 | ![yes]       | ![yes]               | ![yes]                | ![no]  |
+| [Use as library]      | ![yes]      | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![no]                | ![yes]                | ![no]  |
+| **Selecting links**   |             |               |          |                       |              |                      |                       |        |
+| Include patterns      | ![yes]️      | ![yes]        | ![no]    | ![yes]                | ![no]        | ![no]                | ![no]                 | ![no]  |
+| Exclude patterns      | ![yes]      | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
+| Filter by scheme      | ![yes]      | ![no]         | ![no]    | ![yes]                | ![no]        | ![yes]               | ![no]                 | ![no]  |
+| Skip private domains  | [![yes]][7] | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]                | ![no]                 | ![no]  |
+| **HTTP features**     |             |               |          |                       |              |                      |                       |        |
+| Custom user agent     | [![yes]][2] | ![no]         | ![no]    | ![yes]                | ![no]        | ![yes]               | ![no]                 | ![no]  |
+| Basic Auth            | [![yes]][1] | ![no]         | ![no]    | ![yes]                | ![no]        | ![yes]               | ![no]                 | ![no]  |
+| [Filter status code]  | ![yes]      | ![yes]        | ![no]    | ![no]                 | ![no]        | ![no]                | ![yes]                | ![no]  |
+| [Custom headers]      | [![yes]][4] | ![no]         | ![yes]   | ![no]                 | ![no]        | ![no]                | ![yes]                | ![yes] |
+| Custom timeout        | ![yes]      | ![yes]        | ![yes]   | ![no]                 | ![yes]       | ![yes]               | ![no]                 | ![yes] |
+| `HEAD` requests       | [![yes]][5] | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![yes]               | ![no]                 | ![no]  |
+| Handle redirects      | ![yes]      | ![yes]        | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
+| Per-host throttling   | ![yes]      | ![no]         | ![yes]   | ![yes]                | ![no]        | ![yes]               | ![no]                 | ![no]  |
+| Respect rate limits   | ![yes]      | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]                | ![no]                 | ![no]  |
+| Retry and backoff     | ![yes]      | ![no]         | ![no]    | ![no]                 | ![yes]       | ![no]                | ![yes]                | ![no]  |
+| Ignore insecure SSL   | ![yes]      | ![yes]        | ![yes]   | ![no]                 | ![no]        | ![yes]               | ![no]                 | ![yes] |
+| Chunked encodings     | ![yes]      | ![maybe]      | ![maybe] | ![maybe]              | ![maybe]     | ![no]                | ![yes]                | ![yes] |
+| GZIP compression      | ![yes]      | ![maybe]      | ![maybe] | ![yes]                | ![maybe]     | ![yes]               | ![maybe]              | ![no]  |
+| Cookies               | ![yes]      | ![no]         | ![yes]   | ![no]                 | ![no]        | ![yes]               | ![no]                 | ![yes] |
+| **URL features**      |             |               |          |                       |              |                      |                       |        |
+| Relative URLs         | ![yes]      | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
+| [URL anchor fragments]| [![yes]][3] | ![no]         | ![no]    | ![no]                 | ![no]        | ![yes]               | ![yes]                | ![no]  |
+| [URL text fragments]  | [![yes]][3] | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]                | ![no]                 | ![no]  |
+| E-mail addresses      | [![yes]][6] | ![no]         | ![no]    | ![no]                 | ![no]        | ![yes]               | ![no]                 | ![no]  |
+| **Other**             |             |               |          |                       |              |                      |                       |        |
+| Recursion             | ![no]       | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![no]  |
+| Amazing lychee logo   | ![yes]      | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]                | ![no]                 | ![no]  |
 
 [awesome_bot]: https://github.com/dkhamsing/awesome_bot
 [muffet]: https://github.com/raviqqe/muffet
@@ -239,6 +245,14 @@ outdated information.
 [linkchecker]: https://github.com/linkchecker/linkchecker
 [markdown-link-check]: https://github.com/tcort/markdown-link-check
 [fink]: https://github.com/dantleech/fink
+
+[1]: https://lychee.cli.rs/guides/cli/#--basic-auth
+[2]: https://lychee.cli.rs/guides/cli/#-u---user-agent
+[3]: https://lychee.cli.rs/guides/cli/#--include-fragments
+[4]: https://lychee.cli.rs/guides/cli/#-h---header
+[5]: https://lychee.cli.rs/guides/cli/#-x---method
+[6]: https://lychee.cli.rs/guides/cli/#--include-mail
+[7]: https://lychee.cli.rs/guides/cli/#-e---exclude-all-private
 
 [yes]: ./assets/yes.svg
 [no]: ./assets/no.svg
