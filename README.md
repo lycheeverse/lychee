@@ -48,7 +48,7 @@ For Nix we provide a flake so you can use `nix develop` and `nix build`.
 
 ## Installation
 
-<details><summary><b>View installation instructions</b></summary>
+<details><summary><b>View package manager installation instructions</b></summary>
 
 ### Arch Linux
 
@@ -142,6 +142,11 @@ choco install lychee
 ```
 
 </details>
+
+### GitHub Actions
+
+A GitHub Action that runs lychee is available as [lycheeverse/lychee-action](https://github.com/lycheeverse/lychee-action).
+See the lychee-action repository for usage instructions.
 
 ### Pre-built binaries
 
@@ -789,11 +794,6 @@ You can use lychee as a library for your own projects!
 Take a look at the [library documentation](https://docs.rs/lychee-lib/latest/lychee_lib/).
 Also check out the [examples](examples) directory for small practical examples.
 These examples can be run with `cargo run --example <example>`.
-
-## GitHub Action Usage
-
-A GitHub Action that uses lychee is available as a separate repository: [lycheeverse/lychee-action](https://github.com/lycheeverse/lychee-action)
-which includes usage instructions.
 
 ## Pre-commit Usage
 
