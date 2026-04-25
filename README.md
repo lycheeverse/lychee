@@ -172,7 +172,9 @@ apt install gcc pkg-config libc6-dev libssl-dev
 cargo install lychee
 ```
 
-#### Feature flags
+<details>
+<summary>Feature flags</summary>
+
 
 Lychee supports the following feature flags:
 
@@ -185,10 +187,16 @@ Note that in the past lychee could be configured to use either OpenSSL or Rustls
 to fully switch to Rustls and drop OpenSSL support.
 Please tell us if this this negatively affects you in any way.
 
+</details>
+
 ## Features
 
 This comparison is made on a best-effort basis. Please create a PR to fix
 outdated information.
+
+See the [lychee website](https://lychee.cli.rs/overview/) for a guide to lychee's
+features. Also see the [command-line flags](https://lychee.cli.rs/guides/cli/) for
+the options you can use to customise lychee.
 
 |                       | lychee                  | [awesome_bot] | [muffet] | [broken-link-checker] | [linkinator] | [linkchecker]        | [markdown-link-check] | [fink] |
 | --------------------- | ----------------------- | ------------- | -------- | --------------------- | ------------ | -------------------- | --------------------- | ------ |
