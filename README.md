@@ -205,7 +205,8 @@ outdated information.
 | Basic Auth           | ![yes]  | ![no]         | ![no]    | ![yes]                | ![no]        | ![yes]               | ![no]                 | ![no]  |
 | Custom user agent    | ![yes]  | ![no]         | ![no]    | ![yes]                | ![no]        | ![yes]               | ![no]                 | ![no]  |
 | Relative URLs        | ![yes]  | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
-| Anchors/Fragments    | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![yes]               | ![yes]                | ![no]  |
+| [URL anchor fragments]| ![yes] | ![no]         | ![no]    | ![no]                 | ![no]        | ![yes]               | ![yes]                | ![no]  |
+| [URL text fragments] | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]                | ![no]                 | ![no]  |
 | Include patterns     | ![yes]️  | ![yes]        | ![no]    | ![yes]                | ![no]        | ![no]                | ![no]                 | ![no]  |
 | Exclude patterns     | ![yes]  | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
 | Handle redirects     | ![yes]  | ![yes]        | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
@@ -238,14 +239,18 @@ outdated information.
 [linkchecker]: https://github.com/linkchecker/linkchecker
 [markdown-link-check]: https://github.com/tcort/markdown-link-check
 [fink]: https://github.com/dantleech/fink
+
 [yes]: ./assets/yes.svg
 [no]: ./assets/no.svg
 [maybe]: ./assets/maybe.svg
+
 [custom headers]: https://github.com/rust-lang/crates.io/issues/788
 [filter status code]: https://github.com/tcort/markdown-link-check/issues/94
 [skip private domains]: https://github.com/appscodelabs/liche/blob/a5102b0bf90203b467a4f3b4597d22cd83d94f99/url_checker.go
 [use as library]: https://github.com/raviqqe/liche/issues/13
 [config file]: https://github.com/lycheeverse/lychee/blob/master/lychee.example.toml
+[URL anchor fragments]: https://developer.mozilla.org/en-US/docs/Web/URI/Reference/Fragment
+[URL text fragments]: https://developer.mozilla.org/en-US/docs/Web/URI/Reference/Fragment/Text_fragments
 
 <sup>1</sup> Other machine-readable formats like CSV are supported.
 
