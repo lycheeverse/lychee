@@ -4,6 +4,7 @@ use std::{
 };
 
 use http::StatusCode;
+use log::warn;
 use regex::Regex;
 use thiserror::Error;
 
@@ -75,6 +76,12 @@ impl FromStr for StatusRange {
             if inclusive {
                 Self::new(start, end)
             } else {
+                if end == start + 1 {
+                    warn!(
+                        "Accept range '{s}' only matches status code {start}. \
+                         Did you mean '{start}..={end}' or '{start}, {end}'?"
+                    );
+                }
                 Self::new(start, end - 1)
             }
         }
