@@ -4,6 +4,7 @@ use std::{
 };
 
 use http::StatusCode;
+use log::warn;
 use regex::Regex;
 use thiserror::Error;
 
@@ -75,6 +76,11 @@ impl FromStr for StatusRange {
             if inclusive {
                 Self::new(start, end)
             } else {
+                warn!(
+                    "Accept range '{s}' uses exclusive '..' syntax, which excludes the upper bound ({end}). \
+                     This matches Rust range semantics but is a common source of confusion. \
+                     If you intended to include {end}, use '{start}..={end}' or list codes explicitly (e.g. '{start}, {end}')."
+                );
                 Self::new(start, end - 1)
             }
         }
