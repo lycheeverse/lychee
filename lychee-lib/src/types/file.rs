@@ -141,7 +141,7 @@ impl std::fmt::Display for FileType {
 impl FileType {
     /// All known Markdown extensions
     const MARKDOWN_EXTENSIONS: &'static [&'static str] = &[
-        "markdown", "mkdown", "mkdn", "mdwn", "mdown", "mdx", "mkd", "md",
+        "markdown", "mkdown", "mkdn", "mdwn", "mdown", "mdx", "mkd", "md", "qmd", "rmd",
     ];
 
     /// All known HTML extensions
@@ -266,6 +266,9 @@ mod tests {
         assert_eq!(FileType::from("foo.md"), FileType::Markdown);
         assert_eq!(FileType::from("foo.MD"), FileType::Markdown);
         assert_eq!(FileType::from("foo.mdx"), FileType::Markdown);
+        assert_eq!(FileType::from("foo.qmd"), FileType::Markdown);
+        assert_eq!(FileType::from("foo.Rmd"), FileType::Markdown);
+        assert_eq!(FileType::from("foo.rmd"), FileType::Markdown);
 
         // Test that a file without an extension is considered plaintext
         assert_eq!(FileType::from("README"), FileType::Plaintext);

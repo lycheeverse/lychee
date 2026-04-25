@@ -1,0 +1,13 @@
+---
+title: Sample R Markdown
+output: html_document
+---
+
+Real link: <https://example.com>.
+
+```{r setup, include=FALSE}
+# This URL should be ignored because it's inside a fenced code block
+download.file("https://cdn.posit.co/r/rhel-10/pkgs/R-${R_VERSION}-1-1.rpm")
+```
+
+Inline `https://inline.example.com/rmd` should also be excluded.

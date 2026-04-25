@@ -1801,6 +1801,35 @@ The config file should contain every possible key for documentation purposes."
             .stdout(contains("http://127.0.0.1/inline"))
             .stdout(contains("http://127.0.0.1/bash"));
     }
+
+    #[test]
+    fn test_quarto_treated_as_markdown() {
+        let input = fixtures_path!().join("TEST_QUARTO.qmd");
+
+        cargo_bin_cmd!()
+            .arg(input)
+            .arg("--dump")
+            .assert()
+            .success()
+            .stdout(contains("https://example.com"))
+            .stdout(contains("cdn.posit.co").not())
+            .stdout(contains("inline.example.com").not());
+    }
+
+    #[test]
+    fn test_rmarkdown_treated_as_markdown() {
+        let input = fixtures_path!().join("TEST_RMARKDOWN.Rmd");
+
+        cargo_bin_cmd!()
+            .arg(input)
+            .arg("--dump")
+            .assert()
+            .success()
+            .stdout(contains("https://example.com"))
+            .stdout(contains("cdn.posit.co").not())
+            .stdout(contains("inline.example.com").not());
+    }
+
     #[tokio::test]
     async fn test_verbatim_skipped_by_default_via_file() {
         let file = fixtures_path!().join("TEST_VERBATIM.html");
