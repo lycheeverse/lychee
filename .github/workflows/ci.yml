@@ -70,9 +70,20 @@ jobs:
 
   binstall-check:
     runs-on: ubuntu-latest
+    # Skip on release-plz PRs: those bump the version to one that has not been
+    # published yet, so binstall cannot find a matching release. We still want
+    # PR coverage on regular PRs to catch regressions in the binstall metadata.
+    if: ${{ !startsWith(github.head_ref, 'release-plz-') }}
+    env:
+      # Authenticate against api.github.com to avoid 403 rate-limit failures
+      # when binstall queries GitHub releases.
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v6
       - uses: cargo-bins/cargo-binstall@main
+      # Use `--manifest-path .` so binstall validates the in-tree binstall
+      # metadata. Resolving against the latest published version would mask
+      # metadata fixes (e.g. #2165) until after the next release ships.
       - run: cargo binstall --manifest-path . --strategies crate-meta-data lychee --no-confirm
 
   publish-check:
