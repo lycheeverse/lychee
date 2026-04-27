@@ -19,11 +19,11 @@ lychee-lib = { path = "../lychee-lib", version = "0.24.1", default-features = fa
 
 anyhow = "1.0.102"
 assert-json-diff = "2.0.2"
-clap = { version = "4.6.0", features = ["env", "derive", "cargo", "string"] }
-clap_complete = "4.6.1"
+clap = { version = "4.6.1", features = ["env", "derive", "cargo", "string"] }
+clap_complete = "4.6.3"
 clap_mangen = "0.3.0"
 console = "0.16.3"
-const_format = "0.2.35"
+const_format = "0.2.36"
 csv = "1.4.0"
 dashmap = { version = "6.1.0", features = ["serde"] }
 env_logger = "0.11.10"
@@ -37,7 +37,7 @@ numeric-sort = "0.1.5"
 indicatif = "0.18.4"
 log = "0.4.28"
 regex = "1.12.2"
-reqwest = "0.13.2"
+reqwest = "0.13.3"
 reqwest_cookie_store = { version = "0.10.0", features = ["serde"] }
 rlimit = "0.11.0"
 # Make build work on Apple Silicon.
@@ -51,14 +51,14 @@ serde_json = "1.0.149"
 strum = { version = "0.28.0", features = ["derive"] }
 supports-color = "3.0.2"
 tabled = "0.20.0"
-tokio = { version = "1.51.1", features = ["full"] }
+tokio = { version = "1.52.1", features = ["full"] }
 tokio-stream = "0.1.18"
 toml = "1.1.2"
 url = "2.5.8"
 quick-junit = "0.6.0"
 
 [dev-dependencies]
-assert_cmd = "2.2.0"
+assert_cmd = "2.2.1"
 cookie_store = "0.22.1"
 predicates = "3.1.4"
 pretty_assertions = "1.4.1"
@@ -69,7 +69,7 @@ tracing-subscriber = { version = "0.3.23", default-features = false, features = 
     "registry",
     "env-filter",
 ] }
-uuid = { version = "1.23.0", features = ["v4"] }
+uuid = { version = "1.23.1", features = ["v4"] }
 wiremock = "0.6.5"
 
 [features]
