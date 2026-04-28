@@ -4475,6 +4475,13 @@ exclude_path = ["exclude_package.txt"]
 
         cargo_bin_cmd!()
             .arg("-")
+            .arg("--accept=200..201,300..301")
+            .assert()
+            .stderr(contains(r#"Hint: Accept range '200..201' only matches status code 200. Did you mean '200..=201' or '200, 201'?"#))
+            .stderr(contains(r#"Hint: Accept range '300..301' only matches status code 300. Did you mean '300..=301' or '300, 301'?"#));
+
+        cargo_bin_cmd!()
+            .arg("-")
             .arg("--max-redirects=0")
             .write_stdin("http://rust-lang.org")
             .arg("-q") // hide user hints
