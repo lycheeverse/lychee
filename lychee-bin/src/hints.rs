@@ -1,51 +1,9 @@
-//! Provide the means to display practical user-friendly messages.
-
-use std::{fmt::Display, sync::Mutex};
-
 use http::StatusCode;
-use lychee_lib::{ErrorKind, Status, StatusCodeSelector};
+use lychee_lib::{ErrorKind, Status, StatusCodeSelector, add_hint};
 
 use crate::{config::Config, formatters::stats::ResponseStats};
 
-/// Hints are accumulated during a single program invocation.
-static HINTS: Mutex<Vec<Hint>> = Mutex::new(vec![]);
-
-/// An informative and friendly message created during the invocation of the program
-/// to be displayed before termination, to improve user experience.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct Hint(String);
-
-impl Display for Hint {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl From<String> for Hint {
-    fn from(value: String) -> Self {
-        Self(value)
-    }
-}
-
-impl From<&str> for Hint {
-    fn from(value: &str) -> Self {
-        Self(value.to_owned())
-    }
-}
-
-/// Add a [`Hint`] to be shown to users before program termination
-pub(crate) fn add_hint(hint: Hint) {
-    HINTS.lock().unwrap().push(hint);
-}
-
-/// Get [`Hint`]s to report to users
-pub(crate) fn get_hints() -> Vec<Hint> {
-    let mut hints = HINTS.lock().unwrap().clone();
-    hints.sort(); // for reproducible reporting
-    hints
-}
-
-/// Collect hints based on the resulting statistics.
+/// Collect [`lychee_lib::Hint`]s based on the resulting statistics.
 pub(crate) fn handle_stats(stats: &ResponseStats, config: &Config) {
     rate_limit(stats, config);
     github_rate_limit(stats, config);
@@ -141,13 +99,11 @@ fn unfollowed_redirects(stats: &ResponseStats, config: &Config) {
     You might want to increase the limit for -m/--max-redirects.";
 
     let is_small_limit = config.max_redirects() <= lychee_lib::DEFAULT_MAX_REDIRECTS;
-    let any_rejected_redirection_codes = stats.error_map.values().any(|v| {
-        v.iter().any(|v| {
-            matches!(
-                v.status,
-                Status::Error(ErrorKind::RejectedStatusCode(s)) if s.is_redirection()
-            )
-        })
+    let any_rejected_redirection_codes = stats.error_map.values().flatten().any(|r| {
+        matches!(
+            r.status,
+            Status::Error(ErrorKind::RejectedStatusCode(s)) if s.is_redirection()
+        )
     });
 
     if is_small_limit && any_rejected_redirection_codes {

@@ -26,7 +26,6 @@ use std::{
 use crate::{
     config::{Config, OutputMode},
     formatters::{color::YELLOW, get_stats_formatter},
-    hints::Hint,
 };
 use anyhow::{Context, Result};
 use lychee_lib::{InputSource, ratelimit::HostStatsMap};
@@ -59,7 +58,9 @@ pub(crate) fn output_statistics(stats: OutputStats, config: &Config) -> Result<(
 }
 
 /// Output hints to stderr.
-pub(crate) fn output_hints(hints: &Vec<Hint>, config: &Config) {
+pub(crate) fn output_hints(config: &Config) {
+    let hints = lychee_lib::get_hints();
+
     if config.verbose().log_level() <= log::Level::Error {
         return; // log level is too low
     }

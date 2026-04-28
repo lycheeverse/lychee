@@ -4,9 +4,10 @@ use std::{
 };
 
 use http::StatusCode;
-use log::warn;
 use regex::Regex;
 use thiserror::Error;
+
+use crate::types::hints;
 
 /// Smallest accepted value
 const MIN: u16 = 100;
@@ -77,9 +78,12 @@ impl FromStr for StatusRange {
                 Self::new(start, end)
             } else {
                 if end == start + 1 {
-                    warn!(
-                        "Accept range '{s}' only matches status code {start}. \
-                         Did you mean '{start}..={end}' or '{start}, {end}'?"
+                    hints::add_hint(
+                        format!(
+                            "Accept range '{s}' only matches status code {start}. \
+                             Did you mean '{start}..={end}' or '{start}, {end}'?"
+                        )
+                        .into(),
                     );
                 }
                 Self::new(start, end - 1)
