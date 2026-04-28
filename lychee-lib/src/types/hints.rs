@@ -40,6 +40,15 @@ pub fn add_hint(hint: Hint) {
     HINTS.lock().unwrap().push(hint);
 }
 
+/// Format and collect a [`Hint`].
+/// Helper macro for [`add_hint`].
+#[macro_export]
+macro_rules! hint {
+    ($($arg:tt)*) => {{
+        $crate::add_hint(format!($($arg)*).into());
+    }};
+}
+
 /// Get [`Hint`]s to report to users
 ///
 /// # Panics

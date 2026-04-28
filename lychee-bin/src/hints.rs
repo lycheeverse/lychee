@@ -1,5 +1,5 @@
 use http::StatusCode;
-use lychee_lib::{ErrorKind, Status, StatusCodeSelector, add_hint};
+use lychee_lib::{ErrorKind, Status, StatusCodeSelector, hint};
 
 use crate::{config::Config, formatters::stats::ResponseStats};
 
@@ -27,11 +27,11 @@ fn rate_limit(stats: &ResponseStats, config: &Config) {
         .and_then(|b| b.uri.domain());
 
     if default_host_config && let Some(domain) = first_rate_limited_domain {
-        add_hint(format!(
+        hint!(
             "Encountered rate limit responses. \
             You might be able to work around this by adding `[hosts.\"{domain}\"]` to the TOML config \
             to adjust the `concurrency` and `request_interval` values."
-        ).into());
+        );
     }
 }
 
@@ -42,9 +42,6 @@ fn rate_limit(stats: &ResponseStats, config: &Config) {
 ///
 /// [docs]: https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api?apiVersion=2026-03-10#exceeding-the-rate-limit
 fn github_rate_limit(stats: &ResponseStats, config: &Config) {
-    const MESSAGE: &str = "GitHub seems to be rate limiting us. \
-    You could try setting a GitHub token with --github-token";
-
     let any_github_errors = stats.error_map.values().flatten().any(|body| {
         let is_github = body
             .uri
@@ -60,27 +57,29 @@ fn github_rate_limit(stats: &ResponseStats, config: &Config) {
     });
 
     if config.github_token.is_none() && any_github_errors {
-        add_hint(MESSAGE.into());
+        hint!(
+            "GitHub seems to be rate limiting us. \
+             You could try setting a GitHub token with --github-token"
+        );
     }
 }
 
 fn any_redirects(stats: &ResponseStats, config: &Config) {
-    const DETAILS: &str = "You might want to consider replacing redirecting URLs with the resolved URLs. \
-    Use verbose mode (-v/-vv) to see redirection details.";
-
     let count = stats.redirects;
     let has_redirects = count > 0;
     let hides_redirects = config.verbose().log_level() < log::Level::Info;
 
     if has_redirects && hides_redirects {
         let noun = if count == 1 { "redirect" } else { "redirects" };
-        add_hint(format!("Followed {count} {noun}. {DETAILS}").into());
+        hint!(
+            "Followed {count} {noun}. \
+             You might want to consider replacing redirecting URLs with the resolved URLs. \
+             Use verbose mode (-v/-vv) to see redirection details."
+        );
     }
 }
 
 fn rejected_status_codes(stats: &ResponseStats, config: &Config) {
-    const MESSAGE: &str = "You can configure accepted/rejected response codes with -a or --accept";
-
     let is_default = config.accept() == StatusCodeSelector::default_accepted();
     let any_rejected_codes = stats
         .error_map
@@ -89,15 +88,11 @@ fn rejected_status_codes(stats: &ResponseStats, config: &Config) {
         .any(|r| matches!(r.status, Status::Error(ErrorKind::RejectedStatusCode(_))));
 
     if is_default && any_rejected_codes {
-        add_hint(MESSAGE.into());
+        hint!("You can configure accepted/rejected response codes with -a or --accept");
     }
 }
 
 fn unfollowed_redirects(stats: &ResponseStats, config: &Config) {
-    const MESSAGE: &str = "Rejected redirectional status codes. \
-    This means some redirects were not followed. \
-    You might want to increase the limit for -m/--max-redirects.";
-
     let is_small_limit = config.max_redirects() <= lychee_lib::DEFAULT_MAX_REDIRECTS;
     let any_rejected_redirection_codes = stats.error_map.values().flatten().any(|r| {
         matches!(
@@ -107,6 +102,10 @@ fn unfollowed_redirects(stats: &ResponseStats, config: &Config) {
     });
 
     if is_small_limit && any_rejected_redirection_codes {
-        add_hint(MESSAGE.into());
+        hint!(
+            "Rejected redirectional status codes. \
+             This means some redirects were not followed. \
+             You might want to increase the limit for -m/--max-redirects."
+        );
     }
 }
