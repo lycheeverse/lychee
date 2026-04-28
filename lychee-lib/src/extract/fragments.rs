@@ -18,7 +18,8 @@ use std::{collections::HashMap, num::NonZeroUsize, sync::LazyLock};
 
 use regex::Regex;
 
-/// From <https://github.com/gjtorikian/html-pipeline/blob/f13a1534cb650ba17af400d1acd3a22c28004c09/lib/html/pipeline/toc_filter.rb#L30>
+/// Rust's `\w` is equivalent to Ruby's `\p{Word}` from
+/// [`html-pipeline`](https://github.com/gjtorikian/html-pipeline/blob/f13a1534cb650ba17af400d1acd3a22c28004c09/lib/html/pipeline/toc_filter.rb#L30).
 static REGEX_TO_REMOVE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"[^\w -]").expect("fragment regex failed"));
 
@@ -77,6 +78,8 @@ impl GithubHeadingIdGenerator {
     )]
     fn seen(&self, candidate: &str) -> bool {
         // Check whether candidate has already been emitted by a generated suffix.
+        // This needs to exclude suffixes like `01` or `+1` which are accepted by
+        // `i.parse::<NonZeroUsize>()`.
         if let Some((base, i)) = candidate.rsplit_once('-')
             && i.bytes().all(|b| b.is_ascii_digit())
             && !i.starts_with('0')
