@@ -270,9 +270,9 @@ dependencies = [
 
 [[package]]
 name = "bitflags"
-version = "2.10.0"
+version = "2.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "812e12b5285cc515a9c72a5c1d3b6d46a19dac5acfef5265968c166106e31dd3"
+checksum = "c4512299f36f043ab09a583e57bceb5a5aab7a73db1805848e8fef3c9e8c78b3"
 
 [[package]]
 name = "block-buffer"
@@ -2356,7 +2356,6 @@ dependencies = [
  "html5ever",
  "html5gum",
  "http",
- "httpdate",
  "humantime-serde",
  "hyper",
  "ignore",
@@ -2370,6 +2369,7 @@ dependencies = [
  "pretty_assertions",
  "pulldown-cmark",
  "quick-xml 0.39.2",
+ "rate-limits",
  "regex",
  "reqwest",
  "reqwest_cookie_store",
@@ -3254,6 +3254,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c"
 dependencies = [
  "getrandom 0.3.4",
+]
+
+[[package]]
+name = "rate-limits"
+version = "0.6.0"
+source = "git+https://github.com/mre/rate-limits?branch=parser#0e6b80ba2c40ac49abdfa612e473f7489c063ed3"
+dependencies = [
+ "bitflags",
+ "displaydoc",
+ "headers",
+ "http",
+ "once_cell",
+ "thiserror 2.0.18",
+ "time",
 ]
 
 [[package]]

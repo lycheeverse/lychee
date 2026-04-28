@@ -1,7 +1,4 @@
-use crate::{
-    ratelimit::{CacheableResponse, headers},
-    retry::RetryExt,
-};
+use crate::{ratelimit::CacheableResponse, retry::RetryExt};
 use dashmap::DashMap;
 use governor::{
     Quota, RateLimiter,
@@ -116,8 +113,17 @@ impl Host {
         }
     }
 
-    fn record_cache_hit(&self) {
-        self.stats.lock().unwrap().record_cache_hit();
+    /// Record a cache hit from the persistent disk cache.
+    /// Cache misses are tracked internally, so we don't expose such a method.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal stats mutex is poisoned.
+    pub fn record_cache_hit(&self) {
+        self.stats
+            .lock()
+            .expect("Stats mutex is poisoned")
+            .record_cache_hit();
     }
 
     fn record_cache_miss(&self) {
@@ -189,7 +195,7 @@ impl Host {
 
         self.update_stats(response.status(), start_time.elapsed());
         self.update_backoff(response.status());
-        self.handle_rate_limit_headers(&response);
+        self.parse_rate_limit_headers(&response);
 
         let response = CacheableResponse::from_response(response, needs_body).await?;
         self.cache_result(&uri, response.clone());
@@ -272,51 +278,26 @@ impl Host {
     fn update_stats(&self, status: StatusCode, request_time: Duration) {
         self.stats
             .lock()
-            .unwrap()
+            .expect("Stats mutex is poisoned")
             .record_response(status.as_u16(), request_time);
     }
 
     /// Parse rate limit headers from response and adjust behavior
-    fn handle_rate_limit_headers(&self, response: &ReqwestResponse) {
-        // Implement basic parsing here rather than using the rate-limits crate to keep dependencies minimal
+    fn parse_rate_limit_headers(&self, response: &ReqwestResponse) {
         let headers = response.headers();
-        self.handle_retry_after_header(headers);
-        self.handle_common_rate_limit_header_fields(headers);
-    }
 
-    /// Handle the common "X-RateLimit" header fields.
-    fn handle_common_rate_limit_header_fields(&self, headers: &http::HeaderMap) {
-        if let (Some(remaining), Some(limit)) =
-            headers::parse_common_rate_limit_header_fields(headers)
-            && limit > 0
+        if let Ok(rate_limit) = rate_limits::RateLimit::new(headers)
+            && rate_limit.is_limited()
         {
-            #[allow(clippy::cast_precision_loss)]
-            let usage_ratio = limit.saturating_sub(remaining) as f64 / limit as f64;
-
-            // If we've used more than 80% of our quota, apply preventive backoff
-            if usage_ratio > 0.8 {
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                let duration = Duration::from_millis((200.0 * (usage_ratio - 0.8) / 0.2) as u64);
+            let duration = rate_limit.reset().duration();
+            if !duration.is_zero() {
                 self.increase_backoff(duration);
             }
         }
     }
 
-    /// Handle the "Retry-After" header
-    fn handle_retry_after_header(&self, headers: &http::HeaderMap) {
-        if let Some(retry_after_value) = headers.get("retry-after") {
-            let duration = match headers::parse_retry_after(retry_after_value) {
-                Ok(e) => e,
-                Err(e) => {
-                    warn!("Unable to parse Retry-After header as per RFC 7231: {e}");
-                    return;
-                }
-            };
-
-            self.increase_backoff(duration);
-        }
-    }
-
+    /// Increase backoff duration to the given duration, but cap it to a
+    /// reasonable maximum to prevent excessively long backoffs.
     fn increase_backoff(&self, mut increased_backoff: Duration) {
         if increased_backoff > MAXIMUM_BACKOFF {
             warn!(
@@ -329,6 +310,8 @@ impl Host {
         }
 
         let mut backoff = self.backoff_duration.lock().unwrap();
+        // Take the maximum of the current backoff and the new backoff to avoid
+        // accidentally reducing the backoff duration
         *backoff = std::cmp::max(*backoff, increased_backoff);
     }
 
@@ -338,13 +321,7 @@ impl Host {
     ///
     /// Panics if the statistics mutex is poisoned
     pub fn stats(&self) -> HostStats {
-        self.stats.lock().unwrap().clone()
-    }
-
-    /// Record a cache hit from the persistent disk cache.
-    /// Cache misses are tracked internally, so we don't expose such a method.
-    pub(crate) fn record_persistent_cache_hit(&self) {
-        self.record_cache_hit();
+        self.stats.lock().expect("Stats mutex is poisoned").clone()
     }
 
     /// Get the current cache size (number of cached entries)
