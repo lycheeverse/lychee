@@ -54,9 +54,10 @@ pub fn generate_without_disambiguation(text: &str) -> String {
 /// for each heading in the document.
 #[derive(Debug, Clone, Default)]
 pub struct GithubHeadingIdGenerator {
-    /// Map of ID to suffix which should be used for the *next* occurrence
+    /// Map of base ID to suffix which should be tried for the *next* occurrence
     /// of that ID. If an ID is not present in this map, it means that it
-    /// hasn't been seen before and no suffix is necessary.
+    /// hasn't been seen before and it will be tried with no suffix (though, it
+    /// still may clash with a generated suffix of a difference base).
     next_suffixes: HashMap<String, NonZeroUsize>,
 }
 
@@ -69,12 +70,27 @@ impl GithubHeadingIdGenerator {
         }
     }
 
+    /// Returns whether the given candidate ID has been emitted by this generator.
+    fn seen(&self, candidate: &str) -> bool {
+        // Check whether candidate has already been emitted by a generated suffix.
+        if let Some((base, i)) = candidate.rsplit_once('-')
+            && let Ok(i) = i.parse::<NonZeroUsize>()
+        {
+            if self.next_suffixes.get(base).is_some_and(|&next| i < next) {
+                return true;
+            }
+        }
+
+        // Check whether candidate has already been emitted by a base ID.
+        self.next_suffixes.contains_key(candidate)
+    }
+
     /// Disambiguates the given "base" ID by appending a hyphen and a number
     /// to the ID if it conflicts with a previously-generated ID. This function
     /// will continue trying successive numbers until a conflict is avoided.
     ///
     /// This function will mutate the [`GithubHeadingIdGenerator`] to record
-    /// the returned string.
+    /// the returned string and ensure uniqueness.
     fn disambiguate(&mut self, base_id: String) -> String {
         const ONE: NonZeroUsize = NonZeroUsize::MIN;
         let mut candidate = base_id.clone();
@@ -86,17 +102,13 @@ impl GithubHeadingIdGenerator {
                     candidate.push('-');
                     candidate.push_str(&suffix.to_string());
 
-                    !self.next_suffixes.contains_key(&candidate)
+                    !self.seen(&candidate)
                 })
                 .unwrap_or(/* in case of overflow only */ usize::MAX)
         });
 
         let next_suffix = ONE.saturating_add(this_suffix.unwrap_or(0));
         self.next_suffixes.insert(base_id, next_suffix);
-
-        if this_suffix.is_some() {
-            self.next_suffixes.insert(candidate.clone(), ONE);
-        }
 
         candidate
     }
