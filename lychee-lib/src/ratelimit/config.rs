@@ -70,7 +70,7 @@ impl HostConfigs {
         self.0.len()
     }
 
-    /// Get the number of [`HostConfig`]s
+    /// Returns `true` if if there are no [`HostConfig`]s
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
