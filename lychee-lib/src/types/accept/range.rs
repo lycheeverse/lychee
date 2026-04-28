@@ -79,8 +79,8 @@ impl FromStr for StatusRange {
             } else {
                 if end == start + 1 {
                     hint!(
-                        "Accept range '{s}' only matches status code {start}. \
-                         Did you mean '{start}..={end}' or '{start}, {end}'?"
+                        "Accept range `{s}` only matches the single status code {start}. \
+                         Did you mean `{start}..={end}` or `{start},{end}`?"
                     );
                 }
                 Self::new(start, end - 1)

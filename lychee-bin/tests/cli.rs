@@ -4456,15 +4456,15 @@ exclude_path = ["exclude_package.txt"]
             .arg("-")
             .write_stdin("http://wikipedia.org/this/does/not/exist")
             .assert()
-            .stderr(contains("Hint: Followed 1 redirect. You might want to consider replacing redirecting URLs with the resolved URLs. Use verbose mode (-v/-vv) to see redirection details.\n"))
-            .stderr(contains("Hint: You can configure accepted/rejected response codes with -a or --accept\n"));
+            .stderr(contains("Hint: Followed 1 redirect. You might want to consider replacing redirecting URLs with the resolved URLs. Use verbose mode (`-v`/`-vv`) to see redirection details.\n"))
+            .stderr(contains("Hint: You can configure accepted/rejected response codes with `-a` or `--accept`\n"));
 
         cargo_bin_cmd!()
             .arg("-")
             .arg("--max-redirects=0")
             .write_stdin("http://rust-lang.org")
             .assert()
-            .stderr(contains("Hint: Rejected redirectional status codes. This means some redirects were not followed. You might want to increase the limit for -m/--max-redirects."));
+            .stderr(contains("Hint: Rejected redirectional status codes. This means some redirects were not followed. You might want to increase the limit for `-m`/`--max-redirects`."));
 
         cargo_bin_cmd!()
             .arg("-")
@@ -4477,8 +4477,8 @@ exclude_path = ["exclude_package.txt"]
             .arg("-")
             .arg("--accept=200..201,300..301")
             .assert()
-            .stderr(contains(r#"Hint: Accept range '200..201' only matches status code 200. Did you mean '200..=201' or '200, 201'?"#))
-            .stderr(contains(r#"Hint: Accept range '300..301' only matches status code 300. Did you mean '300..=301' or '300, 301'?"#));
+            .stderr(contains(r#"Hint: Accept range `200..201` only matches the single status code 200. Did you mean `200..=201` or `200,201`?"#))
+            .stderr(contains(r#"Hint: Accept range `300..301` only matches the single status code 300. Did you mean `300..=301` or `300,301`?"#));
 
         cargo_bin_cmd!()
             .arg("-")

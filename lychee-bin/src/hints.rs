@@ -59,7 +59,7 @@ fn github_rate_limit(stats: &ResponseStats, config: &Config) {
     if config.github_token.is_none() && any_github_errors {
         hint!(
             "GitHub seems to be rate limiting us. \
-             You could try setting a GitHub token with --github-token"
+             You could try setting a GitHub token with `--github-token`"
         );
     }
 }
@@ -74,7 +74,7 @@ fn any_redirects(stats: &ResponseStats, config: &Config) {
         hint!(
             "Followed {count} {noun}. \
              You might want to consider replacing redirecting URLs with the resolved URLs. \
-             Use verbose mode (-v/-vv) to see redirection details."
+             Use verbose mode (`-v`/`-vv`) to see redirection details."
         );
     }
 }
@@ -88,7 +88,7 @@ fn rejected_status_codes(stats: &ResponseStats, config: &Config) {
         .any(|r| matches!(r.status, Status::Error(ErrorKind::RejectedStatusCode(_))));
 
     if is_default && any_rejected_codes {
-        hint!("You can configure accepted/rejected response codes with -a or --accept");
+        hint!("You can configure accepted/rejected response codes with `-a` or `--accept`");
     }
 }
 
@@ -105,7 +105,7 @@ fn unfollowed_redirects(stats: &ResponseStats, config: &Config) {
         hint!(
             "Rejected redirectional status codes. \
              This means some redirects were not followed. \
-             You might want to increase the limit for -m/--max-redirects."
+             You might want to increase the limit for `-m`/`--max-redirects`."
         );
     }
 }
