@@ -71,12 +71,19 @@ impl GithubHeadingIdGenerator {
     }
 
     /// Returns whether the given candidate ID has been emitted by this generator.
+    #[expect(
+        clippy::collapsible_if,
+        reason = "more readable as multiple if statements"
+    )]
     fn seen(&self, candidate: &str) -> bool {
         // Check whether candidate has already been emitted by a generated suffix.
         if let Some((base, i)) = candidate.rsplit_once('-')
-            && let Ok(i) = i.parse::<NonZeroUsize>()
+            && i.bytes().all(|b| b.is_ascii_digit())
+            && !i.starts_with('0')
         {
-            if self.next_suffixes.get(base).is_some_and(|&next| i < next) {
+            if let Ok(i) = i.parse::<NonZeroUsize>()
+                && self.next_suffixes.get(base).is_some_and(|&next| i < next)
+            {
                 return true;
             }
         }
