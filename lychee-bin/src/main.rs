@@ -1,6 +1,6 @@
 //! `lychee` is a fast, asynchronous, resource-friendly link checker.
-//! It is able to find broken hyperlinks and mail addresses inside Markdown,
-//! HTML, reStructuredText, and any other format.
+//! It is able to find broken hyperlinks and mail addresses in websites
+//! and Markdown, HTML, and other file formats.
 //!
 //! The lychee binary is a wrapper around lychee-lib, which provides
 //! convenience functions for calling lychee from the command-line.
@@ -59,10 +59,10 @@
 #![deny(missing_docs)]
 
 use std::fs::{self, File};
-use std::io::{self, BufRead, BufReader, ErrorKind};
-use std::path::PathBuf;
+use std::io::{self, BufRead, BufReader, ErrorKind, IsTerminal, stdin};
+use std::num::NonZeroUsize;
 
-use anyhow::{Context, Error, Result, bail};
+use anyhow::{Context, Error, Result};
 use clap::{Parser, crate_version};
 use commands::{CommandParams, generate};
 use formatters::log::init_logging;
@@ -71,30 +71,31 @@ use log::{error, info, warn};
 
 use lychee_lib::filter::PathExcludes;
 
-use options::{HeaderMapExt, LYCHEE_CONFIG_FILE};
+use config::HeaderMapExt;
 use ring as _; // required for apple silicon
 
+use lychee_lib::BasicAuthExtractor;
 use lychee_lib::Collector;
 use lychee_lib::CookieJar;
-use lychee_lib::{BasicAuthExtractor, StatusCodeSelector};
 
 mod cache;
 mod client;
 mod commands;
+mod config;
 mod files_from;
 mod formatters;
-mod options;
+mod hints;
 mod parse;
 mod progress;
 mod time;
 mod verbosity;
 
-use crate::formatters::stats::{OutputStats, ResponseStats, output_statistics};
+use crate::formatters::stats::{OutputStats, output_hints, output_statistics};
 use crate::{
-    cache::{Cache, StoreExt},
+    cache::Cache,
+    config::{Config, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE, LycheeOptions},
     formatters::duration::Duration,
     generate::generate,
-    options::{Config, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE, LycheeOptions},
 };
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
@@ -134,41 +135,61 @@ fn read_lines(file: &File) -> Result<Vec<String>> {
         .collect())
 }
 
+/// Handle the system's `RLIMIT_NOFILE` limit to prevent
+/// opening too many file descriptors and encountering runtime errors.
+/// (see <https://github.com/lycheeverse/lychee/issues/1248>)
+///
+/// 1. We try to increase the soft limit.
+/// 2. If the soft limit is low we reduce lychee's `max_concurrency` accordingly
+fn handle_fd_limits(opts: &mut LycheeOptions) {
+    use rlimit::increase_nofile_limit;
+
+    /// Baseline overhead estimate to account for file descriptors
+    /// which are opened before lychee actually does any link checking.
+    /// Estimate is based on observing `lsof -p $(pgrep lychee)`.
+    const BASELINE_OVERHEAD: u64 = 20;
+
+    if let Ok(soft_limit) = increase_nofile_limit(u64::MAX) {
+        // The relation between `concurrency` and `soft_limit` is roughly:
+        // `soft_limit` ≈ `baseline_overhead` + `concurrency`
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "max_concurrency is small in practice"
+        )]
+        let concurrency = soft_limit.saturating_sub(BASELINE_OVERHEAD) as usize;
+        let concurrency = NonZeroUsize::new(concurrency).unwrap_or(NonZeroUsize::MIN);
+
+        let requested_concurrency = opts.config.max_concurrency();
+        if requested_concurrency > concurrency {
+            warn!(
+                "System file descriptor limit is {soft_limit} which is too low for the requested \
+                concurrency of {requested_concurrency}. Lowering `max_concurrency` to \
+                {concurrency} to prevent 'Too many open files' errors.",
+            );
+            opts.config.set_max_concurrency(concurrency);
+        }
+    }
+}
+
 /// Merge all provided config options into one.
-/// This includes a potential config file, command-line- and environment variables
+/// This includes the command-line args,
+/// the config file and the secrets file in that order.
 fn load_config() -> Result<LycheeOptions> {
+    // Merge by precedence, parsed CLI args have highest precedence
     let mut opts = LycheeOptions::parse();
 
-    init_logging(&opts.config.verbose, &opts.config.mode);
+    init_logging(&opts.config.verbose(), &opts.config.mode());
 
-    // Load a potentially existing config file and merge it into the config from
-    // the CLI
-    if let Some(config_file) = &opts.config_file {
-        match Config::load_from_file(config_file) {
-            Ok(c) => opts.config.merge(c),
-            Err(e) => {
-                bail!(
-                    "Cannot load configuration file `{}`: {e:?}",
-                    config_file.display()
-                );
-            }
+    if opts.config_files.is_empty() {
+        // No config files provided via CLI; fall back on trying to load the
+        // default config files from the current directory
+        if let Some(default_config) = config::loaders::default_config_file()? {
+            opts.config = opts.config.merge(default_config);
         }
     } else {
-        // If no config file was explicitly provided, we try to load the default
-        // config file from the current directory if the file exits. This will
-        // raise an error if the file is invalid, just like the explicit provided
-        // config file.
-        let default_config = PathBuf::from(LYCHEE_CONFIG_FILE);
-        if default_config.is_file() {
-            match Config::load_from_file(&default_config) {
-                Ok(c) => opts.config.merge(c),
-                Err(e) => {
-                    bail!(
-                        "Cannot load default configuration file `{}`: {e:?}",
-                        default_config.display()
-                    );
-                }
-            }
+        let configs = opts.config_files.iter().rev(); // reverse so that later args have precedence
+        for config_file in configs {
+            opts.config = opts.config.merge_file(config_file)?;
         }
     }
 
@@ -196,6 +217,8 @@ fn load_config() -> Result<LycheeOptions> {
         opts.config.exclude.append(&mut read_lines(&file)?);
     }
 
+    handle_fd_limits(&mut opts);
+
     Ok(opts)
 }
 
@@ -212,9 +235,11 @@ fn load_cookie_jar(cfg: &Config) -> Result<Option<CookieJar>> {
 /// and we silently discard errors on purpose
 #[must_use]
 fn load_cache(cfg: &Config) -> Option<Cache> {
-    if !cfg.cache {
+    if !cfg.cache() {
         return None;
     }
+
+    let max_cache_age = cfg.max_cache_age();
 
     // Discard entire cache if it hasn't been updated since `max_cache_age`.
     // This is an optimization, which avoids iterating over the file and
@@ -227,28 +252,26 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
         Ok(metadata) => {
             let modified = metadata.modified().ok()?;
             let elapsed = modified.elapsed().ok()?;
-            if elapsed > cfg.max_cache_age {
+            if elapsed > max_cache_age {
                 warn!(
                     "Cache is too old (age: {}, max age: {}). Discarding and recreating.",
                     Duration::from_secs(elapsed.as_secs()),
-                    Duration::from_secs(cfg.max_cache_age.as_secs())
+                    Duration::from_secs(max_cache_age.as_secs())
                 );
                 return None;
             }
             info!(
                 "Cache is recent (age: {}, max age: {}). Using.",
                 Duration::from_secs(elapsed.as_secs()),
-                Duration::from_secs(cfg.max_cache_age.as_secs())
+                Duration::from_secs(max_cache_age.as_secs())
             );
         }
     }
 
     let cache = Cache::load(
         LYCHEE_CACHE_FILE,
-        cfg.max_cache_age.as_secs(),
-        &cfg.cache_exclude_status
-            .clone()
-            .unwrap_or(StatusCodeSelector::empty()),
+        max_cache_age.as_secs(),
+        &cfg.cache_exclude_status(),
     );
     match cache {
         Ok(cache) => Some(cache),
@@ -267,7 +290,7 @@ fn run_main() -> Result<i32> {
         Ok(opts) => opts,
         Err(e) => {
             error!(
-                "Error while loading config: {}\n\
+                "Error while loading config: {:?}\n\
                 See: https://github.com/lycheeverse/lychee/blob/lychee-v{}/lychee.example.toml",
                 e,
                 crate_version!()
@@ -275,6 +298,22 @@ fn run_main() -> Result<i32> {
             exit(ExitCode::ConfigFile as i32);
         }
     };
+
+    // Exit if output path parent directory does not exist
+    if let Some(output) = &opts.config.output {
+        // parent() returns Some("") for paths with no directory component
+        let parent = output.parent().filter(|p| !p.as_os_str().is_empty());
+        if let Some(parent) = parent
+            && !parent.exists()
+        {
+            error!(
+                "Output path `{}` is not writable: parent directory `{}` does not exist",
+                output.display(),
+                parent.display()
+            );
+            exit(ExitCode::UnexpectedFailure as i32);
+        }
+    }
 
     if let Some(mode) = opts.config.generate {
         print!("{}", generate(&mode)?);
@@ -286,7 +325,7 @@ fn run_main() -> Result<i32> {
             // We define our own runtime instead of the `tokio::main` attribute
             // since we want to make the number of threads configurable
             tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(threads)
+                .worker_threads(threads.get())
                 .enable_all()
                 .build()?
         }
@@ -317,54 +356,48 @@ fn underlying_io_error_kind(error: &Error) -> Option<io::ErrorKind> {
 async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs()?;
 
+    // Hide the progress bar only when stdin is the sole input and it is
+    // interactive (TTY).
+    //
+    // We restrict this to the sole-input case because with mixed inputs like
+    // `lychee - README.md` the file is processed concurrently with stdin, so
+    // the order of completion is non-deterministic. Hiding the bar there would
+    // be confusing rather than helpful.
+    //
+    // When stdin is piped (`cat links.txt | lychee -`), `is_terminal()` returns
+    // false, so the progress bar is shown normally.
+    let is_stdin_input = inputs.len() == 1
+        && inputs
+            .iter()
+            .any(|input| matches!(input.source, lychee_lib::InputSource::Stdin))
+        && stdin().is_terminal();
+
     // TODO: Remove this section after `--base` got removed with 1.0
     let base = match (opts.config.base.clone(), opts.config.base_url.clone()) {
-        (None, None) => None,
-        (Some(base), None) => Some(base),
-        (None, Some(base_url)) => Some(base_url),
-        (Some(_base), Some(base_url)) => {
+        (None, base_url) => base_url,
+        (base, None) => base,
+        (_base, base_url) => {
             warn!(
                 "WARNING: Both, `--base` and `--base-url` are set. Using `base-url` and ignoring `--base` (as it's deprecated)."
             );
-            Some(base_url)
+            base_url
         }
     };
 
-    if opts.config.dump_inputs {
+    if opts.config.dump_inputs() {
         let exit_code = commands::dump_inputs(
             inputs,
             opts.config.output.as_ref(),
             &opts.config.exclude_path,
-            &opts.config.extensions,
-            !opts.config.hidden,
+            &opts.config.extensions(),
+            !opts.config.hidden(),
             // be aware that "no ignore" means do *not* ignore files
-            !opts.config.no_ignore,
+            !opts.config.no_ignore(),
         )
         .await?;
 
         return Ok(exit_code as i32);
     }
-
-    let mut collector = Collector::new(opts.config.root_dir.clone(), base)?
-        .skip_missing_inputs(opts.config.skip_missing)
-        .skip_hidden(!opts.config.hidden)
-        // be aware that "no ignore" means do *not* ignore files
-        .skip_ignored(!opts.config.no_ignore)
-        .include_verbatim(opts.config.include_verbatim)
-        .headers(HeaderMap::from_header_pairs(&opts.config.header)?)
-        .excluded_paths(PathExcludes::new(opts.config.exclude_path.clone())?)
-        // File a bug if you rely on this envvar! It's going to go away eventually.
-        .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").is_ok_and(|x| x == "1"))
-        .include_wikilinks(opts.config.include_wikilinks)
-        .preprocessor(opts.config.preprocess.clone());
-
-    collector = if let Some(ref basic_auth) = opts.config.basic_auth {
-        collector.basic_auth_extractor(BasicAuthExtractor::new(basic_auth)?)
-    } else {
-        collector
-    };
-
-    let requests = collector.collect_links_from_file_types(inputs, opts.config.extensions.clone());
 
     let cache = load_cache(&opts.config).unwrap_or_default();
 
@@ -379,27 +412,52 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     })?;
 
     let client = client::create(&opts.config, cookie_jar.as_deref())?;
+
+    let mut collector = Collector::new(opts.config.root_dir.clone(), base.unwrap_or_default())?
+        .skip_missing_inputs(opts.config.skip_missing())
+        .skip_hidden(!opts.config.hidden())
+        // be aware that "no ignore" means do *not* ignore files
+        .skip_ignored(!opts.config.no_ignore())
+        .include_verbatim(opts.config.include_verbatim())
+        .headers(HeaderMap::from_header_pairs(&opts.config.headers())?)
+        .excluded_paths(PathExcludes::new(opts.config.exclude_path.clone())?)
+        // File a bug if you rely on this envvar! It's going to go away eventually.
+        .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").is_ok_and(|x| x == "1"))
+        .include_wikilinks(opts.config.include_wikilinks())
+        .preprocessor(opts.config.preprocess.clone())
+        .host_pool(client.host_pool());
+
+    collector = if let Some(ref basic_auth) = opts.config.basic_auth {
+        collector.basic_auth_extractor(BasicAuthExtractor::new(basic_auth)?)
+    } else {
+        collector
+    };
+
+    let requests = collector.collect_links_from_file_types(inputs, opts.config.extensions());
     let params = CommandParams {
         client,
         cache,
         requests,
         cfg: opts.config.clone(),
+        is_stdin_input,
     };
 
-    let exit_code = if opts.config.dump {
+    let exit_code = if opts.config.dump() {
         commands::dump(params).await?
     } else {
         let (response_stats, cache, exit_code, host_pool) = commands::check(params).await?;
-        github_warning(&response_stats, &opts.config);
-        redirect_warning(&response_stats, &opts.config);
+        hints::handle_stats(&response_stats, &opts.config);
 
         let stats = OutputStats {
             response_stats,
-            host_stats: opts.config.host_stats.then_some(host_pool.all_host_stats()),
+            host_stats: opts
+                .config
+                .host_stats()
+                .then_some(host_pool.all_host_stats()),
         };
         output_statistics(stats, &opts.config)?;
 
-        if opts.config.cache {
+        if opts.config.cache() {
             cache.store(LYCHEE_CACHE_FILE)?;
         }
 
@@ -408,40 +466,10 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
             cookie_jar.save().context("Cannot save cookie jar")?;
         }
 
+        output_hints(&opts.config);
+
         exit_code
     };
 
     Ok(exit_code as i32)
-}
-
-/// Display user-friendly message if there were any issues with GitHub URLs
-fn github_warning(stats: &ResponseStats, config: &Config) {
-    let github_errors = stats
-        .error_map
-        .values()
-        .flatten()
-        .any(|body| body.uri.domain() == Some("github.com"));
-
-    if github_errors && config.github_token.is_none() {
-        warn!(
-            "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
-        );
-    }
-}
-
-/// Display user-friendly message if there were any redirects
-/// in non-verbose mode.
-fn redirect_warning(stats: &ResponseStats, config: &Config) {
-    let redirects = stats.redirects;
-    if redirects > 0 && config.verbose.log_level() < log::Level::Info {
-        let noun = if redirects == 1 {
-            "redirect"
-        } else {
-            "redirects"
-        };
-
-        warn!(
-            "lychee detected {redirects} {noun}. You might want to consider replacing redirecting URLs with the resolved URLs. Run lychee in verbose mode (-v/--verbose) to see details about the redirections.",
-        );
-    }
 }

@@ -21,21 +21,17 @@ impl StatsFormatter for Json {
 #[cfg(test)]
 mod tests {
     use crate::formatters::stats::{Json, StatsFormatter, get_dummy_stats};
+    use pretty_assertions::assert_eq;
 
-    #[test]
-    fn test_json_formatter() {
-        let formatter = Json::new();
-        let result = formatter.format(get_dummy_stats()).unwrap();
-
-        assert_eq!(
-            result,
-            r#"{
+    const EXPECTED_JSON: &str = r#"{
   "total": 2,
+  "unique": 2,
   "successful": 0,
   "unknown": 0,
   "unsupported": 0,
-  "timeouts": 0,
+  "timeouts": 1,
   "redirects": 1,
+  "remaps": 0,
   "excludes": 0,
   "errors": 1,
   "cached": 0,
@@ -47,6 +43,33 @@ mod tests {
         "status": {
           "text": "404 Not Found",
           "code": 404
+        },
+        "span": {
+          "line": 1,
+          "column": 1
+        },
+        "duration": {
+          "secs": 1,
+          "nanos": 0
+        }
+      }
+    ]
+  },
+  "timeout_map": {
+    "https://example.com/": [
+      {
+        "url": "https://httpbin.org/delay/2",
+        "status": {
+          "text": "Timeout",
+          "details": "Request timed out"
+        },
+        "span": {
+          "line": 1,
+          "column": 1
+        },
+        "duration": {
+          "secs": 1,
+          "nanos": 0
         }
       }
     ]
@@ -62,29 +85,25 @@ mod tests {
   "redirect_map": {
     "https://example.com/": [
       {
-        "url": "https://redirected.dev/",
-        "status": {
-          "text": "Redirect",
-          "code": 200,
-          "redirects": {
-            "origin": "https://1.dev/",
-            "redirects": [
-              {
-                "url": "https://2.dev/",
-                "code": 308
-              },
-              {
-                "url": "http://redirected.dev/",
-                "code": 308
-              }
-            ]
+        "origin": "https://1.dev/",
+        "redirects": [
+          {
+            "url": "https://2.dev/",
+            "code": 308
+          },
+          {
+            "url": "http://redirected.dev/",
+            "code": 308
           }
-        }
+        ]
       }
     ]
   },
   "excluded_map": {},
-  "duration_secs": 0,
+  "duration": {
+    "secs": 0,
+    "nanos": 0
+  },
   "detailed_stats": true,
   "host_stats": {
     "example.com": {
@@ -101,7 +120,13 @@ mod tests {
       "status_codes": {}
     }
   }
-}"#
-        );
+}"#;
+
+    #[test]
+    fn test_json_formatter() {
+        let formatter = Json::new();
+        let result = formatter.format(get_dummy_stats()).unwrap();
+
+        assert_eq!(result, EXPECTED_JSON);
     }
 }

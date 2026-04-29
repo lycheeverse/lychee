@@ -31,18 +31,27 @@ use crate::{ErrorKind, Result};
 /// since it does not implement [`Clone`].
 #[derive(Debug, Clone)]
 pub(crate) struct CacheableResponse {
+    /// HTTP status code of the response.
     pub(crate) status: reqwest::StatusCode,
-    pub(crate) text: String,
+    /// Response body text. Only populated when `needs_body` was `true` in
+    /// [`HostPool::execute_request`].
+    pub(crate) text: Option<String>,
+    /// Response headers.
     pub(crate) headers: HeaderMap,
+    /// Final URL after any redirects.
     pub(crate) url: Url,
 }
 
 impl CacheableResponse {
-    async fn try_from(response: Response) -> Result<Self> {
+    async fn from_response(response: Response, needs_body: bool) -> Result<Self> {
         let status = response.status();
         let headers = response.headers().clone();
         let url = response.url().clone();
-        let text = response.text().await.map_err(ErrorKind::ReadResponseBody)?;
+        let text = if needs_body {
+            Some(response.text().await.map_err(ErrorKind::ReadResponseBody)?)
+        } else {
+            None
+        };
 
         Ok(Self {
             status,

@@ -1,17 +1,20 @@
 use crate::{
-    BasicAuthCredentials, ErrorKind, FileType, Status, Uri,
+    BasicAuthCredentials, ErrorKind, FileType, FragmentCheckerOptions, Status, Uri,
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
     quirks::Quirks,
-    ratelimit::{CacheableResponse, HostPool},
+    ratelimit::HostPool,
     retry::RetryExt,
-    types::{redirect_history::RedirectHistory, uri::github::GithubUri},
+    types::{
+        redirect_history::{RedirectHistory, Redirects},
+        uri::github::GithubUri,
+    },
     utils::fragment_checker::{FragmentChecker, FragmentInput},
 };
 use async_trait::async_trait;
 use http::{Method, StatusCode};
 use octocrab::Octocrab;
 use reqwest::{Request, header::CONTENT_TYPE};
-use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
+use std::{borrow::Cow, collections::HashSet, path::Path, sync::Arc, time::Duration};
 use url::Url;
 
 #[derive(Debug, Clone)]
@@ -42,10 +45,10 @@ pub(crate) struct WebsiteChecker {
     /// This would treat unencrypted links as errors when HTTPS is available.
     require_https: bool,
 
-    /// Whether to check the existence of fragments in the response HTML files.
+    /// Controls which fragment types are checked in the response body.
     ///
-    /// Will be disabled if the request method is `HEAD`.
-    include_fragments: bool,
+    /// No fragments are checked if the request method is `HEAD`.
+    fragment_checker_options: FragmentCheckerOptions,
 
     /// Utility for performing fragment checks in HTML files.
     fragment_checker: FragmentChecker,
@@ -77,7 +80,7 @@ impl WebsiteChecker {
         github_client: Option<Octocrab>,
         require_https: bool,
         plugin_request_chain: RequestChain,
-        include_fragments: bool,
+        fragment_checker_options: FragmentCheckerOptions,
         host_pool: Arc<HostPool>,
     ) -> Self {
         Self {
@@ -89,7 +92,7 @@ impl WebsiteChecker {
             retry_wait_time,
             accepted,
             require_https,
-            include_fragments,
+            fragment_checker_options,
             fragment_checker: FragmentChecker::new(),
             host_pool,
         }
@@ -120,16 +123,23 @@ impl WebsiteChecker {
     async fn check_default(&self, request: Request) -> Status {
         let method = request.method().clone();
         let request_url = request.url().clone();
+        let check_request_fragments = self.fragment_checker_options.any_enabled()
+            && method == Method::GET
+            // This last part ensures empty and top fragments do not trigger body retrieval.
+            && request_url.fragment().is_some_and(|x| !x.is_empty());
 
-        match self.host_pool.execute_request(request).await {
+        match self
+            .host_pool
+            .execute_request(request, check_request_fragments)
+            .await
+        {
             Ok(response) => {
                 let status = Status::new(&response, &self.accepted);
                 // when `accept=200,429`, `status_code=429` will be treated as success
                 // but we are not able the check the fragment since it's inapplicable.
-                if self.include_fragments
+                if let Some(content) = response.text
+                    && check_request_fragments
                     && response.status.is_success()
-                    && method == Method::GET
-                    && request_url.fragment().is_some_and(|x| !x.is_empty())
                 {
                     let Some(content_type) = response
                         .headers
@@ -152,7 +162,7 @@ impl WebsiteChecker {
                         _ => return status,
                     };
 
-                    self.check_html_fragment(request_url, status, response, file_type)
+                    self.check_html_fragment(request_url, status, &content, file_type)
                         .await
                 } else {
                     status
@@ -166,13 +176,19 @@ impl WebsiteChecker {
         &self,
         url: Url,
         status: Status,
-        response: CacheableResponse,
+        content: &str,
         file_type: FileType,
     ) -> Status {
-        let content = response.text;
         match self
             .fragment_checker
-            .check(FragmentInput { content, file_type }, &url)
+            .check(
+                FragmentInput {
+                    content: Cow::Borrowed(content),
+                    file_type,
+                },
+                &url,
+                self.fragment_checker_options,
+            )
             .await
         {
             Ok(true) => status,
@@ -194,7 +210,7 @@ impl WebsiteChecker {
         &self,
         uri: &Uri,
         credentials: Option<BasicAuthCredentials>,
-    ) -> Result<Status, ErrorKind> {
+    ) -> (Status, Option<Redirects>) {
         let default_chain: RequestChain = Chain::new(vec![
             Box::<Quirks>::default(),
             Box::new(credentials),
@@ -202,10 +218,10 @@ impl WebsiteChecker {
         ]);
 
         let status = self.check_website_inner(uri, &default_chain).await;
-        let status = self
-            .handle_insecure_url(uri, &default_chain, status)
-            .await?;
-        Ok(self.redirect_history.handle_redirected(&uri.url, status))
+        let status = self.handle_insecure_url(uri, &default_chain, status).await;
+
+        let redirects = self.redirect_history.resolve(&uri.url);
+        (status, redirects)
     }
 
     /// Mark HTTP URLs as insecure, if the user required HTTPS
@@ -215,23 +231,23 @@ impl WebsiteChecker {
         uri: &Uri,
         default_chain: &Chain<Request, Status>,
         status: Status,
-    ) -> Result<Status, ErrorKind> {
+    ) -> Status {
         if self.require_https
             && uri.scheme() == "http"
             && let Status::Ok(_) = status
+            && let Ok(https_uri) = uri.to_https()
         {
-            let https_uri = uri.to_https()?;
             let is_https_available = self
                 .check_website_inner(&https_uri, default_chain)
                 .await
                 .is_success();
 
             if is_https_available {
-                return Ok(Status::Error(ErrorKind::InsecureURL(https_uri)));
+                return Status::Error(ErrorKind::InsecureURL(https_uri));
             }
         }
 
-        Ok(status)
+        status
     }
 
     /// Checks the given URI of a website.
@@ -324,5 +340,56 @@ fn clone_unwrap(request: &Request) -> Request {
 impl Handler<Request, Status> for WebsiteChecker {
     async fn handle(&mut self, input: Request) -> ChainResult<Request, Status> {
         ChainResult::Done(self.retry_request(input).await)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{sync::Arc, time::Duration};
+
+    use http::Method;
+    use octocrab::Octocrab;
+
+    use crate::{
+        FragmentCheckerOptions, Uri,
+        chain::RequestChain,
+        checker::website::WebsiteChecker,
+        ratelimit::HostPool,
+        types::{
+            DEFAULT_ACCEPTED_STATUS_CODES, redirect_history::RedirectHistory,
+            uri::github::GithubUri,
+        },
+    };
+
+    /// Test GitHub client integration.
+    /// This prevents a regression of <https://github.com/lycheeverse/lychee/issues/2024>
+    #[tokio::test]
+    async fn test_github_client_integration() {
+        let client = Octocrab::builder().personal_token("dummy").build().unwrap();
+        let uri =
+            GithubUri::try_from(Uri::try_from("https://github.com/lycheeverse/lychee").unwrap())
+                .unwrap();
+
+        let status = get_checker(client).check_github(uri).await;
+
+        // Because of the invalid authentication token the request failed.
+        // But we proved how we could build a client and perform a request.
+        assert!(status.is_error());
+    }
+
+    fn get_checker(client: Octocrab) -> WebsiteChecker {
+        let host_pool = HostPool::default();
+        WebsiteChecker::new(
+            Method::GET,
+            Duration::ZERO,
+            RedirectHistory::new(),
+            0,
+            DEFAULT_ACCEPTED_STATUS_CODES.clone(),
+            Some(client),
+            false,
+            RequestChain::default(),
+            FragmentCheckerOptions::default(),
+            Arc::new(host_pool),
+        )
     }
 }

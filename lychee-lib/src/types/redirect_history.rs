@@ -1,4 +1,3 @@
-use crate::Status;
 use crate::types::cache::serialize_status_code;
 use http::StatusCode;
 use reqwest::redirect::Attempt;
@@ -94,14 +93,9 @@ impl RedirectHistory {
         }
     }
 
-    pub(crate) fn handle_redirected(&self, url: &Url, status: Status) -> Status {
-        match status {
-            Status::Ok(code) => self
-                .get_resolved(url)
-                .map(|redirects| Status::Redirected(code, redirects))
-                .unwrap_or(Status::Ok(code)),
-            other => other,
-        }
+    /// Resolve the redirect chain for the given URL, if any.
+    pub(crate) fn resolve(&self, url: &Url) -> Option<Redirects> {
+        self.get_resolved(url)
     }
 
     fn get_resolved(&self, original: &Url) -> Option<Redirects> {

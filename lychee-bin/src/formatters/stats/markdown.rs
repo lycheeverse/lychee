@@ -33,6 +33,10 @@ fn stats_table(stats: &ResponseStats) -> String {
             count: stats.total,
         },
         StatsTableEntry {
+            status: "🔗 Unique",
+            count: stats.unique,
+        },
+        StatsTableEntry {
             status: "✅ Successful",
             count: stats.successful,
         },
@@ -79,6 +83,10 @@ fn markdown_response(response: &ResponseBody) -> Result<String> {
         response.uri,
     );
 
+    if let Some(span) = response.span {
+        formatted = format!("{formatted} (at {span})");
+    }
+
     if let Status::Ok(StatusCode::OK) = response.status {
         // Don't print anything else if the status code is 200.
         // The output gets too verbose then.
@@ -88,11 +96,9 @@ fn markdown_response(response: &ResponseBody) -> Result<String> {
     // Add a separator between the URI and the additional details below.
     // Note: To make the links clickable in some terminals,
     // we add a space before the separator.
-    write!(formatted, " | {}", response.status)?;
+    let details = response.status.details();
+    write!(formatted, " | {details}")?;
 
-    if let Some(details) = response.status.details() {
-        write!(formatted, ": {details}")?;
-    }
     Ok(formatted)
 }
 
@@ -110,15 +116,16 @@ impl Display for MarkdownResponseStats {
             markdown_response(response).map_err(|_| fmt::Error)
         })?;
 
-        write_stats_per_input(f, "Redirects", &stats.redirect_map, |response| {
+        write_stats_per_input(f, "Timeouts", &stats.timeout_map, |response| {
             markdown_response(response).map_err(|_| fmt::Error)
         })?;
 
+        write_stats_per_input(f, "Redirects", &stats.redirect_map, |redirects| {
+            Ok(format!("* {redirects}"))
+        })?;
+
         write_stats_per_input(f, "Suggestions", &stats.suggestion_map, |suggestion| {
-            Ok(format!(
-                "* {} --> {}",
-                suggestion.original, suggestion.suggestion
-            ))
+            Ok(format!("* {suggestion}"))
         })?;
 
         Ok(())
@@ -169,21 +176,36 @@ impl StatsFormatter for Markdown {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroUsize;
+    use std::time::Duration;
+
     use http::StatusCode;
+    use lychee_lib::RawUriSpan;
     use lychee_lib::{CacheStatus, ResponseBody, Status, Uri};
+    use pretty_assertions::assert_eq;
 
     use crate::formatters::stats::get_dummy_stats;
 
     use super::*;
+
+    const SPAN: Option<RawUriSpan> = Some(RawUriSpan {
+        line: NonZeroUsize::MIN,
+        column: Some(NonZeroUsize::MIN),
+    });
+    const DURATION: Option<Duration> = Some(Duration::from_secs(1));
 
     #[test]
     fn test_markdown_response_ok() {
         let response = ResponseBody {
             uri: Uri::try_from("http://example.com").unwrap(),
             status: Status::Ok(StatusCode::OK),
+            redirects: None,
+            remap: None,
+            span: SPAN,
+            duration: DURATION,
         };
         let markdown = markdown_response(&response).unwrap();
-        assert_eq!(markdown, "* [200] <http://example.com/>");
+        assert_eq!(markdown, "* [200] <http://example.com/> (at 1:1)");
     }
 
     #[test]
@@ -191,9 +213,16 @@ mod tests {
         let response = ResponseBody {
             uri: Uri::try_from("http://example.com").unwrap(),
             status: Status::Cached(CacheStatus::Ok(StatusCode::OK)),
+            redirects: None,
+            remap: None,
+            span: SPAN,
+            duration: DURATION,
         };
         let markdown = markdown_response(&response).unwrap();
-        assert_eq!(markdown, "* [200] <http://example.com/> | OK (cached)");
+        assert_eq!(
+            markdown,
+            "* [200] <http://example.com/> (at 1:1) | OK (cached)"
+        );
     }
 
     #[test]
@@ -201,9 +230,16 @@ mod tests {
         let response = ResponseBody {
             uri: Uri::try_from("http://example.com").unwrap(),
             status: Status::Cached(CacheStatus::Error(Some(StatusCode::BAD_REQUEST))),
+            redirects: None,
+            remap: None,
+            span: SPAN,
+            duration: DURATION,
         };
         let markdown = markdown_response(&response).unwrap();
-        assert_eq!(markdown, "* [400] <http://example.com/> | Error (cached)");
+        assert_eq!(
+            markdown,
+            "* [400] <http://example.com/> (at 1:1) | Error (cached)"
+        );
     }
 
     #[test]
@@ -213,6 +249,7 @@ mod tests {
         let expected = "| Status         | Count |
 |----------------|-------|
 | 🔍 Total       | 0     |
+| 🔗 Unique      | 0     |
 | ✅ Successful  | 0     |
 | ⏳ Timeouts    | 0     |
 | 🔀 Redirected  | 0     |
@@ -231,8 +268,9 @@ mod tests {
 | Status         | Count |
 |----------------|-------|
 | 🔍 Total       | 2     |
+| 🔗 Unique      | 2     |
 | ✅ Successful  | 0     |
-| ⏳ Timeouts    | 0     |
+| ⏳ Timeouts    | 1     |
 | 🔀 Redirected  | 1     |
 | 👻 Excluded    | 0     |
 | ❓ Unknown     | 0     |
@@ -243,13 +281,19 @@ mod tests {
 
 ### Errors in https://example.com/
 
-* [404] <https://github.com/mre/idiomatic-rust-doesnt-exist-man> | 404 Not Found: Not Found
+* [404] <https://github.com/mre/idiomatic-rust-doesnt-exist-man> (at 1:1) | 404 Not Found
+
+## Timeouts per input
+
+### Timeouts in https://example.com/
+
+* [TIMEOUT] <https://httpbin.org/delay/2> (at 1:1) | Request timed out
 
 ## Redirects per input
 
 ### Redirects in https://example.com/
 
-* [200] <https://redirected.dev/> | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
+* https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
 
 ## Suggestions per input
 

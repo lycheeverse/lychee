@@ -7,10 +7,12 @@ pub mod css;
 pub mod html;
 pub mod markdown;
 mod plaintext;
+pub mod xml;
 
 use css::extract_css;
 use markdown::extract_markdown;
 use plaintext::extract_raw_uri_from_plaintext;
+use xml::extract_xml;
 
 /// A handler for extracting links from various input formats like Markdown and
 /// HTML. Allocations should be avoided if possible as this is a
@@ -48,27 +50,23 @@ impl Extractor {
     /// (Markdown, HTML, CSS, and plaintext)
     #[must_use]
     pub fn extract(&self, input_content: &InputContent) -> Vec<RawUri> {
+        let content = &input_content.content;
         match input_content.file_type {
-            FileType::Markdown => extract_markdown(
-                &input_content.content,
-                self.include_verbatim,
-                self.include_wikilinks,
-            ),
+            FileType::Markdown => {
+                extract_markdown(content, self.include_verbatim, self.include_wikilinks)
+            }
             FileType::Html => {
                 if self.use_html5ever {
-                    html::html5ever::extract_html(&input_content.content, self.include_verbatim)
+                    html::html5ever::extract_html(content, self.include_verbatim)
                 } else {
-                    html::html5gum::extract_html(&input_content.content, self.include_verbatim)
+                    html::html5gum::extract_html(content, self.include_verbatim)
                 }
             }
-            FileType::Css => extract_css(
-                &input_content.content,
-                &SourceSpanProvider::from_input(&input_content.content),
-            ),
-            FileType::Plaintext => extract_raw_uri_from_plaintext(
-                &input_content.content,
-                &SourceSpanProvider::from_input(&input_content.content),
-            ),
+            FileType::Css => extract_css(content, &SourceSpanProvider::from_input(content)),
+            FileType::Plaintext => {
+                extract_raw_uri_from_plaintext(content, &SourceSpanProvider::from_input(content))
+            }
+            FileType::Xml => extract_xml(content, &SourceSpanProvider::from_input(content)),
         }
     }
 }

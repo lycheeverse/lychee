@@ -17,7 +17,6 @@ impl EmojiFormatter {
             Status::Excluded => "👻",
             Status::Unsupported(_)
             | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => "🚫",
-            Status::Redirected(_, _) => "↪️",
             Status::UnknownStatusCode(_) | Status::UnknownMailStatus(_) | Status::Timeout(_) => {
                 "⚠️"
             }
@@ -39,7 +38,7 @@ impl ResponseFormatter for EmojiFormatter {
 mod emoji_tests {
     use super::*;
     use http::StatusCode;
-    use lychee_lib::{ErrorKind, Redirects, Status, Uri};
+    use lychee_lib::{ErrorKind, Redirects, ResponseBody, Status, Uri};
     use test_utils::mock_response_body;
 
     #[test]
@@ -58,7 +57,7 @@ mod emoji_tests {
         );
         assert_eq!(
             formatter.format_response(&body),
-            "❌ https://example.com/404 | URL cannot be empty: Empty URL found. Check for missing links or malformed markdown"
+            "❌ https://example.com/404 | Empty URL found but a URL must not be empty"
         );
     }
 
@@ -68,23 +67,25 @@ mod emoji_tests {
         let body = mock_response_body!(Status::Excluded, "https://example.com/not-checked");
         assert_eq!(
             formatter.format_response(&body),
-            "👻 https://example.com/not-checked"
+            "👻 https://example.com/not-checked | This is due to your 'exclude' values"
         );
     }
 
     #[test]
     fn test_format_response_with_redirect_status() {
         let formatter = EmojiFormatter;
-        let body = mock_response_body!(
-            Status::Redirected(
-                StatusCode::MOVED_PERMANENTLY,
-                Redirects::new("https://example.com/redirect".try_into().unwrap())
-            ),
-            "https://example.com/redirect",
-        );
+        let redirects = Redirects::new("https://example.com/redirect".try_into().unwrap());
+        let body = ResponseBody {
+            uri: Uri::try_from("https://example.com/redirect").unwrap(),
+            status: Status::Ok(StatusCode::OK),
+            redirects: Some(redirects),
+            remap: None,
+            span: None,
+            duration: None,
+        };
         assert_eq!(
             formatter.format_response(&body),
-            "↪️ https://example.com/redirect | Redirect: Followed 0 redirects resolving to the final status of: Moved Permanently. Redirects: https://example.com/redirect"
+            "✅ https://example.com/redirect | 200 OK | Followed 0 redirects. Redirects: https://example.com/redirect"
         );
     }
 

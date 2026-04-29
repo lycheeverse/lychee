@@ -29,7 +29,7 @@ mod cli {
     use uuid::Uuid;
     use wiremock::{
         Mock, Request, ResponseTemplate,
-        matchers::{basic_auth, method},
+        matchers::{basic_auth, method, path},
     };
 
     type Result<T> = std::result::Result<T, Box<dyn Error>>;
@@ -52,6 +52,35 @@ mod cli {
         }};
     }
 
+    async fn text_fragments_server() -> Result<wiremock::MockServer> {
+        let mock_server = wiremock::MockServer::start().await;
+        let fixtures_dir = fixtures_path!().join("text_fragments");
+        let html_response = |name: &str| -> Result<ResponseTemplate> {
+            let body = fs::read(fixtures_dir.join(name))?;
+            Ok(ResponseTemplate::new(200).set_body_raw(body, "text/html"))
+        };
+
+        Mock::given(method("GET"))
+            .and(path("/index.html"))
+            .respond_with(html_response("index.html")?)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/should-match.html"))
+            .respond_with(html_response("should-match.html")?)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/should-not-match.html"))
+            .respond_with(html_response("should-not-match.html")?)
+            .mount(&mock_server)
+            .await;
+
+        Ok(mock_server)
+    }
+
     /// Convert a relative path to an absolute path string
     /// starting from a base directory.
     fn path_str(base: &Path, relative_path: &str) -> String {
@@ -62,20 +91,39 @@ mod cli {
     /// Order of the lines is ignored.
     fn assert_lines_eq<S: AsRef<str> + Ord>(result: Assert, mut expected_lines: Vec<S>) {
         let output = &result.get_output().stdout;
-        let mut actual_lines: Vec<String> = output
-            .lines()
-            .map(|line| line.unwrap().to_string())
-            .collect();
+        let mut actual_lines: Vec<String> = output.lines().map(|line| line.unwrap()).collect();
 
         actual_lines.sort();
         expected_lines.sort();
 
-        let expected_lines: Vec<String> = expected_lines
-            .into_iter()
-            .map(|l| l.as_ref().to_owned())
-            .collect();
+        let expected_lines: Vec<&str> = expected_lines.iter().map(|l| l.as_ref()).collect();
 
         assert_eq!(actual_lines, expected_lines);
+    }
+
+    /// Parse lychee's json output to [`Value`].
+    /// Additionally remove the non-deterministic duration to simplify subsequent assertions
+    fn stdout_to_json(stdout: &[u8]) -> Value {
+        let mut output_json =
+            serde_json::from_slice::<Value>(stdout).expect("stdout is not valid JSON");
+        remove_nondeterministic_duration(&mut output_json["success_map"]);
+        remove_nondeterministic_duration(&mut output_json["excluded_map"]);
+        return output_json;
+
+        fn remove_nondeterministic_duration(value: &mut Value) {
+            let map = value.as_object_mut().expect("Expected object");
+            map.iter_mut().for_each(|(_, v)| {
+                v.as_array_mut()
+                    .expect("Expected array of objects")
+                    .iter_mut()
+                    .for_each(|a| {
+                        a.as_object_mut()
+                            .expect("Expected object")
+                            .remove("duration")
+                            .expect("Value of 'duration' not present");
+                    });
+            });
+        }
     }
 
     /// Test the output of the JSON format.
@@ -120,16 +168,25 @@ mod cli {
     /// Test that the default report output format (compact) and mode (color)
     /// prints the failed URLs as well as their status codes on error. Make
     /// sure that the status code only occurs once.
-    #[test]
-    fn test_compact_output_format_contains_status() -> Result<()> {
-        let test_path = fixtures_path!().join("TEST_INVALID_URLS.html");
+    #[tokio::test]
+    async fn test_compact_output_format_contains_status() -> Result<()> {
+        let not_found = mock_server!(StatusCode::NOT_FOUND);
+        let internal_server_error = mock_server!(StatusCode::INTERNAL_SERVER_ERROR);
+        let bad_gateway = mock_server!(StatusCode::BAD_GATEWAY);
+        let contents = format!(
+            "{} {} {}",
+            &not_found.uri(),
+            &internal_server_error.uri(),
+            &bad_gateway.uri(),
+        );
 
         let mut cmd = cargo_bin_cmd!();
-        cmd.arg("--format")
+        cmd.write_stdin(contents)
+            .arg("-")
+            .arg("--format")
             .arg("compact")
             .arg("--mode")
             .arg("color")
-            .arg(test_path)
             .env("FORCE_COLOR", "1")
             .assert()
             .failure()
@@ -140,19 +197,7 @@ mod cli {
         // Check that the output contains the status code (once) and the URL
         let output_str = String::from_utf8_lossy(&output.stdout);
 
-        // The expected output is as follows:
-        // "Find details below."
-        // [EMPTY LINE]
-        // [path/to/file]:
-        //      [400] https://httpbin.org/status/404
-        //      [500] https://httpbin.org/status/500
-        //      [502] https://httpbin.org/status/502
-        // (the order of the URLs may vary)
-
-        // Check that the output contains the file path
-        assert!(output_str.contains("TEST_INVALID_URLS.html"));
-
-        let re = Regex::new(r"\s{5}\[\d{3}\] https://httpbin\.org/status/\d{3}").unwrap();
+        let re = Regex::new(r"\s{5}\[\d{3}\] http://.* | Rejected status code").unwrap();
         let matches: Vec<&str> = re.find_iter(&output_str).map(|m| m.as_str()).collect();
 
         // Check that the status code occurs only once
@@ -176,7 +221,7 @@ mod cli {
             .assert()
             .success();
         let output = cmd.output().unwrap();
-        let output_json = serde_json::from_slice::<Value>(&output.stdout)?;
+        let output_json = stdout_to_json(&output.stdout);
 
         // Check that the output is valid JSON
         assert!(output_json.is_object());
@@ -187,8 +232,7 @@ mod cli {
         assert!(output_json.get("excluded_map").is_some());
 
         // Check the success map
-        let success_map = output_json["success_map"].as_object().unwrap();
-        assert_eq!(success_map.len(), 1);
+        let success_map = &output_json["success_map"];
 
         // Get the actual URL from the mock server for comparison
         let mock_url = mock_server_ok.uri();
@@ -197,6 +241,10 @@ mod cli {
         let expected_success_map = serde_json::json!({
             "stdin": [
                 {
+                    "span": {
+                        "column": 1,
+                        "line": 1,
+                    },
                     "status": {
                         "code": 200,
                         "text": "200 OK"
@@ -208,8 +256,7 @@ mod cli {
 
         // Compare the actual success map with the expected one
         assert_eq!(
-            success_map,
-            expected_success_map.as_object().unwrap(),
+            *success_map, expected_success_map,
             "Success map doesn't match expected structure"
         );
 
@@ -221,12 +268,11 @@ mod cli {
     /// See https://github.com/lycheeverse/lychee/issues/1355
     #[test]
     fn test_valid_json_output_to_stdout_on_error() -> Result<()> {
-        let test_path = fixtures_path!().join("TEST_GITHUB_404.md");
-
         let mut cmd = cargo_bin_cmd!();
         cmd.arg("--format")
             .arg("json")
-            .arg(test_path)
+            .arg("-")
+            .write_stdin("https://github.com/mre/idiomatic-rust-doesnt-exist-man")
             .assert()
             .failure()
             .code(2);
@@ -234,7 +280,7 @@ mod cli {
         let output = cmd.output()?;
 
         // Check that the output is valid JSON
-        assert!(serde_json::from_slice::<Value>(&output.stdout).is_ok());
+        stdout_to_json(&output.stdout);
         Ok(())
     }
 
@@ -252,11 +298,8 @@ mod cli {
 
         let output = cmd.output()?;
 
-        // Check that the output is valid JSON
-        assert!(serde_json::from_slice::<Value>(&output.stdout).is_ok());
-
         // Parse site error status from the error_map
-        let output_json = serde_json::from_slice::<Value>(&output.stdout).unwrap();
+        let output_json = stdout_to_json(&output.stdout);
         let site_error_status =
             &output_json["error_map"][&test_path.to_str().unwrap()][0]["status"];
 
@@ -301,10 +344,10 @@ mod cli {
             .assert()
             .code(2)
             .stdout(contains(
-                "Unreachable mail address mailto:test@example.com: No MX records found for domain",
+                "mailto:test@example.com (at 1:1) | No MX records found for domain",
             ))
             .stdout(contains(
-                "Unreachable mail address mailto:idiomatic-rust-doesnt-exist-man@wikipedia.org: Mail server rejects the address",
+                "mailto:idiomatic-rust-doesnt-exist-man@wikipedia.org (at 1:18) | Mail server rejects the address",
             ))
             .stdout(contains("2 Errors"));
 
@@ -461,12 +504,49 @@ mod cli {
             .arg("/resolve_paths")
             .arg("--base-url")
             .arg(&dir)
-            .arg(dir.join("resolve_paths").join("index.html"))
+            .arg(dir.join("resolve_paths").join("index2.html"))
             .env_clear()
             .assert()
             .success()
-            .stdout(contains("3 Total"))
-            .stdout(contains("3 OK"));
+            .stdout(contains("5 Total"))
+            .stdout(contains("5 OK"));
+    }
+
+    #[test]
+    fn test_resolve_paths_from_root_dir_and_local_base_url() {
+        let dir = fixtures_path!();
+
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg("--root-dir")
+            .arg("/root")
+            .arg("--base-url")
+            .arg("/base/")
+            .arg(dir.join("resolve_paths").join("index2.html"))
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("file:///base/root"))
+            .stdout(contains("file:///base/root/about"))
+            .stdout(contains("file:///base/resolve_paths/index.html"))
+            .stdout(contains("file:///base/root/another%20page#y"))
+            .stdout(contains("file:///base/resolve_paths/same%20folder.html#x"));
+    }
+
+    #[test]
+    fn test_root_relative_with_remote_base_url_and_root_dir() {
+        // When both are set and base-url is remote, root-relative links
+        // should resolve against the remote base, not the local root-dir.
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--dump")
+            .arg("--base-url=https://example.com/docs/")
+            .arg("--root-dir=/tmp")
+            .arg("--default-extension=md")
+            .write_stdin("[a](/page)")
+            .assert()
+            .success()
+            .stdout(contains("https://example.com/page"));
     }
 
     #[test]
@@ -476,9 +556,7 @@ mod cli {
             .arg("i don't exist blah blah")
             .arg("http://example.com")
             .assert()
-            .failure()
-            .stderr(contains("Invalid root directory"))
-            .code(1);
+            .success();
 
         let file = NamedTempFile::new().unwrap();
         cargo_bin_cmd!()
@@ -486,9 +564,7 @@ mod cli {
             .arg(file.path())
             .arg("http://example.com")
             .assert()
-            .failure()
-            .stderr(contains("Invalid root directory"))
-            .code(1);
+            .success();
     }
 
     #[test]
@@ -575,62 +651,6 @@ mod cli {
             .stdout(contains("1 Excluded"));
     }
 
-    #[test]
-    fn test_caching_single_file() {
-        // Repetitions in one file shall all be checked and counted only once.
-        let test_schemes_path_1 = fixtures_path!().join("TEST_REPETITION_1.txt");
-
-        cargo_bin_cmd!()
-            .arg(&test_schemes_path_1)
-            .env_clear()
-            .assert()
-            .success()
-            .stdout(contains("1 Total"))
-            .stdout(contains("1 OK"));
-    }
-
-    #[test]
-    // Test that two identical requests don't get executed twice.
-    fn test_caching_across_files() -> Result<()> {
-        // Repetitions across multiple files shall all be checked only once.
-        let repeated_uris = fixtures_path!().join("TEST_REPETITION_*.txt");
-
-        test_json_output!(
-            repeated_uris,
-            MockResponseStats {
-                total: 2,
-                cached: 1,
-                successful: 2,
-                excludes: 0,
-                ..MockResponseStats::default()
-            },
-            // Two requests to the same URI may be executed in parallel. As a
-            // result, the response might not be cached and the test would be
-            // flaky. Therefore limit the concurrency to one request at a time.
-            "--max-concurrency",
-            "1"
-        )
-    }
-
-    #[test]
-    fn test_failure_github_404_no_token() {
-        let test_github_404_path = fixtures_path!().join("TEST_GITHUB_404.md");
-
-        cargo_bin_cmd!()
-            .arg(test_github_404_path)
-            .arg("--no-progress")
-            .env_clear()
-            .assert()
-            .failure()
-            .code(2)
-            .stdout(contains(
-                r#"[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man | Rejected status code: 404 Not Found (configurable with "accept" option)"#
-            ))
-            .stderr(contains(
-                "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
-            ));
-    }
-
     #[tokio::test]
     async fn test_stdin_input() {
         let mock_server = mock_server!(StatusCode::OK);
@@ -671,13 +691,13 @@ mod cli {
     }
 
     #[test]
-    fn test_missing_file_ok_if_skip_missing() {
+    fn test_fails_if_input_file_missing_even_with_skip_missing() {
         let filename = format!("non-existing-file-{}", uuid::Uuid::new_v4());
         cargo_bin_cmd!()
             .arg(&filename)
             .arg("--skip-missing")
             .assert()
-            .success();
+            .failure();
     }
 
     #[test]
@@ -821,22 +841,72 @@ mod cli {
     #[tokio::test]
     async fn test_glob_recursive() -> Result<()> {
         let dir = tempfile::tempdir()?;
-        let subdir_level_1 = tempfile::tempdir_in(&dir)?;
-        let subdir_level_2 = tempfile::tempdir_in(&subdir_level_1)?;
+        let subdir_level_1 = dir.path().join("level1");
+        let subdir_level_2 = subdir_level_1.join("level2");
+        std::fs::create_dir_all(&subdir_level_2)?;
 
         let mock_server = mock_server!(StatusCode::OK);
-        let mut file = File::create(subdir_level_2.path().join("test.md"))?;
+        let mut file = File::create(subdir_level_2.join("test.md"))?;
 
         writeln!(file, "{}", mock_server.uri().as_str())?;
 
         cargo_bin_cmd!()
-            .arg(dir.path().join("**/*.md")) // ** should be a recursive glob
+            .arg(dir.path().join("**/*.md")) // `**` should be a recursive glob
             .arg("--verbose")
             .assert()
             .success()
             .stdout(contains("1 Total"));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_glob_skips_hidden_files_by_default() {
+        let test_dir = fixtures_path!().join("hidden");
+
+        // Glob should skip hidden files by default (matching shell behavior)
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(test_dir.join("**/*"))
+            .assert()
+            .success()
+            .stdout(is_empty());
+
+        // Glob should skip hidden files for --dump-inputs too
+        cargo_bin_cmd!()
+            .arg("--dump-inputs")
+            .arg(test_dir.join("**/*"))
+            .assert()
+            .success()
+            .stdout(is_empty());
+    }
+
+    #[test]
+    fn test_glob_includes_hidden_files_with_flag() {
+        let test_dir = fixtures_path!().join("hidden");
+
+        // Glob should include hidden files when --hidden is passed
+        let result = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg("--hidden")
+            .arg(test_dir.join("**/*"))
+            .assert()
+            .success();
+
+        assert_lines_eq(
+            result,
+            vec!["https://rust-lang.org/", "https://rust-lang.org/"],
+        );
+
+        // --dump-inputs with --hidden should list hidden files
+        cargo_bin_cmd!()
+            .arg("--dump-inputs")
+            .arg("--hidden")
+            .arg(test_dir.join("**/*"))
+            .assert()
+            .success()
+            .stdout(contains(".file.md"))
+            .stdout(contains(".hidden/file.md"));
     }
 
     /// Test formatted file output
@@ -881,9 +951,8 @@ mod cli {
 
     /// Test excludes
     #[test]
-    fn test_exclude_wildcard() -> Result<()> {
+    fn test_exclude_wildcard() {
         let test_path = fixtures_path!().join("TEST.md");
-
         cargo_bin_cmd!()
             .arg(test_path)
             .arg("--exclude")
@@ -891,14 +960,11 @@ mod cli {
             .assert()
             .success()
             .stdout(contains("12 Excluded"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_exclude_multiple_urls() -> Result<()> {
+    fn test_exclude_multiple_urls() {
         let test_path = fixtures_path!().join("TEST.md");
-
         cargo_bin_cmd!()
             .arg(test_path)
             .arg("--exclude")
@@ -908,8 +974,6 @@ mod cli {
             .assert()
             .success()
             .stdout(contains("4 Excluded"));
-
-        Ok(())
     }
 
     #[tokio::test]
@@ -936,7 +1000,7 @@ mod cli {
             .arg(".")
             .assert()
             .failure()
-            .stderr(contains("Cannot load default configuration file"));
+            .stderr(contains("Cannot load configuration file"));
     }
 
     #[tokio::test]
@@ -1007,6 +1071,91 @@ mod cli {
             .stderr(contains("TOML parse error"));
     }
 
+    /// Make sure that TOML type errors include all error details (line/column
+    /// info and invalid type message), not just a generic "Failed to parse"
+    /// message.
+    ///
+    /// This is a regression test for
+    /// https://github.com/lycheeverse/lychee/issues/2146
+    #[tokio::test]
+    async fn test_invalid_config_type_error_shows_details() {
+        let config = fixtures_path!().join("configs").join("invalid-type.toml");
+        cargo_bin_cmd!()
+            .arg("--config")
+            .arg(config)
+            .arg("-")
+            .env_clear()
+            .assert()
+            .failure()
+            .stderr(contains("Cannot load configuration file"))
+            .stderr(contains("TOML parse error"))
+            .stderr(contains("invalid type"))
+            .stderr(contains("threads = 'a'"));
+    }
+
+    #[tokio::test]
+    async fn test_configs_precedence() {
+        let path = fixtures_path!().join("configs");
+
+        cargo_bin_cmd!()
+            .current_dir(&path)
+            .arg(".")
+            .arg("--config")
+            .arg("precedence-compact.toml")
+            .arg("--config")
+            .arg("precedence-json.toml") // later config takes precedence
+            .assert()
+            .success()
+            .stdout(contains(r#""total": 1,"#))
+            .stdout(contains("1 Total").not());
+
+        cargo_bin_cmd!()
+            .current_dir(path)
+            .arg(".")
+            .arg("--config")
+            .arg("precedence-json.toml")
+            .arg("--config")
+            .arg("precedence-compact.toml") // later config takes precedence
+            .assert()
+            .success()
+            .stdout(contains("1 Total"))
+            .stdout(contains(r#""total": 1,"#).not());
+    }
+
+    #[tokio::test]
+    async fn test_cli_option_precedence() {
+        let path = fixtures_path!().join("configs");
+
+        cargo_bin_cmd!()
+            .current_dir(&path)
+            .arg(".")
+            // the CLI args always have precedence over config files
+            .arg("--format")
+            .arg("json")
+            .arg("--config")
+            .arg("precedence-compact.toml")
+            .assert()
+            .success()
+            .stdout(contains(r#""total": 1,"#))
+            .stdout(contains("1 Total").not());
+    }
+
+    #[tokio::test]
+    async fn test_config_merging() {
+        let path = fixtures_path!().join("configs");
+        cargo_bin_cmd!()
+            .current_dir(&path)
+            .write_stdin("https://a.dev https://b.dev")
+            .arg("-")
+            .arg("--config")
+            .arg("exclude-a.toml")
+            .arg("--config")
+            .arg("exclude-b.toml")
+            .assert()
+            .success()
+            .stdout(contains("2 Excluded"));
+    }
+
     #[tokio::test]
     async fn test_config_invalid_keys() {
         let mock_server = mock_server!(StatusCode::OK);
@@ -1038,13 +1187,12 @@ mod cli {
 
     #[tokio::test]
     async fn test_config_example() {
-        let mock_server = mock_server!(StatusCode::OK);
         let config = root_path!().join("lychee.example.toml");
         cargo_bin_cmd!()
+            .current_dir(root_path!())
             .arg("--config")
             .arg(config)
             .arg("-")
-            .write_stdin(mock_server.uri())
             .env_clear()
             .assert()
             .success();
@@ -1164,6 +1312,7 @@ The config file should contain every possible key for documentation purposes."
 
         cargo_bin_cmd!()
             .current_dir(test_path)
+            .arg("--insecure")
             .arg("TEST.md")
             .arg("--exclude-file")
             .arg(excludes_path)
@@ -1177,7 +1326,8 @@ The config file should contain every possible key for documentation purposes."
 
     #[tokio::test]
     async fn test_lycheecache_file() -> Result<()> {
-        let base_path = fixtures_path!().join("cache");
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
         // Ensure clean state
@@ -1203,7 +1353,7 @@ The config file should contain every possible key for documentation purposes."
 
         // Create and run command
         let mut cmd = cargo_bin_cmd!();
-        cmd.current_dir(&base_path)
+        cmd.current_dir(base_path)
             .arg(&file_path)
             .arg("-vv")
             .arg("--no-progress")
@@ -1232,18 +1382,18 @@ The config file should contain every possible key for documentation purposes."
             "Missing OK entry in cache"
         );
         assert!(
-            data.contains(&format!("{}/,404", mock_server_err.uri())),
-            "Missing error entry in cache"
+            !data.contains(&format!("{}/,404", mock_server_err.uri())),
+            "Error entry should not be cached"
         );
 
         // Run again to verify cache behavior
         cmd.assert()
             .stderr(contains(format!(
-                "[200] {}/ | OK (cached)\n",
+                "[200] {}/ (at 1:1) | OK (cached)\n",
                 mock_server_ok.uri()
             )))
             .stderr(contains(format!(
-                "[404] {}/ | Error (cached)\n",
+                "[404] {}/ (at 2:1) | Rejected status code: 404 Not Found\n",
                 mock_server_err.uri()
             )));
 
@@ -1257,7 +1407,8 @@ The config file should contain every possible key for documentation purposes."
 
     #[tokio::test]
     async fn test_lycheecache_exclude_custom_status_codes() -> Result<()> {
-        let base_path = fixtures_path!().join("cache");
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
         // Unconditionally remove cache file if it exists
@@ -1276,9 +1427,11 @@ The config file should contain every possible key for documentation purposes."
 
         let mut cmd = cargo_bin_cmd!();
         let test_cmd = cmd
-            .current_dir(&base_path)
+            .current_dir(base_path)
             .arg(dir.path().join("c.md"))
             .arg("-vv")
+            .arg("--max-retries")
+            .arg("0")
             .arg("--no-progress")
             .arg("--cache")
             .arg("--cache-exclude-status")
@@ -1292,13 +1445,16 @@ The config file should contain every possible key for documentation purposes."
         // Run first without cache to generate the cache file
         test_cmd
             .assert()
-            .stderr(contains(format!("[200] {}/\n", mock_server_ok.uri())))
             .stderr(contains(format!(
-                "[204] {}/ | 204 No Content: No Content\n",
+                "[200] {}/ (at 1:1)\n",
+                mock_server_ok.uri()
+            )))
+            .stderr(contains(format!(
+                "[204] {}/ (at 2:1) | 204 No Content\n",
                 mock_server_no_content.uri()
             )))
             .stderr(contains(format!(
-                "[429] {}/ | Rejected status code: 429 Too Many Requests (configurable with \"accept\" option)",
+                "[429] {}/ (at 3:1) | Rejected status code: 429 Too Many Requests\n",
                 mock_server_too_many_requests.uri()
             )));
 
@@ -1339,7 +1495,7 @@ The config file should contain every possible key for documentation purposes."
 
         let mut cmd = cargo_bin_cmd!();
         let test_cmd = cmd
-            .current_dir(&base_path)
+            .current_dir(base_path)
             .arg(dir.path().join("c.md"))
             .arg("-vv")
             .arg("--cache");
@@ -1356,19 +1512,21 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                r#"[418] {}/ | Rejected status code: 418 I'm a teapot (configurable with "accept" option)"#,
+                r#"[418] {}/ (at 2:1) | Rejected status code: 418 I'm a teapot"#,
                 mock_server_teapot.uri()
             )))
             .stdout(contains(format!(
-                r#"[500] {}/ | Rejected status code: 500 Internal Server Error (configurable with "accept" option)"#,
+                r#"[500] {}/ (at 3:1) | Rejected status code: 500 Internal Server Error"#,
                 mock_server_server_error.uri()
             )));
 
         // check content of cache file
         let data = fs::read_to_string(&cache_file)?;
         assert!(data.contains(&format!("{}/,200", mock_server_ok.uri())));
-        assert!(data.contains(&format!("{}/,418", mock_server_teapot.uri())));
-        assert!(data.contains(&format!("{}/,500", mock_server_server_error.uri())));
+        // Because the first run DID NOT use `--accept`, 418 and 500 were both treated as errors.
+        // With our new error dropping logic, NEITHER gets cached in the first run.
+        assert!(!data.contains(&format!("{}/,418", mock_server_teapot.uri())));
+        assert!(!data.contains(&format!("{}/,500", mock_server_server_error.uri())));
 
         // run again to verify cache behavior
         // this time accept 418 and 500 as valid status codes
@@ -1379,11 +1537,11 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success()
             .stderr(contains(format!(
-                "[418] {}/ | OK (cached)",
+                "[418] {}/ (at 2:1) | 418 I'm a teapot",
                 mock_server_teapot.uri()
             )))
             .stderr(contains(format!(
-                "[500] {}/ | OK (cached)",
+                "[500] {}/ (at 3:1) | 500 Internal Server Error",
                 mock_server_server_error.uri()
             )));
 
@@ -1406,7 +1564,7 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                r#"[200] {}/ | Rejected status code: 200 OK (configurable with "accept" option)"#,
+                r#"[200] {}/ (at 1:1) | Rejected status code: 200 OK"#,
                 mock_server_200.uri()
             )));
 
@@ -1414,8 +1572,43 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[tokio::test]
+    async fn test_accept_timeout() -> Result<()> {
+        let mock_server_timeout = mock_server!(StatusCode::OK, set_delay(Duration::from_secs(30)));
+
+        cargo_bin_cmd!()
+            .arg("--max-retries=0")
+            .arg("--timeout=1")
+            .arg("-")
+            .write_stdin(mock_server_timeout.uri())
+            .assert()
+            .failure()
+            .code(2)
+            .stdout(contains(format!(
+                r#"[TIMEOUT] {}/ (at 1:1)"#,
+                mock_server_timeout.uri()
+            )));
+
+        cargo_bin_cmd!()
+            .arg("--max-retries=0")
+            .arg("--timeout=1")
+            .arg("--accept-timeouts")
+            .arg("-")
+            .write_stdin(mock_server_timeout.uri())
+            .assert()
+            .success()
+            .code(0)
+            .stdout(contains(format!(
+                r#"[TIMEOUT] {}/ (at 1:1)"#,
+                mock_server_timeout.uri()
+            )));
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_skip_cache_unsupported() -> Result<()> {
-        let base_path = fixtures_path!().join("cache");
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
         // Unconditionally remove cache file if it exists
@@ -1426,20 +1619,21 @@ The config file should contain every possible key for documentation purposes."
 
         // run first without cache to generate the cache file
         cargo_bin_cmd!()
-            .current_dir(&base_path)
+            .current_dir(base_path)
             .write_stdin(format!("{unsupported_url}\n{excluded_url}"))
             .arg("--cache")
             .arg("--verbose")
             .arg("--no-progress")
             .arg("--exclude")
             .arg(excluded_url)
-            .arg("--")
             .arg("-")
             .assert()
             .stderr(contains(format!(
-                "[IGNORED] {unsupported_url} | Unsupported: Error creating request client"
+                "[IGNORED] {unsupported_url} (at 1:1) | Unsupported: Failed to create HTTP request client: builder error for url (slack://user)"
             )))
-            .stderr(contains(format!("[EXCLUDED] {excluded_url}\n")));
+            .stderr(contains(format!(
+                "[EXCLUDED] {excluded_url} (at 2:1) | This is due to your 'exclude' values\n"
+            )));
 
         // The cache file should be empty, because the only checked URL is
         // unsupported and we don't want to cache that. It might be supported in
@@ -1453,56 +1647,68 @@ The config file should contain every possible key for documentation purposes."
         Ok(())
     }
 
-    /// Unknown status codes should be skipped and not cached by default
-    /// The reason is that we don't know if they are valid or not
-    /// and even if they are invalid, we don't know if they will be valid in the
-    /// future.
-    ///
-    /// Since we cannot test this with our mock server (because hyper panics on
-    /// invalid status codes) we use LinkedIn as a test target.
-    ///
-    /// Unfortunately, LinkedIn does not always return 999, so this is a flaky
-    /// test. We only check that the cache file doesn't contain any invalid
-    /// status codes.
+    /// Unknown status codes are cached as well.
     #[tokio::test]
-    async fn test_skip_cache_unknown_status_code() -> Result<()> {
-        let base_path = fixtures_path!().join("cache");
+    async fn test_cache_unknown_status_code() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
-        // Unconditionally remove cache file if it exists
-        let _ = fs::remove_file(&cache_file);
+        let mock_server = wiremock::MockServer::start().await;
 
-        // https://linkedin.com returns 999 for unknown status codes
-        // use this as a test target
-        let unknown_url = "https://www.linkedin.com/company/corrode";
+        Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(ResponseTemplate::new(999))
+            .mount(&mock_server)
+            .await;
 
         // run first without cache to generate the cache file
         cargo_bin_cmd!()
-            .current_dir(&base_path)
-            .write_stdin(unknown_url.to_string())
+            .current_dir(base_path)
+            .write_stdin(mock_server.uri())
             .arg("--cache")
-            .arg("--verbose")
-            .arg("--no-progress")
-            .arg("--")
             .arg("-")
             .assert()
-            .success();
+            .failure();
 
         // If the status code was 999, the cache file should be empty
         // because we do not want to cache unknown status codes
         let buf = fs::read(&cache_file).unwrap();
-        if !buf.is_empty() {
-            let data = String::from_utf8(buf)?;
-            // The cache file should not contain any invalid status codes
-            // In that case, we expect a single entry with status code 200
-            assert!(!data.contains("999"));
-            assert!(data.contains("200"));
-        }
-
-        // clear the cache file
-        fs::remove_file(&cache_file)?;
+        assert!(
+            buf.is_empty(),
+            "cache file should be empty, but was {}",
+            String::from_utf8_lossy(&buf)
+        );
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_no_duplicate_requests() {
+        let server = wiremock::MockServer::start().await;
+        let count = 100; // given 100 duplicate URLs
+        let cached = "99.0%"; // we expect 99 out of 100 to be cached
+
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(|_: &_| {
+                // Simulate real-world delay.
+                // Keep the delay to prove how we make use of synchronization
+                // primitives to prevent duplicate requests.
+                ResponseTemplate::new(200).set_delay(Duration::from_secs(1))
+            })
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        cargo_bin_cmd!()
+            .write_stdin(format!("{} ", server.uri()).repeat(count))
+            .arg("-")
+            .arg("--host-stats")
+            // the request interval must not have an affect on duplicates
+            .arg("--host-request-interval=1s")
+            .assert()
+            .success()
+            .stdout(contains("100.0% success"))
+            .stdout(contains(format!("{cached} cached")));
     }
 
     #[tokio::test]
@@ -1516,7 +1722,7 @@ The config file should contain every possible key for documentation purposes."
         // such a response isn't cached.
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .respond_with(ResponseTemplate::new(429))
-            .up_to_n_times(1)
+            .up_to_n_times(2)
             .mount(&server)
             .await;
 
@@ -1527,9 +1733,10 @@ The config file should contain every possible key for documentation purposes."
             .await;
 
         let temp_dir = tempfile::tempdir()?;
-        for i in 0..9 {
+        for i in 0..4 {
             let test_md1 = temp_dir.path().join(format!("test{i}.md"));
-            fs::write(&test_md1, server.uri())?;
+            let duplicate_url_content = format!("{}\n{}", server.uri(), server.uri());
+            fs::write(&test_md1, duplicate_url_content)?;
         }
 
         cargo_bin_cmd!()
@@ -1537,14 +1744,15 @@ The config file should contain every possible key for documentation purposes."
             .arg("--host-stats")
             .assert()
             .success()
-            .stdout(contains("9 Total"))
-            .stdout(contains("9 OK"))
+            .stdout(contains("8 Total"))
+            .stdout(contains("8 OK"))
             .stdout(contains("0 Errors"))
             // Per-host statistics
-            // 1 rate limited + 9 OK
+            // 2 rate limited + 8 OK
             .stdout(contains("10 reqs"))
-            // 1 rate limited, 1 OK, 8 cached
-            .stdout(contains("80.0% cached"));
+            .stdout(contains("80.0% success"))
+            // 2 rate limited, 1 OK, 7 cached
+            .stdout(contains("70.0% cached"));
 
         server.verify().await;
         Ok(())
@@ -1632,7 +1840,9 @@ The config file should contain every possible key for documentation purposes."
             .arg(test_path)
             .assert()
             .failure()
-            .stdout(contains("This URI is available in HTTPS protocol, but HTTP is provided. Use 'https://example.com/' instead"));
+            .stdout(contains(
+                "Insecure HTTP URL used, where 'https://example.com/' can be used instead",
+            ));
     }
 
     /// If `base-dir` is not set, an error should be thrown if we encounter
@@ -1648,17 +1858,44 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .failure()
             .stdout(contains("5 Error"))
-            .stdout(contains("Error building URL").count(5));
+            .stdout(contains("Cannot resolve root-relative link").count(5));
     }
 
     #[test]
     fn test_inputs_without_scheme() {
-        let test_path = fixtures_path!().join("TEST_HTTP.html");
         cargo_bin_cmd!()
             .arg("--dump")
             .arg("example.com")
-            .arg(&test_path)
-            .arg("https://example.org")
+            .assert()
+            .failure()
+            .stderr(contains(
+                "Input 'example.com' not found as file and not a valid URL",
+            ));
+    }
+
+    // Regression test for https://github.com/lycheeverse/lychee/issues/972
+    // Absolute Windows paths like `C:\dir` were rejected with "URL scheme is not
+    // allowed" because the drive letter was parsed as a URL scheme.
+    #[cfg(windows)]
+    #[test]
+    fn test_windows_absolute_path_accepted_as_file_input() {
+        use tempfile::tempdir;
+
+        let dir = tempdir().unwrap();
+        let path_str = dir.path().to_str().unwrap().to_owned();
+
+        // Sanity-check: the path must start with a drive letter (e.g. "C:\")
+        // for the regression to be meaningful.
+        assert!(
+            path_str.chars().nth(1) == Some(':'),
+            "Expected an absolute Windows path with a drive letter, got: {path_str}"
+        );
+
+        // The path exists, so lychee should accept it and attempt to check
+        // the links inside (there are none, so it exits successfully).
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(&path_str)
             .assert()
             .success();
     }
@@ -1671,7 +1908,6 @@ The config file should contain every possible key for documentation purposes."
             .arg("--verbose")
             .arg("--exclude")
             .arg("example.com")
-            .arg("--")
             .arg(&test_path)
             .assert()
             .success()
@@ -1697,7 +1933,6 @@ The config file should contain every possible key for documentation purposes."
             .arg("https://example.com http://127.0.0.1:8080")
             .arg("--remap")
             .arg("https://example.org https://staging.example.com")
-            .arg("--")
             .arg("-")
             .write_stdin("https://example.com\nhttps://example.org\nhttps://example.net\n")
             .env_clear()
@@ -1715,7 +1950,6 @@ The config file should contain every possible key for documentation purposes."
             .arg("--dump")
             .arg("--remap")
             .arg("../../issues https://github.com/usnistgov/OSCAL/issues")
-            .arg("--")
             .arg("-")
             .write_stdin("../../issues\n")
             .env_clear()
@@ -1730,7 +1964,6 @@ The config file should contain every possible key for documentation purposes."
             .arg("--dump")
             .arg("--remap")
             .arg("https://example.com/(.*) http://example.org/$1")
-            .arg("--")
             .arg("-")
             .write_stdin("https://example.com/foo\n")
             .env_clear()
@@ -1745,13 +1978,92 @@ The config file should contain every possible key for documentation purposes."
             .arg("--dump")
             .arg("--remap")
             .arg("https://github.com/(?P<org>.*)/(?P<repo>.*) https://gitlab.com/$org/$repo")
-            .arg("--")
             .arg("-")
             .write_stdin("https://github.com/lycheeverse/lychee\n")
             .env_clear()
             .assert()
             .success()
             .stdout(contains("https://gitlab.com/lycheeverse/lychee"));
+    }
+
+    #[test]
+    fn test_erroneous_remap_with_redirect() {
+        cargo_bin_cmd!()
+            .arg("-vv")
+            .arg("--remap")
+            .arg("github.com rust-lang.org")
+            .arg("-")
+            .write_stdin("http://github.com/lycheeverse\n")
+            .env_clear()
+            .assert()
+            .failure()
+            .stdout(contains(r#"
+[404] http://rust-lang.org/lycheeverse (at 1:1) | Rejected status code: 404 Not Found | Remaps: http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse | Followed 1 redirect. Redirects: http://rust-lang.org/lycheeverse --[301]--> https://rust-lang.org/lycheeverse
+"#))
+        // It is debugged when URIs are remapped
+        .stderr(contains("[DEBUG] Remapping http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse"))
+        // It is debugged when URL redirections are followed
+        .stderr(contains("[DEBUG] Following redirect to https://rust-lang.org/lycheeverse"));
+    }
+
+    #[test]
+    fn test_remap_named_invalid() {
+        cargo_bin_cmd!()
+            .arg("--remap")
+            .arg("https://example.com invalid")
+            .arg("-")
+            .write_stdin("https://example.com")
+            .env_clear()
+            .assert()
+            .failure()
+            // The error message should be descriptive and helpful
+            .stderr(contains("Error checking URL https://example.com/: Invalid remap pattern: the result `invalid/` is not a valid URL"))
+            // The original URI is shown as root cause in stdout
+            .stdout(contains("The given URI is invalid, check URI syntax: https://example.com/"));
+    }
+
+    #[test]
+    fn test_remap_to_excluded() {
+        let stdout = cargo_bin_cmd!()
+            .arg("--remap=aaa bbb")
+            .arg("--exclude=bbb")
+            .arg("--format=json")
+            .arg("-")
+            .write_stdin("https://aaa.com")
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+
+        let json = stdout_to_json(&stdout);
+        assert_eq!(json["remaps"], 1);
+        assert_eq!(json["excludes"], 1);
+        assert_eq!(
+            json["excluded_map"],
+            json!({
+            "stdin": [
+              {
+                "url": "https://bbb.com/",
+                "status": {
+                  "text": "Excluded",
+                  "details": "This is due to your 'exclude' values"
+                },
+                "remap": {
+                    "new": {
+                        "url": "https://bbb.com/",
+                    },
+                    "original": {
+                        "url": "https://aaa.com/",
+                     },
+                },
+                "span": {
+                  "line": 1,
+                  "column": 1
+                },
+              }
+            ]})
+        );
     }
 
     #[test]
@@ -1765,7 +2077,6 @@ The config file should contain every possible key for documentation purposes."
             .arg("--exclude-path")
             .arg(excluded_path_2)
             .arg("--dump")
-            .arg("--")
             .arg(&test_path)
             .assert()
             .success();
@@ -1788,7 +2099,6 @@ The config file should contain every possible key for documentation purposes."
             .arg("--verbose")
             .arg("--exclude")
             .arg("example.*")
-            .arg("--")
             .arg("./TEST_DUMP_EXCLUDE.txt")
             .assert()
             .success()
@@ -1805,11 +2115,12 @@ The config file should contain every possible key for documentation purposes."
             .arg("--verbose")
             .arg("--exclude")
             .arg("example.*")
-            .arg("--")
             .arg("./NOT-A-REAL-TEST-FIXTURE.md")
             .assert()
             .failure()
-            .stderr(contains("Invalid file path: ./NOT-A-REAL-TEST-FIXTURE.md"));
+            .stderr(contains(
+                "Input './NOT-A-REAL-TEST-FIXTURE.md' not found as file and not a valid URL",
+            ));
     }
 
     #[test]
@@ -2163,13 +2474,19 @@ The config file should contain every possible key for documentation purposes."
     #[test]
     fn test_fragments() {
         let input = fixtures_path!().join("fragments");
-
-        let mut result = cargo_bin_cmd!()
+        let result = cargo_bin_cmd!()
             .arg("--include-fragments")
+            .arg("--format=json")
             .arg("-vv")
             .arg(input)
             .assert()
             .failure();
+
+        let output = std::str::from_utf8(&result.get_output().stdout).unwrap();
+        let json: Value = serde_json::from_str(output).unwrap();
+
+        let actual_successes = extract_urls(&json["success_map"]);
+        let actual_errors = extract_urls(&json["error_map"]);
 
         let expected_successes = vec![
             "fixtures/fragments/empty_dir",
@@ -2205,7 +2522,7 @@ The config file should contain every possible key for documentation purposes."
             "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#fragment",
         ];
 
-        let expected_failures = vec![
+        let expected_errors = vec![
             "fixtures/fragments/sub_dir_non_existing_1",
             "fixtures/fragments/sub_dir#non-existing-fragment-2",
             "fixtures/fragments/sub_dir#a-link-inside-index-html-inside-sub-dir",
@@ -2220,36 +2537,35 @@ The config file should contain every possible key for documentation purposes."
             "https://github.com/lycheeverse/lychee#non-existent-anchor",
         ];
 
-        // the stdout/stderr format looks like this:
-        //
-        //     [ERROR] https://github.com/lycheeverse/lychee#non-existent-anchor | Cannot find fragment
-        //     [200] file:///home/rina/progs/lychee/fixtures/fragments/file.html#a-word
-        //
-        // errors are printed to both, but 200s are printed to stderr only.
-        // we take advantage of this to ensure that good URLs do not appear
-        // in stdout, and bad URLs do appear in stdout.
-        //
-        // also, a space or newline is appended to the URL to prevent
-        // incorrect matches where one URL is a prefix of another.
-        for good_url in &expected_successes {
-            // additionally checks that URL is within stderr to ensure that
-            // the URL is detected by lychee.
-            result = result
-                .stdout(contains(format!("{good_url} ")).not())
-                .stderr(contains(format!("{good_url}\n")));
-        }
-        for bad_url in &expected_failures {
-            result = result.stdout(contains(format!("{bad_url} ")));
+        assert_eq!(actual_successes.len(), expected_successes.len());
+        assert_eq!(actual_errors.len(), expected_errors.len());
+
+        for good_url in expected_successes {
+            assert!(
+                actual_successes.iter().any(|url| url.ends_with(good_url)),
+                "Expected {good_url} to be a success"
+            );
         }
 
-        let ok_num = expected_successes.len();
-        let err_num = expected_failures.len();
-        let total_num = ok_num + err_num;
-        result
-            .stdout(contains(format!("{ok_num} OK")))
-            // Failures because of missing fragments or failed binary body scan
-            .stdout(contains(format!("{err_num} Errors")))
-            .stdout(contains(format!("{total_num} Total")));
+        for bad_url in &expected_errors {
+            assert!(
+                actual_errors.iter().any(|url| url.ends_with(bad_url)),
+                "Expected {bad_url} to be an error"
+            );
+        }
+
+        fn extract_urls(json: &Value) -> HashSet<&str> {
+            json.as_object()
+                .unwrap()
+                .into_iter()
+                .flat_map(|(_, file)| {
+                    file.as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|o| o.as_object().unwrap()["url"].as_str().unwrap())
+                })
+                .collect()
+        }
     }
 
     #[test]
@@ -2361,7 +2677,7 @@ The config file should contain every possible key for documentation purposes."
 
         // Check that the output is in JSON format
         let output = std::str::from_utf8(&output.stdout)?;
-        let json: serde_json::Value = serde_json::from_str(output)?;
+        let json: Value = serde_json::from_str(output)?;
         assert_eq!(json["total"], 1);
 
         Ok(())
@@ -2372,10 +2688,12 @@ The config file should contain every possible key for documentation purposes."
         // Non-verbose mode
         redirecting_mock_server!(async |redirect_url: Url, _| {
             let (json, stderr) = run(&redirect_url, false);
-            assert!(stderr.contains("[WARN] lychee detected 1 redirect. You might want to consider replacing redirecting URLs"));
+            assert!(stderr.contains("Hint: Followed 1 redirect. You might want to"));
             assert_eq!(json["total"], 1);
-            assert_eq!(json["redirects"], 1);
-            assert_eq!(json["redirect_map"], json!({}));
+            assert_eq!(json["redirects"], 1); // there was one redirect
+            assert_eq!(json["successful"], 1); // which resolved to a success
+            assert_eq!(json["redirect_map"], json!({})); // suppressed in non-verbose mode
+            assert_eq!(json["success_map"], json!({})); // suppressed in non-verbose mode
         })
         .await;
 
@@ -2389,16 +2707,31 @@ The config file should contain every possible key for documentation purposes."
                 json["redirect_map"],
                 json!({
                 "stdin":[{
+                    "origin": redirect_url,
+                    "redirects": [{
+                        "code": 308,
+                        "url": ok_url,
+                    }]
+                }]})
+            );
+            assert_eq!(
+                json["success_map"],
+                json!({
+                "stdin":[{
+                    "redirects": {
+                        "origin": redirect_url,
+                        "redirects": [{
+                            "code": 308,
+                            "url": ok_url,
+                        }]
+                    },
+                    "span": {
+                        "column": 1,
+                        "line": 1,
+                    },
                     "status": {
                         "code": 200,
-                        "text": "Redirect",
-                        "redirects": {
-                            "origin": redirect_url,
-                            "redirects": [{
-                                "code": 308,
-                                "url": ok_url,
-                            }]
-                        },
+                        "text": "200 OK",
                     },
                     "url": redirect_url
                 }]})
@@ -2425,11 +2758,9 @@ The config file should contain every possible key for documentation purposes."
                 .clone()
                 .unwrap();
 
-            let stdout = str::from_utf8(&output.stdout).unwrap().to_string();
-            let json: serde_json::Value = serde_json::from_str(stdout.as_str()).unwrap();
             let stderr = str::from_utf8(&output.stderr).unwrap().to_string();
 
-            (json, stderr)
+            (stdout_to_json(&output.stdout), stderr)
         }
     }
 
@@ -2607,20 +2938,84 @@ The config file should contain every possible key for documentation purposes."
         server.verify().await;
     }
 
+    #[tokio::test]
+    async fn test_user_agent_set_on_remote_input() {
+        // When a URL is passed directly as a CLI input, the configured user-agent
+        // should be sent in the request headers. Previously the resolver used a
+        // bare reqwest::Client with no user-agent at all.
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .and(wiremock::matchers::header("user-agent", "test-agent/1.0"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    .expect(1)
+                    .named("GET expecting user-agent header"),
+            )
+            .await;
+
+        cargo_bin_cmd!()
+            .arg("--user-agent")
+            .arg("test-agent/1.0")
+            .arg(server.uri())
+            .assert()
+            .success();
+    }
+
+    #[tokio::test]
+    async fn test_default_user_agent_set_on_remote_input() {
+        // Even without an explicit --user-agent, the default lychee user-agent
+        // should be sent when fetching a remote input URL.
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    .expect(1),
+            )
+            .await;
+
+        cargo_bin_cmd!().arg(server.uri()).assert().success();
+
+        let received_requests = server.received_requests().await.unwrap();
+        assert_eq!(received_requests.len(), 1);
+
+        let received_request = &received_requests[0];
+        let user_agent = received_request
+            .headers
+            .get("user-agent")
+            .expect("User agent missing")
+            .to_str()
+            .unwrap();
+
+        assert!(
+            user_agent.starts_with("lychee/"),
+            "Expected user-agent to start with 'lychee/', got: {user_agent:?}"
+        );
+    }
+
     #[test]
-    fn test_sorted_error_output() {
-        let test_files = ["TEST_GITHUB_404.md", "TEST_INVALID_URLS.html"];
+    fn test_sorted_error_output() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let a_md = temp_dir.path().join("a.md");
+        let b_md = temp_dir.path().join("b.md");
+
+        fs::write(&a_md, "https://example.com/a\nhttps://example.com/b")?;
+        fs::write(&b_md, "https://example.com/1\nhttps://example.com/2")?;
+
+        let test_files = ["a.md", "b.md"];
         let test_urls = [
-            "https://httpbin.org/status/404",
-            "https://httpbin.org/status/500",
-            "https://httpbin.org/status/502",
+            "https://example.com/a",
+            "https://example.com/b",
+            "https://example.com/1",
+            "https://example.com/2",
         ];
 
         let cmd = &mut cargo_bin_cmd!()
             .arg("--format")
             .arg("compact")
-            .arg(fixtures_path!().join(test_files[1]))
-            .arg(fixtures_path!().join(test_files[0]))
+            .arg(b_md)
+            .arg(a_md)
             .assert()
             .failure()
             .code(2);
@@ -2630,8 +3025,7 @@ The config file should contain every possible key for documentation purposes."
 
         // Check that the input sources are sorted
         for file in test_files {
-            assert!(output.contains(file));
-
+            assert!(output.contains(file), "{file} not found in lychee output");
             let next_position = output.find(file).unwrap();
 
             assert!(next_position > position);
@@ -2642,13 +3036,14 @@ The config file should contain every possible key for documentation purposes."
 
         // Check that the responses are sorted
         for url in test_urls {
-            assert!(output.contains(url));
-
+            assert!(output.contains(url), "{url} not found in lychee output");
             let next_position = output.find(url).unwrap();
 
             assert!(next_position > position);
             position = next_position;
         }
+
+        Ok(())
     }
 
     #[test]
@@ -2805,7 +3200,10 @@ The config file should contain every possible key for documentation purposes."
         let num_dir_links = 4;
         result
             .stdout(contains("Cannot find index file").count(num_dir_links))
-            .stdout(contains("No directory links are allowed").count(num_dir_links))
+            .stdout(
+                contains("Directory links are rejected because index_files is empty")
+                    .count(num_dir_links),
+            )
             .stdout(contains("0 OK"));
 
         // ... as should passing a number of empty index file names
@@ -2815,7 +3213,10 @@ The config file should contain every possible key for documentation purposes."
             .arg(",,,,,")
             .assert()
             .failure()
-            .stdout(contains("No directory links are allowed").count(num_dir_links))
+            .stdout(
+                contains("Directory links are rejected because index_files is empty")
+                    .count(num_dir_links),
+            )
             .stdout(contains("0 OK"));
     }
 
@@ -2964,20 +3365,26 @@ The config file should contain every possible key for documentation purposes."
     }
 
     /// URLs specified on the command line should also always be checked.
-    /// For example, sitemap URLs often end with `.xml` which is not
-    /// a file extension we would check by default.
-    #[test]
-    fn test_url_inputs_always_get_checked_no_matter_their_extension() {
-        let url_input = "https://example.com/sitemap.xml";
+    #[tokio::test]
+    async fn test_url_inputs_always_get_checked_no_matter_their_extension() {
+        let mock_server = wiremock::MockServer::start().await;
+        let url = "https://example.com"; // URL to be dumped
+
+        Mock::given(method("GET"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_string(format!("<a href=\"{url}\">hi</a>")),
+            )
+            .mount(&mock_server)
+            .await;
 
         cargo_bin_cmd!()
             .arg("--verbose")
             .arg("--dump")
-            .arg(url_input)
+            .arg(format!("{}/some.svg", mock_server.uri()))
             .assert()
             .success()
-            .stderr("") // Ensure stderr is empty
-            .stdout(contains("https://example.com/sitemap.xml"));
+            .stdout(contains(url))
+            .stderr("");
     }
 
     #[test]
@@ -3239,7 +3646,19 @@ The config file should contain every possible key for documentation purposes."
             .arg("http://website.invalid")
             .assert()
             .failure()
-            .code(1);
+            .code(1)
+            .stderr(contains("Error: Network error"));
+
+        // invalid domain name should be reported even if other tokio panics happen
+        // (e.g., due to send into closed channel).
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("https://a.invalid")
+            .write_stdin("http://example.com")
+            .assert()
+            .failure()
+            .code(1)
+            .stderr(contains("Error: Network error"));
 
         // maybe test with a directory with no write permissions? but there
         // doesn't seem to be an equivalent to chmod on the windows API:
@@ -3303,7 +3722,7 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .failure()
             .code(2)
-            .stdout(contains("Preprocessor command 'program does not exist' failed: could not start: No such file or directory"));
+            .stdout(contains("Preprocessor command 'program does not exist' failed with 'could not start: No such file or directory (os error 2)'"));
     }
 
     #[test]
@@ -3318,7 +3737,7 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                "Preprocessor command '{}' failed: exited with non-zero code: <empty stderr>",
+                "Preprocessor command '{}' failed with 'exited with non-zero code: <empty stderr>'",
                 script.as_os_str().to_str().unwrap()
             )));
 
@@ -3331,7 +3750,7 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                "Preprocessor command '{}' failed: exited with non-zero code: Some error message",
+                "Preprocessor command '{}' failed with 'exited with non-zero code: Some error message'",
                 script.as_os_str().to_str().unwrap()
             )));
     }
@@ -3346,4 +3765,848 @@ The config file should contain every possible key for documentation purposes."
             .success()
             .stdout(contains("https://example.com"));
     }
+
+    /// Returns a regex (as a string) which matches URLs with the given base
+    /// as a proper prefix. This should respect URL path components.
+    fn escape_url_prefix(base_url: &str) -> String {
+        let escaped = regex::escape(base_url.trim_end_matches('/'));
+        format!("^{escaped}($|[/?#])")
+    }
+
+    fn normalise_url_lines(bytes: &[u8], substitutions: &[&str]) -> String {
+        let mut str = str::from_utf8(bytes).unwrap().to_string();
+
+        let mut iter = substitutions.iter();
+        while let Some(old) = iter.next() {
+            str = str.replace(old, iter.next().expect("substitutions should be paired!"));
+        }
+
+        let mut lines = str.lines().collect::<Vec<&str>>();
+        lines.sort();
+        lines
+            .into_iter()
+            .map(|x| format!("{x}\n"))
+            .collect::<String>()
+            .trim()
+            .to_string()
+    }
+
+    #[tokio::test]
+    #[allow(clippy::format_in_format_args)]
+    async fn test_mapping_whole_domain_to_local_folder() {
+        let fixture = fixtures_path!().join("mapping_local_folder");
+        let root_dir = fixture.join("a/b/ROOT");
+        let local_file = root_dir.join("whole_domain.md");
+
+        let mock_server = mock_response!(fs::read_to_string(fixture.join("remote.md")).unwrap());
+        let remote_url = format!("{}/server/1/2/file.md", mock_server.uri());
+        let remote_origin = mock_server.uri();
+
+        // relative URLs within local files should stay local. additionally, occurrences of base-url in local
+        // file should become local.
+        let proc2 = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(local_file)
+            .arg(format!("--root-dir={}", root_dir.display()))
+            .arg(format!(
+                "--remap={} {}",
+                escape_url_prefix("https://gist.githubusercontent.com"),
+                format!("file://{}/", root_dir.display())
+            ))
+            .assert()
+            .success();
+
+        // BUG: in the last /TMP line, the omission of /ROOT/ is due to https://github.com/lycheeverse/lychee/issues/1953
+        assert_eq!(
+            normalise_url_lines(
+                &proc2.get_output().stdout,
+                &[&fixture.to_string_lossy(), "/TMP"]
+            ),
+            "
+file:///TMP/a/b/ROOT/
+file:///TMP/a/b/ROOT/fully/qualified.html
+file:///TMP/a/b/ROOT/fully/qualified/up.html
+file:///TMP/a/b/ROOT/relative.md
+file:///TMP/a/b/ROOT/root
+file:///TMP/a/b/root-up
+https://gist.githubusercontent.com-fake/
+            "
+            .trim()
+        );
+
+        // URLs in remote paths underneath base-url should become local paths
+        let proc = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(remote_url)
+            .arg(format!("--root-dir={}", root_dir.display()))
+            .arg(format!(
+                "--remap={} {}",
+                escape_url_prefix(&remote_origin),
+                format!("file://{}/", root_dir.display())
+            ))
+            .assert()
+            .success();
+
+        assert_eq!(
+            normalise_url_lines(
+                &proc.get_output().stdout,
+                &[&fixture.to_string_lossy(), "/TMP"]
+            ),
+            "
+file:///TMP/a/b/ROOT/root
+file:///TMP/a/b/ROOT/server/1/2/encoded%24%2A%28%20%29%5B%20%5D.html
+file:///TMP/a/b/ROOT/server/1/2/file.md#self
+file:///TMP/a/b/ROOT/server/1/2/query.html?boop=20
+file:///TMP/a/b/ROOT/server/1/2/relative.html
+file:///TMP/a/b/ROOT/server/1/2/sub/dir/index.html
+file:///TMP/a/b/ROOT/server/1/up-one.html
+file:///TMP/a/b/ROOT/server/up-two.html
+file:///TMP/a/b/ROOT/up-up
+file:///TMP/a/b/ROOT/up-up-up
+            "
+            .trim()
+        );
+    }
+
+    #[tokio::test]
+    #[allow(clippy::format_in_format_args)]
+    async fn test_mapping_subpath_to_local_folder() {
+        let fixture = fixtures_path!().join("mapping_local_folder");
+        let root_dir = fixture.join("a/b/ROOT");
+
+        let mock_server = mock_response!(fs::read_to_string(fixture.join("remote.md")).unwrap());
+        let remote_url = format!("{}/server/1/2/file.md", mock_server.uri());
+        let remote_base = format!("{}/server/1/", mock_server.uri());
+        let remote_origin = mock_server.uri();
+
+        // construct local folders with a structure matching the subpath of base-url.
+        let temp_root_dir_tmpdir = tempdir().unwrap();
+        let temp_root_dir = temp_root_dir_tmpdir.path().join("a/b/c/ROOT");
+        let temp_root_subdir = temp_root_dir.join("server/1"); // matches remote_base
+
+        let local_file = temp_root_subdir.join("subpath.md");
+
+        std::fs::create_dir_all(temp_root_subdir.parent().unwrap()).unwrap();
+
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&root_dir, &temp_root_subdir).unwrap();
+
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_dir(&root_dir, &temp_root_subdir).unwrap();
+
+        let temp_root_subdir_url = format!("file://{}", temp_root_subdir.to_string_lossy());
+        let temp_root_dir_url = format!("file://{}", temp_root_dir.to_string_lossy());
+
+        let proc2 = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(local_file)
+            .arg(format!("--root-dir={}", temp_root_dir.display()))
+            .arg(format!(
+                "--remap={} {}$1",
+                escape_url_prefix("https://gist.githubusercontent.com/server/1"),
+                temp_root_subdir_url
+            ))
+            .arg(format!(
+                "--remap={} {}$1",
+                escape_url_prefix(&temp_root_subdir_url),
+                temp_root_subdir_url
+            ))
+            .arg(format!(
+                "--remap={} {}$1",
+                escape_url_prefix(&temp_root_dir_url),
+                "https://gist.githubusercontent.com"
+            ))
+            .assert()
+            .success();
+
+        assert_eq!(
+            normalise_url_lines(
+                &proc2.get_output().stdout,
+                &[&temp_root_dir_tmpdir.path().to_string_lossy(), "/TMP"]
+            ),
+            "
+file:///TMP/a/b/c/ROOT/server/1/make-me-local
+file:///TMP/a/b/c/ROOT/server/1/relative.md
+file:///TMP/a/b/c/root-up
+file:///TMP/a/b/very-up
+https://gist.githubusercontent.com-fake/
+https://gist.githubusercontent.com/
+https://gist.githubusercontent.com/fully/qualified.html
+https://gist.githubusercontent.com/fully/qualified/up.html
+https://gist.githubusercontent.com/root
+https://gist.githubusercontent.com/server/up
+            "
+            .trim()
+        );
+        // BUG: TMP appearing inside /very-up and /root-up is incorrect. this bug happens when when
+        // a link breaks out of temp_root_dir. if this happens, the remap will not detect it as
+        // being within the website domain. this bug could be avoided with --root-dir=/ but bleh.
+
+        let proc = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(remote_url)
+            .arg(format!("--root-dir={}", temp_root_dir.display()))
+            .arg(format!(
+                "--remap={} {}$1",
+                escape_url_prefix(&remote_base),
+                temp_root_subdir_url
+            ))
+            .arg(format!(
+                "--remap={} {}$1",
+                escape_url_prefix(&temp_root_subdir_url),
+                temp_root_subdir_url
+            ))
+            .arg(format!(
+                "--remap={} {}$1",
+                escape_url_prefix(&temp_root_dir_url),
+                remote_origin
+            ))
+            .assert()
+            .success();
+
+        assert_eq!(
+            normalise_url_lines(
+                &proc.get_output().stdout,
+                &[
+                    &temp_root_dir_tmpdir.path().to_string_lossy(),
+                    "/TMP",
+                    &mock_server.uri(),
+                    "[mock-server]"
+                ]
+            ),
+            "
+[mock-server]/root
+[mock-server]/server/up-two.html
+[mock-server]/up-up
+[mock-server]/up-up-up
+file:///TMP/a/b/c/ROOT/server/1/2/encoded%24%2A%28%20%29%5B%20%5D.html
+file:///TMP/a/b/c/ROOT/server/1/2/file.md#self
+file:///TMP/a/b/c/ROOT/server/1/2/query.html?boop=20
+file:///TMP/a/b/c/ROOT/server/1/2/relative.html
+file:///TMP/a/b/c/ROOT/server/1/2/sub/dir/index.html
+file:///TMP/a/b/c/ROOT/server/1/up-one.html
+            "
+            .trim()
+        );
+    }
+
+    #[test]
+    fn test_local_base_url_bug_1896() -> Result<()> {
+        // https://github.com/lycheeverse/lychee/issues/1896
+        let dir = tempdir()?;
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--dump")
+            .arg("--base-url")
+            .arg(dir.path())
+            .arg("--default-extension")
+            .arg("md")
+            .write_stdin("[a](b.html#a)")
+            .assert()
+            .success()
+            .stdout(contains("b.html#a"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_relative_url_parse_errors() -> Result<()> {
+        let dir = tempdir()?;
+
+        // without root-dir, fails to resolve in all cases
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--default-extension=md")
+            .write_stdin("[a](a)")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot parse 'a' into a URL: relative URL without a base: This relative link was found inside an input source that has no base location"));
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--default-extension=md")
+            .write_stdin("[a](/a)")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot resolve root-relative link '/a': To resolve root-relative links in local files, provide a root dir"));
+
+        // with root-dir, locally-relative links can still fail because
+        // there is no current base URL
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--root-dir")
+            .arg(dir.path())
+            .arg("--default-extension=md")
+            .write_stdin("[a](a)")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot parse 'a' into a URL: relative URL without a base: This relative link was found inside an input source that has no base location"));
+
+        // with root-dir, root-relative links should succeed
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--root-dir")
+            .arg(dir.path())
+            .arg("--default-extension=md")
+            .write_stdin("[a](/)")
+            .assert()
+            .success();
+
+        // with an explicit base-url, root-relative and locally-relative links work. yay!
+        // both should become relative to the base-url.
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("-vv")
+            .arg("--base-url=https://lychee.cli.rs/")
+            .arg("--default-extension=md")
+            .write_stdin("[a](/)")
+            .assert()
+            .success()
+            .stderr(contains("https://lychee.cli.rs/"));
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("-vv")
+            .arg("--base-url=https://lychee.cli.rs/")
+            .arg("--default-extension=md")
+            .write_stdin("[a](.)")
+            .assert()
+            .success()
+            .stderr(contains("https://lychee.cli.rs/"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_base_url_applies_to_local() {
+        cargo_bin_cmd!()
+            .arg("--base-url=https://lychee.cli.rs/")
+            .arg(fixtures_path!().join("resolve_paths/index.html"))
+            .assert()
+            .failure()
+            .stdout(contains("https://lychee.cli.rs/another%20page"));
+    }
+
+    #[test]
+    fn test_sitemap_xml() {
+        cargo_bin_cmd!()
+            .arg(fixtures_path!().join("sitemap/sitemap.xml"))
+            .arg("-v")
+            .assert()
+            .success()
+            .stdout(contains("2 Total"))
+            .stdout(contains("2 OK"))
+            .stdout(contains("0 Errors"));
+    }
+
+    #[test]
+    fn test_sitemap_xml_warn() {
+        cargo_bin_cmd!()
+            .arg(fixtures_path!().join("sitemap/not-a-sitemap.xml"))
+            .arg("-v")
+            .assert()
+            .success()
+            .stdout(contains("0 Total"))
+            .stdout(contains("0 OK"))
+            .stdout(contains("0 Errors"))
+            .stderr(contains("[WARN] No URLs found in XML input."));
+    }
+
+    /// URLs should NOT be downloaded fully, unless fragment checking is on and the link has a fragment.
+    #[test]
+    fn test_large_file_lazy_download() {
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--include-fragments")
+            .arg("--timeout=5")
+            .write_stdin(
+                "
+https://proof.ovh.net/files/10Gb.dat
+https://proof.ovh.net/files/1Gb.dat
+https://proof.ovh.net/files/1Mb.dat
+https://lychee.cli.rs/guides/cli/#options
+            ",
+            )
+            .assert()
+            .success();
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--timeout=5")
+            .write_stdin(
+                "
+https://proof.ovh.net/files/10Gb.dat#fragments-ignored
+https://proof.ovh.net/files/1Gb.dat#fragments-ignored
+https://proof.ovh.net/files/1Mb.dat#fragments-ignored
+https://lychee.cli.rs/guides/cli/#fragments-ignored
+            ",
+            )
+            .assert()
+            .success();
+    }
+
+    /// Verifies that loading an older, legacy `.lycheecache` file containing a cached error
+    /// correctly drops the error and successfully retries the link.
+    /// This ensures we don't break existing user CI workflows that have older cache files
+    /// stored before we stopped caching errors.
+    #[tokio::test]
+    async fn test_legacy_cache_file_ignores_errors() -> Result<()> {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
+        let cache_file = base_path.join(LYCHEE_CACHE_FILE);
+
+        // A server that is currently returning OK
+        let mock_server_ok = mock_server!(StatusCode::OK);
+
+        // Simulate an older `.lycheecache` where this exact URL previously failed with 404
+        // We use a future timestamp ({ts}) so it doesn't expire
+        fs::write(&cache_file, format!("{},404,{ts}\n", mock_server_ok.uri()))?;
+
+        let mut file = File::create(dir.path().join("input.txt"))?;
+        writeln!(file, "{}", mock_server_ok.uri())?;
+
+        // Run lychee. It should ignore the 404 from the cache, actually check the mock server (which returns 200), and succeed.
+        cargo_bin_cmd!()
+            .current_dir(base_path)
+            .arg("input.txt")
+            .arg("--cache")
+            .arg("--verbose")
+            .assert()
+            .success()
+            .stdout(contains("1 OK"))
+            .stdout(contains("0 Errors"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_no_double_count() {
+        let test_file_1 = fixtures_path!().join("double-count/index.md");
+        let test_file_2 = fixtures_path!().join("double-count/home.md");
+
+        cargo_bin_cmd!()
+            .arg(&test_file_1)
+            .arg(&test_file_2)
+            .assert()
+            .success()
+            .stdout(contains("6 Total"))
+            .stdout(contains("3 Unique"));
+
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(&test_file_1)
+            .arg(&test_file_2)
+            .assert()
+            .success()
+            .stdout(contains("resource-1.md").count(2));
+    }
+
+    #[tokio::test]
+    async fn test_text_fragments() -> Result<()> {
+        let mock_server = text_fragments_server().await?;
+
+        // Make sure --include-fragments ignores text fragments and doesn't cause false positives.
+        cargo_bin_cmd!()
+            .arg("--include-fragments")
+            .arg(format!("{}/should-match.html", mock_server.uri()))
+            .assert()
+            .success()
+            .stdout(contains("5 Total"))
+            .stdout(contains("0 Errors"));
+
+        cargo_bin_cmd!()
+            .arg("--include-fragments")
+            .arg(format!("{}/should-not-match.html", mock_server.uri()))
+            .assert()
+            .success()
+            .stdout(contains("4 Total"))
+            .stdout(contains("0 Errors"));
+
+        cargo_bin_cmd!()
+            .arg("--include-fragments=text-only")
+            .arg(format!("{}/should-match.html", mock_server.uri()))
+            .assert()
+            .success()
+            .stdout(contains("5 Total"))
+            .stdout(contains("0 Errors"));
+
+        cargo_bin_cmd!()
+            .arg("--include-fragments=text-only")
+            .arg(format!("{}/should-not-match.html", mock_server.uri()))
+            .assert()
+            .failure()
+            .stdout(contains("4 Total"))
+            .stdout(contains("4 Errors"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_text_fragments_in_files() -> Result<()> {
+        let fixtures_dir = fixtures_path!().join("text_fragments");
+
+        cargo_bin_cmd!()
+            .arg("--include-fragments=full")
+            .arg("--root-dir")
+            .arg(&fixtures_dir)
+            .arg(fixtures_dir.join("should-match.html"))
+            .assert()
+            .success()
+            .stdout(contains("5 Total"))
+            .stdout(contains("0 Errors"));
+
+        cargo_bin_cmd!()
+            .arg("--include-fragments=full")
+            .arg("--root-dir")
+            .arg(&fixtures_dir)
+            .arg(fixtures_dir.join("should-not-match.html"))
+            .assert()
+            .failure()
+            .stdout(contains("4 Total"))
+            .stdout(contains("4 Errors"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_pyproject_toml() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let pyproject = dir.path().join("pyproject.toml");
+        std::fs::write(
+            &pyproject,
+            r#"
+[tool.lychee]
+exclude = ["exclude_test_str"]
+"#,
+        )?;
+
+        let stdout = cargo_bin_cmd!()
+            .current_dir(dir.path())
+            .arg("-")
+            .write_stdin("https://exclude/exclude_test_str")
+            .arg("--format=json")
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+
+        assert_eq!(
+            stdout_to_json(&stdout)["excludes"],
+            1,
+            "Config must mark the URL as excluded"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_cargo_toml() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let cargo = dir.path().join("Cargo.toml");
+        std::fs::write(
+            &cargo,
+            r#"
+[workspace.metadata.lychee]
+exclude = ["cargo_exclude_test_str"]
+"#,
+        )?;
+
+        std::fs::write(
+            dir.path().join("input.txt"),
+            "https://example.com/cargo_exclude_test_str",
+        )?;
+
+        let mut cmd = cargo_bin_cmd!();
+        let assert = cmd
+            .current_dir(dir.path())
+            .arg("input.txt")
+            .arg("--offline")
+            .assert();
+
+        let output = String::from_utf8_lossy(&assert.get_output().stdout);
+        let output_err = String::from_utf8_lossy(&assert.get_output().stderr);
+        assert!(
+            output.contains("1 Excluded"),
+            "Output did not indicate the link was excluded. Stdout: {}, Stderr: {}",
+            output,
+            output_err
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_config_precedence() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+
+        // Create 3 dummy files
+        std::fs::write(dir.path().join("exclude_lychee.txt"), "")?;
+        std::fs::write(dir.path().join("exclude_pyproject.txt"), "")?;
+        std::fs::write(dir.path().join("exclude_cargo.txt"), "")?;
+
+        // Cargo.toml
+        std::fs::write(
+            dir.path().join("Cargo.toml"),
+            r#"
+[workspace.metadata.lychee]
+exclude_path = ["exclude_cargo.txt"]
+"#,
+        )?;
+
+        // pyproject.toml
+        std::fs::write(
+            dir.path().join("pyproject.toml"),
+            r#"
+[tool.lychee]
+exclude_path = ["exclude_pyproject.txt"]
+"#,
+        )?;
+
+        // lychee.toml
+        std::fs::write(
+            dir.path().join("lychee.toml"),
+            r#"
+exclude_path = ["exclude_lychee.txt"]
+"#,
+        )?;
+
+        // Test 1: lychee.toml takes precedence over all
+        let mut cmd1 = cargo_bin_cmd!();
+        let assert1 = cmd1
+            .current_dir(dir.path())
+            .arg("--dump-inputs")
+            .arg(".")
+            .assert();
+        let output1 = String::from_utf8_lossy(&assert1.get_output().stdout);
+        assert!(!output1.contains("exclude_lychee.txt"));
+        assert!(output1.contains("exclude_pyproject.txt"));
+        assert!(output1.contains("exclude_cargo.txt"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_explicit_pyproject_config() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let pyproject = dir.path().join("pyproject.toml");
+        std::fs::write(
+            &pyproject,
+            r#"
+[tool.lychee]
+exclude_path = ["exclude_pyproject.txt"]
+"#,
+        )?;
+
+        std::fs::write(dir.path().join("exclude_pyproject.txt"), "")?;
+        std::fs::write(dir.path().join("keep.txt"), "")?;
+
+        let mut cmd = cargo_bin_cmd!();
+        let assert = cmd
+            .current_dir(dir.path())
+            .arg("--config")
+            .arg(&pyproject)
+            .arg("--dump-inputs")
+            .arg(".")
+            .assert();
+
+        let output = String::from_utf8_lossy(&assert.get_output().stdout);
+        assert!(!output.contains("exclude_pyproject.txt"));
+        assert!(output.contains("keep.txt"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_explicit_config_missing_section() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+
+        // Test package.json without lychee section
+        let package_json = dir.path().join("package.json");
+        std::fs::write(
+            &package_json,
+            r#"
+{
+    "name": "my-project",
+    "version": "1.0.0"
+}
+"#,
+        )?;
+
+        let mut cmd = cargo_bin_cmd!();
+        let assert = cmd
+            .current_dir(dir.path())
+            .arg("--config")
+            .arg(&package_json)
+            .arg("https://example.com")
+            .assert();
+
+        let output_err = String::from_utf8_lossy(&assert.get_output().stderr);
+        assert!(output_err.contains("No valid lychee configuration found in"));
+
+        // Test pyproject.toml without [tool.lychee] section
+        let pyproject_toml = dir.path().join("pyproject.toml");
+        std::fs::write(
+            &pyproject_toml,
+            r#"
+[build-system]
+requires = ["setuptools", "wheel"]
+
+[tool.black]
+line-length = 88
+"#,
+        )?;
+
+        let mut cmd = cargo_bin_cmd!();
+        let assert = cmd
+            .current_dir(dir.path())
+            .arg("--config")
+            .arg(&pyproject_toml)
+            .arg("https://example.com")
+            .assert();
+
+        let output_err = String::from_utf8_lossy(&assert.get_output().stderr);
+        assert!(output_err.contains("No valid lychee configuration found in"));
+
+        // Test Cargo.toml without lychee metadata sections
+        let cargo_toml = dir.path().join("Cargo.toml");
+        std::fs::write(
+            &cargo_toml,
+            r#"
+[package]
+name = "my-project"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+"#,
+        )?;
+
+        let mut cmd = cargo_bin_cmd!();
+        let assert = cmd
+            .current_dir(dir.path())
+            .arg("--config")
+            .arg(&cargo_toml)
+            .arg("https://example.com")
+            .assert();
+
+        let output_err = String::from_utf8_lossy(&assert.get_output().stderr);
+        assert!(output_err.contains("No valid lychee configuration found in"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_cargo_toml_preference() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let cargo = dir.path().join("Cargo.toml");
+
+        // We expect package.metadata to take precedence over workspace.metadata
+        std::fs::write(
+            &cargo,
+            r#"
+[workspace.metadata.lychee]
+exclude_path = ["exclude_workspace.txt"]
+
+[package.metadata.lychee]
+exclude_path = ["exclude_package.txt"]
+"#,
+        )?;
+
+        std::fs::write(dir.path().join("exclude_workspace.txt"), "")?;
+        std::fs::write(dir.path().join("exclude_package.txt"), "")?;
+
+        let assert = cargo_bin_cmd!()
+            .current_dir(dir.path())
+            .arg("--dump-inputs")
+            .arg(".")
+            .assert();
+
+        let output = String::from_utf8_lossy(&assert.get_output().stdout);
+
+        // package was excluded, workspace was not (because it was overridden and not merged)
+        assert!(!output.contains("exclude_package.txt"));
+        assert!(output.contains("exclude_workspace.txt"));
+        Ok(())
+    }
+
+    /// Verify that lychee will fail before all checks run if the parent of the given output path does not exist
+    /// See https://github.com/lycheeverse/lychee/issues/2147
+    #[test]
+    fn test_output_invalid_path() {
+        cargo_bin_cmd!()
+            .arg("--output")
+            .arg("does/not/exist")
+            .arg("-")
+            .assert().failure().stderr(contains(
+            "Output path `does/not/exist` is not writable: parent directory `does/not` does not exist",
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_user_hints() {
+        cargo_bin_cmd!()
+            .arg("-")
+            .write_stdin("http://wikipedia.org/this/does/not/exist")
+            .assert()
+            .stderr(contains("Hint: Followed 1 redirect. You might want to consider replacing redirecting URLs with the resolved URLs. Use verbose mode (`-v`/`-vv`) to see redirection details.\n"))
+            .stderr(contains("Hint: You can configure accepted/rejected response codes with `-a` or `--accept`\n"));
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--max-redirects=0")
+            .write_stdin("http://rust-lang.org")
+            .assert()
+            .stderr(contains("Hint: Rejected redirectional status codes. This means some redirects were not followed. You might want to increase the limit for `-m`/`--max-redirects`."));
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--max-retries=0")
+            .write_stdin("https://http.codes/429")
+            .assert()
+            .stderr(contains(r#"Hint: Encountered rate limit responses. You might be able to work around this by adding `[hosts."http.codes"]` to the TOML config to adjust the `concurrency` and `request_interval` values."#));
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--accept=200..201,300..301")
+            .assert()
+            .stderr(contains(r#"Hint: Accept range `200..201` only matches the single status code 200. Did you mean `200..=201` or `200,201`?"#))
+            .stderr(contains(r#"Hint: Accept range `300..301` only matches the single status code 300. Did you mean `300..=301` or `300,301`?"#));
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--max-redirects=0")
+            .write_stdin("http://rust-lang.org")
+            .arg("-q") // hide user hints
+            .assert()
+            .stderr(contains("Hint").not());
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn test_file_limit_low_concurrency() {
+    // See https://github.com/lycheeverse/lychee/issues/1248
+    use assert_cmd::cargo::CommandCargoExt;
+    use std::os::unix::process::CommandExt;
+
+    let mut cmd = std::process::Command::cargo_bin("lychee").unwrap();
+    cmd.arg("-v").arg("https://example.com");
+
+    unsafe {
+        cmd.pre_exec(|| {
+            // Set the soft and hard limit to a low value.
+            // 64 is enough to boot, but will trigger the max_concurrency lowering.
+            let _ = rlimit::setrlimit(rlimit::Resource::NOFILE, 64, 64);
+            Ok(())
+        });
+    }
+
+    let mut assert_cmd = assert_cmd::Command::from(cmd);
+    assert_cmd.assert().stderr(predicates::str::contains(
+        "System file descriptor limit is 64 which is too low for the requested concurrency of 128. Lowering `max_concurrency` to 44",
+    ));
 }

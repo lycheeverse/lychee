@@ -7,7 +7,7 @@ pub(crate) mod stats;
 pub(crate) mod suggestion;
 
 use self::{response::ResponseFormatter, stats::StatsFormatter};
-use crate::options::{OutputMode, StatsFormat};
+use crate::config::{OutputMode, StatsFormat};
 use supports_color::Stream;
 
 /// Detects whether a terminal supports color, and gives details about that
@@ -25,8 +25,8 @@ pub(crate) fn get_stats_formatter(
         StatsFormat::Compact => Box::new(stats::Compact::new(mode.clone())),
         StatsFormat::Detailed => Box::new(stats::Detailed::new(mode.clone())),
         StatsFormat::Json => Box::new(stats::Json::new()),
+        StatsFormat::Junit => Box::new(stats::Junit::new()),
         StatsFormat::Markdown => Box::new(stats::Markdown::new()),
-        StatsFormat::Raw => Box::new(stats::Raw::new()),
     }
 }
 

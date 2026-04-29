@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use crate::checker::wikilink::resolver::WikilinkResolver;
 use crate::{
-    Base, ErrorKind, Result, Status, Uri,
+    BaseInfo, ErrorKind, FragmentCheckerOptions, Result, Status, Uri,
     utils::fragment_checker::{FragmentChecker, FragmentInput},
 };
 
@@ -16,8 +16,6 @@ use crate::{
 /// and optional fragment checking for HTML files.
 #[derive(Debug, Clone)]
 pub(crate) struct FileChecker {
-    /// Base path or URL used for resolving relative paths.
-    base: Option<Base>,
     /// List of file extensions to try if the original path doesn't exist.
     fallback_extensions: Vec<String>,
     /// If specified, resolves to one of the given index files if the original path
@@ -31,8 +29,8 @@ pub(crate) struct FileChecker {
     /// If `None`, index file checking is disabled and directory links are valid
     /// as long as the directory exists on disk.
     index_files: Option<Vec<String>>,
-    /// Whether to check for the existence of fragments (e.g., `#section-id`) in HTML files.
-    include_fragments: bool,
+    /// Controls which fragment types should be checked for local files.
+    fragment_checker_options: FragmentCheckerOptions,
     /// Utility for performing fragment checks in HTML files.
     fragment_checker: FragmentChecker,
     /// Utility for optionally resolving Wikilinks.
@@ -44,36 +42,32 @@ impl FileChecker {
     ///
     /// # Arguments
     ///
-    /// * `base` - Optional base path or URL for resolving relative paths.
+    /// * `base` - Optional base path or URL for resolving wikilinks.
     /// * `fallback_extensions` - List of extensions to try if the original file is not found.
     /// * `index_files` - Optional list of index file names to search for if the path is a directory.
-    /// * `include_fragments` - Whether to check for fragment existence in HTML files.
+    /// * `fragment_option` - Controls which fragment types are checked in supported files.
     /// * `include_wikilinks` - Whether to check the existence of Wikilinks found in Markdown files .
     ///
     /// # Errors
     ///
     /// Fails if an invalid `base` is provided when including wikilinks.
     pub(crate) fn new(
-        base: Option<Base>,
+        base: &BaseInfo,
         fallback_extensions: Vec<String>,
         index_files: Option<Vec<String>>,
-        include_fragments: bool,
+        fragment_checker_options: FragmentCheckerOptions,
         include_wikilinks: bool,
     ) -> Result<Self> {
         let wikilink_resolver = if include_wikilinks {
-            Some(WikilinkResolver::new(
-                base.as_ref(),
-                fallback_extensions.clone(),
-            )?)
+            Some(WikilinkResolver::new(base, fallback_extensions.clone())?)
         } else {
             None
         };
 
         Ok(Self {
-            base,
             fallback_extensions,
             index_files,
-            include_fragments,
+            fragment_checker_options,
             fragment_checker: FragmentChecker::new(),
             wikilink_resolver,
         })
@@ -96,40 +90,10 @@ impl FileChecker {
             return ErrorKind::InvalidFilePath(uri.clone()).into();
         };
 
-        let path = self.resolve_base(&path);
         let path = self.resolve_local_path(&path, uri);
         match path {
             Ok(path) => self.check_file(path.as_ref(), uri).await,
             Err(err) => err.into(),
-        }
-    }
-
-    /// Resolves the given path using the base path, if one is set.
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - The path to resolve.
-    ///
-    /// # Returns
-    ///
-    /// Returns the resolved path as a `PathBuf`, or the original path
-    /// if no base path is defined.
-    fn resolve_base(&self, path: &Path) -> PathBuf {
-        if let Some(Base::Local(base_path)) = &self.base {
-            if path.is_absolute() {
-                let absolute_base_path = if base_path.is_relative() {
-                    std::env::current_dir().unwrap_or_default().join(base_path)
-                } else {
-                    base_path.clone()
-                };
-
-                let stripped = path.strip_prefix("/").unwrap_or(path);
-                absolute_base_path.join(stripped)
-            } else {
-                base_path.join(path)
-            }
-        } else {
-            path.to_path_buf()
         }
     }
 
@@ -288,7 +252,7 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the check.
     async fn check_file(&self, path: &Path, uri: &Uri) -> Status {
-        if self.include_fragments {
+        if self.fragment_checker_options.check_anchor_fragments {
             self.check_fragment(path, uri).await
         } else {
             Status::Ok(StatusCode::OK)
@@ -322,7 +286,11 @@ impl FileChecker {
         }
 
         match FragmentInput::from_path(path).await {
-            Ok(input) => match self.fragment_checker.check(input, &uri.url).await {
+            Ok(input) => match self
+                .fragment_checker
+                .check(input, &uri.url, self.fragment_checker_options)
+                .await
+            {
                 Ok(true) => Status::Ok(StatusCode::OK),
                 Ok(false) => ErrorKind::InvalidFragment(uri.clone()).into(),
                 Err(err) => {
@@ -342,8 +310,9 @@ impl FileChecker {
 mod tests {
     use super::FileChecker;
     use crate::{
+        BaseInfo,
         ErrorKind::{InvalidFilePath, InvalidFragment, InvalidIndexFile},
-        Status, Uri,
+        FragmentCheckerOptions, Status, Uri,
     };
     use test_utils::{fixture_uri, fixtures_path};
 
@@ -395,7 +364,17 @@ mod tests {
     #[tokio::test]
     async fn test_default() {
         // default behaviour accepts dir links as long as the directory exists.
-        let checker = FileChecker::new(None, vec![], None, true, false).unwrap();
+        let checker = FileChecker::new(
+            &BaseInfo::none(),
+            vec![],
+            None,
+            FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
+            false,
+        )
+        .unwrap();
 
         assert_filecheck!(&checker, "filechecker/index_dir", Status::Ok(_));
 
@@ -449,10 +428,13 @@ mod tests {
     #[tokio::test]
     async fn test_index_files() {
         let checker = FileChecker::new(
-            None,
+            &BaseInfo::none(),
             vec![],
             Some(vec!["index.html".to_owned(), "index.md".to_owned()]),
-            true,
+            FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
             false,
         )
         .unwrap();
@@ -489,10 +471,10 @@ mod tests {
     #[tokio::test]
     async fn test_both_fallback_and_index_corner() {
         let checker = FileChecker::new(
-            None,
+            &BaseInfo::none(),
             vec!["html".to_owned()],
             Some(vec!["index".to_owned()]),
-            false,
+            FragmentCheckerOptions::default(),
             false,
         )
         .unwrap();
@@ -519,8 +501,14 @@ mod tests {
     #[tokio::test]
     async fn test_empty_index_list_corner() {
         // empty index_files list will reject all directory links
-        let checker_no_indexes =
-            FileChecker::new(None, vec![], Some(vec![]), false, false).unwrap();
+        let checker_no_indexes = FileChecker::new(
+            &BaseInfo::none(),
+            vec![],
+            Some(vec![]),
+            FragmentCheckerOptions::default(),
+            false,
+        )
+        .unwrap();
         assert_resolves!(
             &checker_no_indexes,
             "filechecker/index_dir",
@@ -544,8 +532,14 @@ mod tests {
             "..".to_owned(),
             "/".to_owned(),
         ];
-        let checker_dir_indexes =
-            FileChecker::new(None, vec![], Some(dir_names), false, false).unwrap();
+        let checker_dir_indexes = FileChecker::new(
+            &BaseInfo::none(),
+            vec![],
+            Some(dir_names),
+            FragmentCheckerOptions::default(),
+            false,
+        )
+        .unwrap();
         assert_resolves!(
             &checker_dir_indexes,
             "filechecker/index_dir",
@@ -562,10 +556,13 @@ mod tests {
     async fn test_index_file_traversal_corner() {
         // index file names can contain path fragments and they will be traversed.
         let checker_dotdot = FileChecker::new(
-            None,
+            &BaseInfo::none(),
             vec![],
             Some(vec!["../index_dir/index.html".to_owned()]),
-            true,
+            FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
             false,
         )
         .unwrap();
@@ -581,8 +578,17 @@ mod tests {
             .to_str()
             .expect("expected utf-8 fixtures path")
             .to_owned();
-        let checker_absolute =
-            FileChecker::new(None, vec![], Some(vec![absolute_html]), true, false).unwrap();
+        let checker_absolute = FileChecker::new(
+            &BaseInfo::none(),
+            vec![],
+            Some(vec![absolute_html]),
+            FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
+            false,
+        )
+        .unwrap();
         assert_resolves!(
             &checker_absolute,
             "filechecker/empty_dir#fragment",
@@ -592,7 +598,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_fallback_extensions_on_directories() {
-        let checker = FileChecker::new(None, vec!["html".to_owned()], None, true, false).unwrap();
+        let checker = FileChecker::new(
+            &BaseInfo::none(),
+            vec!["html".to_owned()],
+            None,
+            FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
+            false,
+        )
+        .unwrap();
 
         // fallback extensions should be applied when directory links are resolved
         // to directories (i.e., the default index_files behavior or if `.`

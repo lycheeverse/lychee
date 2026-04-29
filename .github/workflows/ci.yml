@@ -16,13 +16,14 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
   RUSTFLAGS: -D warnings
+  RUSTDOCFLAGS: -D warnings
 
 jobs:
   typos:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: crate-ci/typos@v1.43.1
+      - uses: crate-ci/typos@v1.45.1
 
   test:
     runs-on: ubuntu-latest
@@ -35,6 +36,14 @@ jobs:
         run: cargo check --locked
       - name: Test
         run: make test
+      # Verify shell completions can be generated without errors
+      - name: Check shell completions can be generated
+        run: |
+          ./target/debug/lychee --generate complete-bash > /dev/null
+          ./target/debug/lychee --generate complete-zsh > /dev/null
+          ./target/debug/lychee --generate complete-fish > /dev/null
+          ./target/debug/lychee --generate complete-elvish > /dev/null
+          ./target/debug/lychee --generate complete-powershell > /dev/null
 
   lint:
     runs-on: ubuntu-latest
@@ -48,6 +57,9 @@ jobs:
         run: cargo fmt --all --check
       - name: Run cargo clippy (deny warnings)
         run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Check rustdoc warnings (temporarily allow warnings)
+        run: cargo doc --workspace --no-deps
+        continue-on-error: true # remove this after warnings are fixed
       - uses: cargo-bins/cargo-binstall@main
       - name: Install cargo-msrv
         run: cargo binstall --no-confirm --force cargo-msrv
@@ -56,6 +68,24 @@ jobs:
       - name: Verify the MSRV
         run: make verify
 
+  binstall-check:
+    runs-on: ubuntu-latest
+    # Skip on release-plz PRs: those bump the version to one that has not been
+    # published yet, so binstall cannot find a matching release. We still want
+    # PR coverage on regular PRs to catch regressions in the binstall metadata.
+    if: ${{ !startsWith(github.head_ref, 'release-plz-') }}
+    env:
+      # Authenticate against api.github.com to avoid 403 rate-limit failures
+      # when binstall queries GitHub releases.
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: cargo-bins/cargo-binstall@main
+      # Use `--manifest-path .` so binstall validates the in-tree binstall
+      # metadata. Resolving against the latest published version would mask
+      # metadata fixes (e.g. #2165) until after the next release ships.
+      - run: cargo binstall --manifest-path . --strategies crate-meta-data lychee --no-confirm
+
   publish-check:
     runs-on: ubuntu-latest
     steps:
@@ -63,8 +93,6 @@ jobs:
       - name: cargo fetch
         run: cargo fetch
       - name: cargo publish lychee-lib
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish --dry-run --manifest-path lychee-lib/Cargo.toml
 
       # Can't check lychee binary as it depends on the lib above
@@ -78,8 +106,6 @@ jobs:
       #
       # - name: cargo publish lychee
       #   uses: actions-rs/cargo@v1
-      #   env:
-      #     CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       #   with:
       #     command: publish
       #     args: --dry-run --manifest-path lychee-bin/Cargo.toml

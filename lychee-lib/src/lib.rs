@@ -50,6 +50,9 @@
 #[cfg(doctest)]
 doc_comment::doctest!("../../README.md");
 
+#[cfg(all(test, not(doctest)))]
+use tokio_stream as _;
+
 /// Check online archives to try and restore broken links
 pub mod archive;
 mod basic_auth;
@@ -76,6 +79,8 @@ pub mod ratelimit;
 /// local IPs or e-mail addresses
 pub mod filter;
 
+pub mod waiter;
+
 #[cfg(test)]
 use doc_comment as _; // required for doctest
 use ring as _; // required for apple silicon
@@ -88,15 +93,17 @@ pub use crate::{
     // Constants get exposed so that the CLI can use the same defaults as the library
     client::{
         Client, ClientBuilder, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
-        DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, check,
+        DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
+        FragmentCheckerOptions, check,
     },
     collector::Collector,
     filter::{Excludes, Filter, Includes},
+    remap::Remap,
     types::{
-        Base, BasicAuthCredentials, BasicAuthSelector, CacheStatus, CookieJar, ErrorKind,
+        BaseInfo, BasicAuthCredentials, BasicAuthSelector, CacheStatus, CookieJar, ErrorKind,
         FileExtensions, FileType, Input, InputContent, InputResolver, InputSource, LycheeResult,
         Preprocessor, Redirect, Redirects, Request, RequestError, ResolvedInputSource, Response,
-        ResponseBody, Result, Status, StatusCodeSelector, StatusRange, StatusRangeError,
-        uri::raw::RawUri, uri::valid::Uri,
+        ResponseBody, Result, Status, StatusCodeSelector, StatusRange, StatusRangeError, hints::*,
+        uri::raw::RawUri, uri::raw::RawUriSpan, uri::valid::Uri,
     },
 };

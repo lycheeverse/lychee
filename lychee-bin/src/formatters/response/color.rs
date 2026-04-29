@@ -1,3 +1,5 @@
+use std::sync::LazyLock;
+
 use lychee_lib::{CacheStatus, ResponseBody, Status};
 
 use crate::formatters::color::{DIM, GREEN, PINK, YELLOW};
@@ -13,9 +15,9 @@ pub(crate) struct ColorFormatter;
 impl ColorFormatter {
     /// Determine the color for formatted output based on the status of the
     /// response.
-    fn status_color(status: &Status) -> &'static std::sync::LazyLock<console::Style> {
+    fn status_color(status: &Status) -> &'static LazyLock<console::Style> {
         match status {
-            Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) | Status::Redirected(_, _) => &GREEN,
+            Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) => &GREEN,
             Status::Excluded
             | Status::Unsupported(_)
             | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => &DIM,
@@ -39,12 +41,7 @@ impl ColorFormatter {
         // Calculate the effective padding. Ensure it's non-negative to avoid panic.
         let padding = MAX_RESPONSE_OUTPUT_WIDTH.saturating_sub(status_code_or_text.len() + 2); // +2 for brackets
 
-        format!(
-            "{}[{:>width$}]",
-            " ".repeat(padding),
-            status_code_or_text,
-            width = status_code_or_text.len()
-        )
+        format!("{}[{}]", " ".repeat(padding), status_code_or_text)
     }
 
     /// Color and format the response status.
@@ -86,7 +83,7 @@ mod tests {
         let formatter = ColorFormatter;
         let body = mock_response_body!(Status::Ok(StatusCode::OK), "https://example.com");
         let formatted_response = strip_ansi_codes(&formatter.format_response(&body));
-        assert_eq!(formatted_response, "     [200] https://example.com/");
+        assert_eq!(formatted_response, "   [200] https://example.com/");
     }
 
     #[test]
@@ -99,7 +96,7 @@ mod tests {
         let formatted_response = strip_ansi_codes(&formatter.format_response(&body));
         assert_eq!(
             formatted_response,
-            "   [ERROR] https://example.com/404 | URL cannot be empty: Empty URL found. Check for missing links or malformed markdown"
+            " [ERROR] https://example.com/404 | Empty URL found but a URL must not be empty"
         );
     }
 
@@ -124,7 +121,7 @@ mod tests {
         let response = strip_ansi_codes(&formatter.format_response(&body));
         assert_eq!(
             response,
-            "   [ERROR] https://example.com/404 | URL cannot be empty: Empty URL found. Check for missing links or malformed markdown"
+            " [ERROR] https://example.com/404 | Empty URL found but a URL must not be empty"
         );
     }
 }

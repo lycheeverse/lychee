@@ -14,7 +14,9 @@
 //!   and filtered by extension
 //! - URLs, raw strings, and standard input (`stdin`) are read directly
 
+use crate::BaseInfo;
 use crate::ErrorKind;
+use crate::utils;
 
 use glob::Pattern;
 use reqwest::Url;
@@ -62,15 +64,8 @@ impl InputSource {
             return Ok(InputSource::Stdin);
         }
 
-        // We use [`reqwest::Url::parse`] because it catches some other edge cases that [`http::Request:builder`] does not
-        if let Ok(url) = Url::parse(input) {
-            // Weed out non-HTTP schemes, including Windows drive
-            // specifiers, which can be parsed by the
-            // [url](https://crates.io/crates/url) crate
-            return match url.scheme() {
-                "http" | "https" => Ok(InputSource::RemoteUrl(Box::new(url))),
-                _ => Err(ErrorKind::InvalidFile(PathBuf::from(input))),
-            };
+        if let Ok(url) = utils::url::parse_url_or_path(input) {
+            return Ok(InputSource::RemoteUrl(Box::new(url)));
         }
 
         // This seems to be the only way to determine if this is a glob pattern
@@ -86,45 +81,10 @@ impl InputSource {
         // It might be a file path; check if it exists
         let path = PathBuf::from(input);
 
-        // On Windows, a filepath can never be mistaken for a
-        // URL, because Windows filepaths use `\` and URLs use
-        // `/`
-        #[cfg(windows)]
-        if path.exists() {
-            // The file exists, so we return the path
-            Ok(InputSource::FsPath(path))
-        } else {
-            // We have a valid filepath, but the file does not
-            // exist so we return an error
-            Err(ErrorKind::InvalidFile(path))
-        }
-
-        #[cfg(unix)]
         if path.exists() {
             Ok(InputSource::FsPath(path))
-        } else if input.starts_with('~') || input.starts_with('.') {
-            // The path is not valid, but it might still be a
-            // valid URL.
-            //
-            // Check if the path starts with a tilde (`~`) or a
-            // dot and exit early if it does.
-            //
-            // This check might not be sufficient to cover all cases
-            // but it catches the most common ones
-            Err(ErrorKind::InvalidFile(path))
         } else {
-            // Invalid path; check if a valid URL can be constructed from the input
-            // by prefixing it with a `http://` scheme.
-            //
-            // Curl also uses http (i.e. not https), see
-            // https://github.com/curl/curl/blob/70ac27604a2abfa809a7b2736506af0da8c3c8a9/lib/urlapi.c#L1104-L1124
-            //
-            // TODO: We should get rid of this heuristic and
-            // require users to provide a full URL with scheme.
-            // This is a big source of confusion to users.
-            let url = Url::parse(&format!("http://{input}"))
-                .map_err(|e| ErrorKind::ParseUrl(e, "Input is not a valid URL".to_string()))?;
-            Ok(InputSource::RemoteUrl(Box::new(url)))
+            Err(ErrorKind::InvalidInput(input.to_owned()))
         }
     }
 
@@ -156,6 +116,32 @@ pub enum ResolvedInputSource {
     Stdin,
     /// Raw string input.
     String(Cow<'static, str>),
+}
+
+impl ResolvedInputSource {
+    /// Converts a [`ResolvedInputSource::RemoteUrl`] or
+    /// [`ResolvedInputSource::FsPath`] to a [`BaseInfo`] for the source.
+    ///
+    /// For other variants (i.e., those without a URL), [`BaseInfo::None`]
+    /// is returned.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if building a URL from a [`ResolvedInputSource::FsPath`]
+    /// fails.
+    pub fn to_base_info(&self) -> Result<BaseInfo, ErrorKind> {
+        let url = match self {
+            Self::RemoteUrl(url) => Cow::Borrowed(&**url),
+            Self::FsPath(path) => std::path::absolute(path)
+                .ok()
+                .and_then(|x| Url::from_file_path(x).ok())
+                .map(Cow::Owned)
+                .ok_or_else(|| ErrorKind::InvalidUrlFromPath(path.to_owned()))?,
+            _ => return Ok(BaseInfo::none()),
+        };
+
+        Ok(BaseInfo::from_source_url(&url))
+    }
 }
 
 impl From<ResolvedInputSource> for InputSource {

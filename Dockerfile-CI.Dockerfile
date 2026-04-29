@@ -1,4 +1,4 @@
-FROM debian:bookworm-slim AS builder
+FROM debian:trixie-slim AS builder
 WORKDIR /builder
 
 ARG LYCHEE_VERSION="latest"
@@ -18,10 +18,10 @@ RUN apt-get update \
         "latest") echo "https://github.com/lycheeverse/lychee/releases/latest/download";; \
         *) echo "https://github.com/lycheeverse/lychee/releases/download/$LYCHEE_VERSION";; \
         esac) \
-    && wget -O - "$BASE_URL/lychee-$ARCH-unknown-linux-gnu.tar.gz" | tar -xz lychee \
+    && wget -O - "$BASE_URL/lychee-$ARCH-unknown-linux-gnu.tar.gz" | tar -xz --strip-components 1 \
     && chmod +x lychee
 
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y \

@@ -45,7 +45,7 @@ mod plain_tests {
         );
         assert_eq!(
             formatter.format_response(&body),
-            "[ERROR] https://example.com/404 | URL cannot be empty: Empty URL found. Check for missing links or malformed markdown"
+            "[ERROR] https://example.com/404 | Empty URL found but a URL must not be empty"
         );
     }
 
@@ -55,7 +55,7 @@ mod plain_tests {
         let body = mock_response_body!(Status::Excluded, "https://example.com/not-checked");
         assert_eq!(
             formatter.format_response(&body),
-            "[EXCLUDED] https://example.com/not-checked"
+            "[EXCLUDED] https://example.com/not-checked | This is due to your 'exclude' values"
         );
     }
 
@@ -68,13 +68,17 @@ mod plain_tests {
             code: StatusCode::PERMANENT_REDIRECT,
         });
 
-        let body = mock_response_body!(
-            Status::Redirected(StatusCode::MOVED_PERMANENTLY, redirects),
-            "https://example.com/redirect",
-        );
+        let body = ResponseBody {
+            uri: Uri::try_from("https://example.com/redirect").unwrap(),
+            status: Status::Ok(StatusCode::OK),
+            redirects: Some(redirects),
+            remap: None,
+            span: None,
+            duration: None,
+        };
         assert_eq!(
             formatter.format_response(&body),
-            "[301] https://example.com/redirect | Redirect: Followed 1 redirect resolving to the final status of: Moved Permanently. Redirects: https://from.dev/ --[308]--> https://to.dev/"
+            "[200] https://example.com/redirect | 200 OK | Followed 1 redirect. Redirects: https://from.dev/ --[308]--> https://to.dev/"
         );
     }
 

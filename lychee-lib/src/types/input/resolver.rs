@@ -118,6 +118,9 @@ impl InputResolver {
                 let glob_expanded = tilde(pattern.as_str()).to_string();
                 let mut match_opts = glob::MatchOptions::new();
                 match_opts.case_sensitive = !ignore_case;
+                // Match shell behavior: wildcards like `*` and `**` should not
+                // match hidden files/dirs by default.
+                match_opts.require_literal_leading_dot = skip_hidden;
 
                 Box::pin(try_stream! {
                     // For glob patterns, we expand the pattern and yield
