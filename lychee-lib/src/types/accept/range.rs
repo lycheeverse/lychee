@@ -7,6 +7,8 @@ use http::StatusCode;
 use regex::Regex;
 use thiserror::Error;
 
+use crate::hint;
+
 /// Smallest accepted value
 const MIN: u16 = 100;
 
@@ -75,6 +77,12 @@ impl FromStr for StatusRange {
             if inclusive {
                 Self::new(start, end)
             } else {
+                if end == start + 1 {
+                    hint!(
+                        "Accept range `{s}` only matches the single status code {start}. \
+                         Did you mean `{start}..={end}` or `{start},{end}`?"
+                    );
+                }
                 Self::new(start, end - 1)
             }
         }

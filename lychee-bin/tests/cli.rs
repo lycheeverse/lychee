@@ -268,12 +268,11 @@ mod cli {
     /// See https://github.com/lycheeverse/lychee/issues/1355
     #[test]
     fn test_valid_json_output_to_stdout_on_error() -> Result<()> {
-        let test_path = fixtures_path!().join("TEST_GITHUB_404.md");
-
         let mut cmd = cargo_bin_cmd!();
         cmd.arg("--format")
             .arg("json")
-            .arg(test_path)
+            .arg("-")
+            .write_stdin("https://github.com/mre/idiomatic-rust-doesnt-exist-man")
             .assert()
             .failure()
             .code(2);
@@ -650,25 +649,6 @@ mod cli {
             .stdout(contains("3 Total"))
             .stdout(contains("2 OK"))
             .stdout(contains("1 Excluded"));
-    }
-
-    #[test]
-    fn test_failure_github_404_no_token() {
-        let test_github_404_path = fixtures_path!().join("TEST_GITHUB_404.md");
-
-        cargo_bin_cmd!()
-            .arg(test_github_404_path)
-            .arg("--no-progress")
-            .env_clear()
-            .assert()
-            .failure()
-            .code(2)
-            .stdout(contains(
-                r#"[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 3:9) | Rejected status code: 404 Not Found (configurable with "accept" option)"#
-            ))
-            .stderr(contains(
-                "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
-            ));
     }
 
     #[tokio::test]
@@ -1413,7 +1393,7 @@ The config file should contain every possible key for documentation purposes."
                 mock_server_ok.uri()
             )))
             .stderr(contains(format!(
-                "[404] {}/ (at 2:1) | Rejected status code: 404 Not Found (configurable with \"accept\" option)\n",
+                "[404] {}/ (at 2:1) | Rejected status code: 404 Not Found\n",
                 mock_server_err.uri()
             )));
 
@@ -1465,13 +1445,16 @@ The config file should contain every possible key for documentation purposes."
         // Run first without cache to generate the cache file
         test_cmd
             .assert()
-            .stderr(contains(format!("[200] {}/ (at 1:1)\n", mock_server_ok.uri())))
+            .stderr(contains(format!(
+                "[200] {}/ (at 1:1)\n",
+                mock_server_ok.uri()
+            )))
             .stderr(contains(format!(
                 "[204] {}/ (at 2:1) | 204 No Content\n",
                 mock_server_no_content.uri()
             )))
             .stderr(contains(format!(
-                "[429] {}/ (at 3:1) | Rejected status code: 429 Too Many Requests (configurable with \"accept\" option)",
+                "[429] {}/ (at 3:1) | Rejected status code: 429 Too Many Requests\n",
                 mock_server_too_many_requests.uri()
             )));
 
@@ -1529,11 +1512,11 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                r#"[418] {}/ (at 2:1) | Rejected status code: 418 I'm a teapot (configurable with "accept" option)"#,
+                r#"[418] {}/ (at 2:1) | Rejected status code: 418 I'm a teapot"#,
                 mock_server_teapot.uri()
             )))
             .stdout(contains(format!(
-                r#"[500] {}/ (at 3:1) | Rejected status code: 500 Internal Server Error (configurable with "accept" option)"#,
+                r#"[500] {}/ (at 3:1) | Rejected status code: 500 Internal Server Error"#,
                 mock_server_server_error.uri()
             )));
 
@@ -1581,7 +1564,7 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                r#"[200] {}/ (at 1:1) | Rejected status code: 200 OK (configurable with "accept" option)"#,
+                r#"[200] {}/ (at 1:1) | Rejected status code: 200 OK"#,
                 mock_server_200.uri()
             )));
 
@@ -2015,7 +1998,7 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .failure()
             .stdout(contains(r#"
-[404] http://rust-lang.org/lycheeverse (at 1:1) | Rejected status code: 404 Not Found (configurable with "accept" option) | Remaps: http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse | Followed 1 redirect. Redirects: http://rust-lang.org/lycheeverse --[301]--> https://rust-lang.org/lycheeverse
+[404] http://rust-lang.org/lycheeverse (at 1:1) | Rejected status code: 404 Not Found | Remaps: http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse | Followed 1 redirect. Redirects: http://rust-lang.org/lycheeverse --[301]--> https://rust-lang.org/lycheeverse
 "#))
         // It is debugged when URIs are remapped
         .stderr(contains("[DEBUG] Remapping http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse"))
@@ -2705,7 +2688,7 @@ The config file should contain every possible key for documentation purposes."
         // Non-verbose mode
         redirecting_mock_server!(async |redirect_url: Url, _| {
             let (json, stderr) = run(&redirect_url, false);
-            assert!(stderr.contains("[WARN] lychee detected 1 redirect. You might want to consider replacing redirecting URLs"));
+            assert!(stderr.contains("Hint: Followed 1 redirect. You might want to"));
             assert_eq!(json["total"], 1);
             assert_eq!(json["redirects"], 1); // there was one redirect
             assert_eq!(json["successful"], 1); // which resolved to a success
@@ -4162,6 +4145,7 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
             .assert()
             .success();
     }
+
     /// Verifies that loading an older, legacy `.lycheecache` file containing a cached error
     /// correctly drops the error and successfully retries the link.
     /// This ensures we don't break existing user CI workflows that have older cache files
@@ -4535,8 +4519,7 @@ exclude_path = ["exclude_package.txt"]
         std::fs::write(dir.path().join("exclude_workspace.txt"), "")?;
         std::fs::write(dir.path().join("exclude_package.txt"), "")?;
 
-        let mut cmd = cargo_bin_cmd!();
-        let assert = cmd
+        let assert = cargo_bin_cmd!()
             .current_dir(dir.path())
             .arg("--dump-inputs")
             .arg(".")
@@ -4548,6 +4531,58 @@ exclude_path = ["exclude_package.txt"]
         assert!(!output.contains("exclude_package.txt"));
         assert!(output.contains("exclude_workspace.txt"));
         Ok(())
+    }
+
+    /// Verify that lychee will fail before all checks run if the parent of the given output path does not exist
+    /// See https://github.com/lycheeverse/lychee/issues/2147
+    #[test]
+    fn test_output_invalid_path() {
+        cargo_bin_cmd!()
+            .arg("--output")
+            .arg("does/not/exist")
+            .arg("-")
+            .assert().failure().stderr(contains(
+            "Output path `does/not/exist` is not writable: parent directory `does/not` does not exist",
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_user_hints() {
+        cargo_bin_cmd!()
+            .arg("-")
+            .write_stdin("http://wikipedia.org/this/does/not/exist")
+            .assert()
+            .stderr(contains("Hint: Followed 1 redirect. You might want to consider replacing redirecting URLs with the resolved URLs. Use verbose mode (`-v`/`-vv`) to see redirection details.\n"))
+            .stderr(contains("Hint: You can configure accepted/rejected response codes with `-a` or `--accept`\n"));
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--max-redirects=0")
+            .write_stdin("http://rust-lang.org")
+            .assert()
+            .stderr(contains("Hint: Rejected redirectional status codes. This means some redirects were not followed. You might want to increase the limit for `-m`/`--max-redirects`."));
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--max-retries=0")
+            .write_stdin("https://http.codes/429")
+            .assert()
+            .stderr(contains(r#"Hint: Encountered rate limit responses. You might be able to work around this by adding `[hosts."http.codes"]` to the TOML config to adjust the `concurrency` and `request_interval` values."#));
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--accept=200..201,300..301")
+            .assert()
+            .stderr(contains(r#"Hint: Accept range `200..201` only matches the single status code 200. Did you mean `200..=201` or `200,201`?"#))
+            .stderr(contains(r#"Hint: Accept range `300..301` only matches the single status code 300. Did you mean `300..=301` or `300,301`?"#));
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--max-redirects=0")
+            .write_stdin("http://rust-lang.org")
+            .arg("-q") // hide user hints
+            .assert()
+            .stderr(contains("Hint").not());
     }
 }
 
@@ -4573,18 +4608,5 @@ fn test_file_limit_low_concurrency() {
     let mut assert_cmd = assert_cmd::Command::from(cmd);
     assert_cmd.assert().stderr(predicates::str::contains(
         "System file descriptor limit is 64 which is too low for the requested concurrency of 128. Lowering `max_concurrency` to 44",
-    ));
-}
-
-// Verify that lychee will fail before all checks run if the parent of the given output path does not exist
-// See https://github.com/lycheeverse/lychee/issues/2147
-#[test]
-fn test_output_invalid_path() {
-    let mut cmd = assert_cmd::Command::cargo_bin("lychee").unwrap();
-    cmd.arg("--output")
-        .arg("does/not/exist")
-        .arg("https://example.com");
-    cmd.assert().failure().stderr(predicates::str::contains(
-        "Output path `does/not/exist` is not writable: parent directory `does/not` does not exist",
     ));
 }

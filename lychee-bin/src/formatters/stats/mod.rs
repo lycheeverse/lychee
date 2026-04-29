@@ -23,7 +23,10 @@ use std::{
     io::{Write, stdout},
 };
 
-use crate::{config::Config, formatters::get_stats_formatter};
+use crate::{
+    config::{Config, OutputMode},
+    formatters::{color::YELLOW, get_stats_formatter},
+};
 use anyhow::{Context, Result};
 use lychee_lib::{InputSource, ratelimit::HostStatsMap};
 
@@ -40,7 +43,7 @@ pub(crate) trait StatsFormatter {
     fn format(&self, stats: OutputStats) -> Result<String>;
 }
 
-/// If configured to do so, output response statistics to stdout or the specified output file.
+/// Output response statistics to stdout or the specified output file.
 pub(crate) fn output_statistics(stats: OutputStats, config: &Config) -> Result<()> {
     let formatter = get_stats_formatter(&config.format(), &config.mode());
     let formatted_stats = formatter.format(stats)?;
@@ -52,6 +55,25 @@ pub(crate) fn output_statistics(stats: OutputStats, config: &Config) -> Result<(
         writeln!(stdout(), "{formatted_stats}")?;
     }
     Ok(())
+}
+
+/// Output hints to stderr.
+pub(crate) fn output_hints(config: &Config) {
+    let hints = lychee_lib::get_hints();
+
+    if config.verbose().log_level() <= log::Level::Error {
+        return; // log level is too low
+    }
+
+    let prefix = match &config.mode() {
+        OutputMode::Emoji => "💡".into(),
+        OutputMode::Color => YELLOW.apply_to("Hint").to_string() + ":",
+        OutputMode::Plain | OutputMode::Task => "Hint:".into(),
+    };
+
+    for hint in hints {
+        eprintln!("{prefix} {hint}");
+    }
 }
 
 /// Convert a `ResponseStats` `HashMap` to a sorted Vec of key-value pairs.

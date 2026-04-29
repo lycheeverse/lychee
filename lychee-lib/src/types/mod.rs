@@ -7,6 +7,7 @@ mod cache;
 mod cookies;
 mod error;
 mod file;
+pub(crate) mod hints;
 mod input;
 mod preprocessor;
 pub(crate) mod redirect_history;
