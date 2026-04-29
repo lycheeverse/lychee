@@ -5,9 +5,9 @@
 	"build": {
 		"dockerfile": "Dockerfile",
 		"args": {
-			// Use the VARIANT arg to pick a Debian OS version: buster, bullseye, bookworm
-			// Use bookworm when on local on arm64/Apple Silicon.
-			"VARIANT": "bookworm"
+			// Use the VARIANT arg to pick a Debian OS version: bookworm, buster, bullseye
+			// Use bookworm, or bullseye on local arm64/Apple Silicon.
+			"VARIANT": "trixie"
 		}
 	},
 	"runArgs": [
