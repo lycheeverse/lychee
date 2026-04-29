@@ -1,10 +1,14 @@
 //! Provide the means to display practical user-friendly messages,
 //! which are collected during runtime.
 
-use std::{fmt::Display, sync::Mutex};
+use std::{
+    collections::{BTreeSet, btree_set::IntoIter},
+    fmt::Display,
+    sync::Mutex,
+};
 
 /// Hints are accumulated during the whole program invocation.
-static HINTS: Mutex<Vec<Hint>> = Mutex::new(vec![]);
+static HINTS: Mutex<BTreeSet<Hint>> = Mutex::new(BTreeSet::new());
 
 /// An informative and friendly message created during the invocation of the program
 /// to be displayed before termination, to improve user experience.
@@ -37,7 +41,7 @@ impl From<&str> for Hint {
 ///
 /// Panics if the mutex is poisoned
 pub fn add_hint(hint: Hint) {
-    HINTS.lock().unwrap().push(hint);
+    HINTS.lock().unwrap().insert(hint);
 }
 
 /// Format and collect a [`Hint`].
@@ -54,8 +58,6 @@ macro_rules! hint {
 /// # Panics
 ///
 /// Panics if the mutex is poisoned
-pub fn get_hints() -> Vec<Hint> {
-    let mut hints = HINTS.lock().unwrap().clone();
-    hints.sort(); // for reproducible reporting
-    hints
+pub fn get_hints() -> IntoIter<Hint> {
+    HINTS.lock().unwrap().clone().into_iter()
 }
