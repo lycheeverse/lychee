@@ -2,6 +2,7 @@ use crate::config::{Config, HeaderMapExt};
 use crate::parse::parse_remaps;
 use anyhow::{Context, Result};
 use http::{HeaderMap, StatusCode};
+use lychee_lib::BasicAuthExtractor;
 use lychee_lib::{Client, ClientBuilder, ratelimit::RateLimitConfig};
 use regex::RegexSet;
 use reqwest_cookie_store::CookieStoreMutex;
@@ -27,6 +28,12 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
     };
 
     let headers = HeaderMap::from_header_pairs(&cfg.headers())?;
+
+    let basic_auth = if let Some(basic_auth) = &cfg.basic_auth {
+        BasicAuthExtractor::new(basic_auth)?
+    } else {
+        BasicAuthExtractor::empty()
+    };
 
     ClientBuilder::builder()
         .remaps(remaps)
@@ -60,6 +67,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
             cfg.host_concurrency,
             cfg.host_request_interval,
         ))
+        .basic_auth(basic_auth)
         .hosts(cfg.hosts.clone())
         .build()
         .client()
