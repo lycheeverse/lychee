@@ -11,11 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- user hints ([#2021](https://github.com/lycheeverse/lychee/pull/2021))
+- User hints ([#2021](https://github.com/lycheeverse/lychee/pull/2021))
 
 ### Fixed
 
-- typo in README.md ([#2173](https://github.com/lycheeverse/lychee/pull/2173))
+- Typo in README.md ([#2173](https://github.com/lycheeverse/lychee/pull/2173))
 
 ### Other
 
