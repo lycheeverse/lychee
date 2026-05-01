@@ -1,181 +1,125 @@
+//! Wayback Machine integration for suggesting archived versions of dead pages.
+//!
+//! Builds URLs of the form:
+//!
+//! ```text
+//! https://web.archive.org/web/0/<url>
+//! ```
+//!
+//! Using `0` as the timestamp tells Wayback "give me the best (newest)
+//! available snapshot". The server's response tells us whether a snapshot
+//! exists:
+//!
+//! - **`302 Found`** with a `Location:` header pointing at the actual
+//!   timestamped snapshot (e.g. `/web/20020120142510/http://example.com/`).
+//!   We follow the redirect and surface the resolved URL. That way users
+//!   see the capture date in the suggested link.
+//! - **`404 Not Found`** when no snapshot exists for that URL. We return
+//!   `None` so lychee won't suggest a dead-end "page not archived" link.
+//!
+//! This is far more reliable than the Availability JSON API
+//! (`https://archive.org/wayback/available`), which is heavily rate-limited,
+//! flaky, and frequently returns empty `archived_snapshots` for pages that are
+//! clearly archived.
+//!
+//! See <https://en.wikipedia.org/wiki/Help:Using_the_Wayback_Machine>.
+
 use std::sync::LazyLock;
 use std::time::Duration;
-
-use serde::de::Error as SerdeError;
-use serde::{Deserialize, Deserializer};
 
 use http::StatusCode;
 use reqwest::{Client, Error, Url};
 
-static WAYBACK_URL: LazyLock<Url> =
-    LazyLock::new(|| Url::parse("https://archive.org/wayback/available").unwrap());
+/// Per-request timeout for Wayback lookups.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 
-pub(crate) async fn get_archive_snapshot(
-    url: &Url,
-    timeout: Duration,
-) -> Result<Option<Url>, Error> {
-    get_archive_snapshot_internal(url, timeout, WAYBACK_URL.clone()).await
-}
+/// Shared HTTP client for all Wayback suggestion lookups.
+///
+/// The suggestion path may issue dozens of lookups in quick succession
+/// (one per failed URL), all aimed at the same host. Sharing a client
+/// lets them reuse the connection pool, TLS session cache, and DNS
+/// resolver instead of paying those costs per request.
+static CLIENT: LazyLock<Client> = LazyLock::new(|| {
+    Client::builder()
+        .timeout(REQUEST_TIMEOUT)
+        .build()
+        .expect("Wayback HTTP client should always build with default config")
+});
 
-async fn get_archive_snapshot_internal(
-    url: &Url,
-    timeout: Duration,
-    mut api: Url,
-) -> Result<Option<Url>, Error> {
-    let url = url.to_string();
+/// Construct a Wayback Machine URL pointing at the best available snapshot
+/// of `url`, or `None` if Wayback has no snapshot of the page.
+///
+/// Performs a single GET request against `https://web.archive.org/web/0/<url>`
+/// (following redirects).
+///
+/// Wayback resolves the `0` timestamp server-side and either redirects to the
+/// latest snapshot or responds `404`.
+pub(crate) async fn get_archive_snapshot(url: &Url) -> Result<Option<Url>, Error> {
+    let wayback = format!("https://web.archive.org/web/0/{url}");
+    // `Url::parse` cannot fail here for any well-formed input `url`, but
+    // if it ever did we'd rather report "no suggestion" than panic.
+    let Ok(snapshot_url) = Url::parse(&wayback) else {
+        log::debug!("failed to construct Wayback URL for {url}");
+        return Ok(None);
+    };
 
-    // The Wayback API doesn't return any snapshots for URLs with trailing slashes
-    let stripped = url.strip_suffix("/").unwrap_or(&url);
-    api.set_query(Some(&format!("url={stripped}")));
+    let response = CLIENT.get(snapshot_url).send().await?;
 
-    let response = Client::builder()
-        .timeout(timeout)
-        .build()?
-        .get(api)
-        .send()
-        .await?
-        .error_for_status()?
-        .json::<InternetArchiveResponse>()
-        .await?;
+    if response.status() == StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
 
-    Ok(response
-        .archived_snapshots
-        .closest
-        .map(|closest| closest.url))
-}
+    // Any other non-success (rate limiting, 5xx, ...) bubbles up so the
+    // caller can decide; the suggestion path currently swallows errors.
+    let response = response.error_for_status()?;
 
-#[derive(Debug, Deserialize, Eq, PartialEq)]
-pub(crate) struct InternetArchiveResponse {
-    pub(crate) url: Url,
-    pub(crate) archived_snapshots: ArchivedSnapshots,
-}
-
-#[derive(Debug, Deserialize, Eq, PartialEq)]
-pub(crate) struct ArchivedSnapshots {
-    pub(crate) closest: Option<Closest>,
-}
-
-#[derive(Debug, Deserialize, Eq, PartialEq)]
-pub(crate) struct Closest {
-    #[serde(deserialize_with = "from_string")]
-    pub(crate) status: StatusCode,
-    pub(crate) available: bool,
-    pub(crate) url: Url,
-    pub(crate) timestamp: String,
-}
-
-fn from_string<'d, D>(deserializer: D) -> Result<StatusCode, D::Error>
-where
-    D: Deserializer<'d>,
-{
-    let value: &str = Deserialize::deserialize(deserializer)?;
-    let result = value
-        .parse::<u16>()
-        .map_err(|e| D::Error::custom(e.to_string()))?;
-    StatusCode::from_u16(result).map_err(|e| D::Error::custom(e.to_string()))
+    // After redirect-following, `response.url()` is the resolved
+    // timestamped snapshot URL (e.g. `/web/20020120142510/http://...`).
+    Ok(Some(response.url().clone()))
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::archive::wayback::{get_archive_snapshot, get_archive_snapshot_internal};
-    use http::StatusCode;
-    use reqwest::{Client, Error, Url};
-    use std::{error::Error as StdError, time::Duration};
-    use wiremock::matchers::query_param;
-
-    const TIMEOUT: Duration = Duration::from_secs(20);
+    use super::*;
+    use std::error::Error as StdError;
 
     #[tokio::test]
-    /// Test retrieval by mocking the Wayback API.
-    /// We mock their API because unfortunately it happens quite often that the
-    /// `archived_snapshots` field is empty because the API is unreliable.
-    /// This way we avoid flaky tests.
-    async fn wayback_suggestion_mocked() -> Result<(), Box<dyn StdError>> {
-        let mock_server = wiremock::MockServer::start().await;
-        let api_url = mock_server.uri();
-        let api_response = wiremock::ResponseTemplate::new(StatusCode::OK).set_body_raw(
-            r#"
-                {
-                    "url": "https://google.com/jobs.html",
-                    "archived_snapshots": {
-                        "closest": {
-                            "available": true,
-                            "url": "http://web.archive.org/web/20130919044612/http://example.com/",
-                            "timestamp": "20130919044612",
-                            "status": "200"
-                        }
-                    }
-                }
-                "#,
-            "application/json",
-        );
-
-        let url_to_restore = "https://example.com".parse::<Url>()?;
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .and(query_param(
-                "url",
-                url_to_restore.as_str().strip_suffix("/").unwrap(),
-            ))
-            .respond_with(api_response)
-            .mount(&mock_server)
-            .await;
-
-        let result =
-            get_archive_snapshot_internal(&url_to_restore, TIMEOUT, api_url.parse()?).await;
-
-        assert_eq!(
-            result?,
-            Some("http://web.archive.org/web/20130919044612/http://example.com/".parse()?)
-        );
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    /// Their API documentation mentions when the last changes occurred.
-    /// Because we mock their API in previous tests we try to detect breaking API changes with this test.
-    async fn wayback_api_no_breaking_changes() -> Result<(), Error> {
-        let api_docs_url = "https://archive.org/help/wayback_api.php";
-        let html = Client::builder()
-            .timeout(TIMEOUT)
-            .build()?
-            .get(api_docs_url)
-            .send()
-            .await?
-            .text()
-            .await?;
-
-        assert!(html.contains("Updated on September, 24, 2013"));
-        Ok(())
-    }
-
-    #[ignore = "
-        It is flaky because the API does not reliably return snapshots,
-        i.e. the `archived_snapshots` field is unreliable.
-        That's why the test is ignored. For development and documentation this test is still useful."]
-    #[tokio::test]
-    /// This tests the real Wayback API without any mocks.
+    /// Real Wayback request: `example.com` is archived many times over,
+    /// so this should resolve to a concrete timestamped snapshot URL.
+    ///
+    /// Tolerates 503s, which `web.archive.org` returns intermittently
+    /// under load.
     async fn wayback_suggestion_real() -> Result<(), Box<dyn StdError>> {
-        let url = &"https://example.com".try_into()?;
-        let response = get_archive_snapshot(url, TIMEOUT).await?;
-        assert_eq!(
-            response,
-            Some("http://web.archive.org/web/20250603204626/http://www.example.com/".parse()?)
-        );
+        let url: Url = "https://example.com".parse()?;
+        match get_archive_snapshot(&url).await {
+            Ok(snapshot) => {
+                let snapshot = snapshot.expect("example.com should have a snapshot");
+                let s = snapshot.as_str();
+                assert!(
+                    s.starts_with("https://web.archive.org/web/"),
+                    "unexpected snapshot URL: {s}"
+                );
+                // Resolved snapshots embed a 14-digit timestamp, never
+                // the `0` sentinel. If we ever see `/web/0/` here,
+                // redirect-following silently broke.
+                assert!(!s.contains("/web/0/"), "redirect was not followed: {s}");
+            }
+            Err(e) if e.status() == Some(StatusCode::SERVICE_UNAVAILABLE) => {
+                // ignore 503s which are *probably* transient
+            }
+            Err(e) => Err(e)?,
+        }
         Ok(())
     }
 
     #[tokio::test]
-    /// This tests the real Wayback API without any mocks.
-    /// The flakiness of the API doesn't affect this test because it originates from
-    /// the `archived_snapshots` field. However, this test is flaky due to the API
-    /// server's flakiness.
+    /// Real Wayback request for a URL that doesn't exist (and therefore
+    /// can't have been archived). Wayback responds 404 and we must
+    /// return `None` so lychee doesn't suggest a dead-end link.
     async fn wayback_suggestion_real_unknown() -> Result<(), Box<dyn StdError>> {
-        let url = &"https://github.com/mre/idiomatic-rust-doesnt-exist-man".try_into()?;
-        match get_archive_snapshot(url, TIMEOUT).await {
-            Ok(response) => {
-                assert_eq!(response, None);
-            }
+        let url: Url = "https://example.com/this-page-does-not-exist-abc123xyz".parse()?;
+        match get_archive_snapshot(&url).await {
+            Ok(snapshot) => assert_eq!(snapshot, None),
             Err(e) if e.status() == Some(StatusCode::SERVICE_UNAVAILABLE) => {
                 // ignore 503s which are *probably* transient
             }

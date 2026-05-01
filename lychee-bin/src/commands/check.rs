@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::time::Duration;
 
 use futures::StreamExt;
 use http::StatusCode;
@@ -100,14 +99,7 @@ where
             level,
             &params.cfg.mode(),
         );
-        suggest_archived_links(
-            params.cfg.archive(),
-            &mut stats,
-            progress,
-            max_concurrency,
-            params.cfg.timeout(),
-        )
-        .await;
+        suggest_archived_links(params.cfg.archive(), &mut stats, progress, max_concurrency).await;
     }
 
     let is_success = if accept_timeouts {
@@ -129,7 +121,6 @@ async fn suggest_archived_links(
     stats: &mut ResponseStats,
     progress: Progress,
     max_concurrency: usize,
-    timeout: Duration,
 ) {
     let failed_urls = &get_failed_urls(stats);
     progress.set_length(failed_urls.len() as u64);
@@ -137,7 +128,7 @@ async fn suggest_archived_links(
     let suggestions = Mutex::new(&mut stats.suggestion_map);
 
     futures::stream::iter(failed_urls)
-        .map(|(input, url)| (input, url, archive.get_archive_snapshot(url, timeout)))
+        .map(|(input, url)| (input, url, archive.get_archive_snapshot(url)))
         .for_each_concurrent(max_concurrency, |(input, url, future)| async {
             if let Ok(Some(suggestion)) = future.await {
                 suggestions
