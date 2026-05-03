@@ -326,3 +326,32 @@ jobs:
         run: |
           version="${{ needs.create-release.outputs.tag_name }}"
           gh release upload "$version" ${{ env.ASSET }} ${{ env.ASSET_SUM }}
+
+      - name: Upload release asset digest
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ env.ASSET_SUM }}
+          archive: false
+
+  attest:
+    name: attest
+    needs: ["build-release"]
+    permissions:
+      attestations: write # to write attestations
+      id-token: write # to sign attestations
+    steps:
+      - name: Download release asset digests
+        uses: actions/download-artifact@v8
+        with:
+          path: release-asset-digests/
+          merge-multiple: true
+
+      - name: Combine release asset digests
+        shell: bash
+        run: |
+          cat release-asset-digests/*.sha256 >release-asset-digests.sha256
+
+      - name: Generate release asset artifact attestations
+        uses: actions/attest@v4
+        with:
+          subject-checksums: release-asset-digests.sha256
