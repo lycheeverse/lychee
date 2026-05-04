@@ -73,15 +73,34 @@ fn stats_table(stats: &ResponseStats) -> String {
         .to_string()
 }
 
+/// Placeholder Uri used in [`lychee_lib::types::request_error`] when a
+/// malformed link can't be parsed into a URL. Matched exactly (not by scheme
+/// alone) so a real input like `error:foo` still renders its URI.
+const UNPARSABLE_URI_SENTINEL: &str = "error:";
+
 /// Helper function to format single response body as markdown
 ///
 /// Optional details get added if available.
 fn markdown_response(response: &ResponseBody) -> Result<String> {
-    let mut formatted = format!(
-        "* [{}] <{}>",
-        response.status.code_as_string(),
-        response.uri,
-    );
+    // For links that could not be parsed as a URL, the underlying
+    // `RequestError::CreateRequestItem` path emits a single sentinel `Uri`
+    // of exactly `"error:"` (see `lychee-lib/src/types/request_error.rs`).
+    // Rendering `<{uri}>` on that sentinel leaks `<error:>` into the markdown
+    // output and obscures the actual failure (see #2143). Skip the URL
+    // segment in that exact case so the status code + error details carry
+    // the message instead; arbitrary user input with an `error:` scheme
+    // (e.g. `error:foo`) continues to render normally.
+    let has_unparsable_uri = response.uri.as_str() == UNPARSABLE_URI_SENTINEL;
+
+    let mut formatted = if has_unparsable_uri {
+        format!("* [{}]", response.status.code_as_string())
+    } else {
+        format!(
+            "* [{}] <{}>",
+            response.status.code_as_string(),
+            response.uri,
+        )
+    };
 
     if let Some(span) = response.span {
         formatted = format!("{formatted} (at {span})");
@@ -239,6 +258,63 @@ mod tests {
         assert_eq!(
             markdown,
             "* [400] <http://example.com/> (at 1:1) | Error (cached)"
+        );
+    }
+
+    #[test]
+    fn test_markdown_response_unparsable_url_omits_uri_segment() {
+        // Mirrors the path in `lychee-lib` that produces `Uri("error:")` when
+        // a malformed link cannot be parsed -- see #2143. The markdown output
+        // should not leak `<error:>`; it should carry the status + details
+        // and skip the URL segment entirely.
+        use lychee_lib::ErrorKind;
+
+        let body = ResponseBody {
+            // The public `Uri::try_from("error:")` path reconstructs the
+            // same placeholder that `RequestError::into_response` emits.
+            uri: Uri::try_from("error:").unwrap(),
+            status: Status::Error(ErrorKind::InvalidInput(
+                "https://example]org/malformed".to_string(),
+            )),
+            span: SPAN,
+            duration: DURATION,
+        };
+        let markdown = markdown_response(&body).unwrap();
+        // The leading placeholder URL is gone -- no `<error:>` leak.
+        assert!(
+            !markdown.contains("<error:>"),
+            "markdown output leaked placeholder URI: {markdown}"
+        );
+        // Status code and span are still present so the error is still
+        // actionable from the report alone.
+        assert!(markdown.starts_with("* [ERROR]"), "unexpected prefix: {markdown}");
+        assert!(markdown.contains("(at 1:1)"), "span missing: {markdown}");
+        // The underlying cause (the malformed URL string) survives as part
+        // of the status details, not the Uri, so readers still see *what*
+        // failed even without the `<>` link.
+        assert!(
+            markdown.contains("malformed"),
+            "malformed url detail missing from output: {markdown}"
+        );
+    }
+
+    #[test]
+    fn test_markdown_response_error_scheme_non_sentinel_still_renders_uri() {
+        // User inputs like `error:foo` share the `error:` scheme with the
+        // placeholder but are NOT the sentinel. They must keep rendering
+        // their full URI in the markdown output -- otherwise we regress
+        // legitimate reports for inputs with the `error:` scheme (#2143
+        // codex:review follow-up).
+        let response = ResponseBody {
+            uri: Uri::try_from("error:foo").unwrap(),
+            status: Status::Excluded,
+            span: SPAN,
+            duration: DURATION,
+        };
+        let markdown = markdown_response(&response).unwrap();
+        assert!(
+            markdown.contains("<error:foo>"),
+            "non-sentinel error: Uri was erroneously hidden: {markdown}"
         );
     }
 
