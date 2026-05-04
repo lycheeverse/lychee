@@ -133,7 +133,7 @@ macro_rules! fixtures_path {
 #[macro_export]
 macro_rules! load_fixture {
     ($filename:expr) => {{
-        let path = fixtures_path!().join($filename);
+        let path = $crate::fixtures_path!().join($filename);
         std::fs::read_to_string(path).unwrap()
     }};
 }
@@ -147,8 +147,8 @@ macro_rules! load_fixture {
 macro_rules! fixture_uri {
     ($subpath:expr) => {{
         use url::Url;
-        let fixture_url =
-            Url::from_directory_path(fixtures_path!()).expect("fixture path should be a valid URL");
+        let fixture_url = Url::from_directory_path($crate::fixtures_path!())
+            .expect("fixture path should be a valid URL");
 
         // joining subpath onto a Url allows the subpath to contain a fragment
         fixture_url

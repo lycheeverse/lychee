@@ -7,3 +7,9 @@ extend-exclude = [
 
 [default.extend-words]
 excluder = "excluder"
+
+[default]
+extend-ignore-re = [
+  # Ignore the line after `// spellchecker:ignore-next-line`:
+  "(#|//)\\s*spellchecker\\s*:\\s*ignore-next-line\\n.*",
+]

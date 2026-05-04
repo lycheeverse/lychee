@@ -1,12 +1,15 @@
 //! Extract links and fragments from markdown documents
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use log::warn;
 use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd, TextMergeWithOffset};
 
 use crate::{
     checker::wikilink::wikilink,
-    extract::{html::html5gum::extract_html_with_span, plaintext::extract_raw_uri_from_plaintext},
+    extract::{
+        fragments::GithubHeadingIdGenerator, html::html5gum::extract_html_with_span,
+        plaintext::extract_raw_uri_from_plaintext,
+    },
     types::uri::raw::{
         OffsetSpanProvider, RawUri, RawUriSpan, SourceSpanProvider, SpanProvider as _,
     },
@@ -277,7 +280,7 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
     let mut in_heading = false;
     let mut heading_text = String::new();
     let mut heading_id: Option<CowStr<'_>> = None;
-    let mut id_generator = HeadingIdGenerator::default();
+    let mut id_generator = GithubHeadingIdGenerator::new();
 
     let mut out = HashSet::new();
 
@@ -316,43 +319,10 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
     out
 }
 
-#[derive(Default)]
-struct HeadingIdGenerator {
-    counter: HashMap<String, usize>,
-}
-
-impl HeadingIdGenerator {
-    fn generate(&mut self, heading: &str) -> String {
-        let mut id = Self::into_kebab_case(heading);
-        let count = self.counter.entry(id.clone()).or_insert(0);
-        if *count != 0 {
-            id = format!("{}-{}", id, *count);
-        }
-        *count += 1;
-
-        id
-    }
-
-    /// Converts text into kebab case
-    #[must_use]
-    fn into_kebab_case(text: &str) -> String {
-        text.to_lowercase()
-            .chars()
-            .filter_map(|ch| {
-                if ch.is_alphanumeric() || ch == '_' || ch == '-' {
-                    Some(ch)
-                } else if ch.is_whitespace() {
-                    Some('-')
-                } else {
-                    None
-                }
-            })
-            .collect::<String>()
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use test_utils::load_fixture;
+
     use crate::types::uri::raw::span;
 
     use super::*;
@@ -381,14 +351,48 @@ or inline like `https://bar.org` for instance.
 
     #[test]
     fn test_extract_fragments() {
-        let expected = HashSet::from([
-            "a-test".to_string(),
-            "a-test-1".to_string(),
-            "well-still-the-same-test".to_string(),
-            "some-code-in-a-heading".to_string(),
-            "the-end".to_string(),
-        ]);
+        let expected = [
+            "a-test",
+            "a-test-1",
+            "well-still-the-same-test",
+            "some-code-in-a-heading",
+            "the-end",
+        ]
+        .into_iter()
+        .map(str::to_string)
+        .collect();
+
         let actual = extract_markdown_fragments(MD_INPUT);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_extract_fragments_unicode() {
+        let md = load_fixture!("fragments/heading-ids.md");
+
+        let expected = [
+            "\u{fe0f}-c",
+            "\u{fe0f}-mit-许可证",
+            "\u{fe0f}\u{20e3}-b",
+            "a--c",
+            "a-b-c",
+            "a-b-c-1",
+            "an--emdash",
+            "foo",
+            "foo-1",
+            "foo-1-1",
+            "foo-2",
+            "foo-3",
+            "à-á-â-ã-ä-å-or-à-á-â-ã-ä-å",
+            "νατου-γιαννησ-sigma-final-position",
+            "σκοπός-κάθε-sigma-initial-position",
+            "🅰\u{fe0f}-d",
+        ]
+        .into_iter()
+        .map(str::to_string)
+        .collect();
+
+        let actual = extract_markdown_fragments(&md);
         assert_eq!(actual, expected);
     }
 
@@ -460,28 +464,6 @@ Some pre-formatted http://pre.com
 
         let uris = extract_markdown(input, false, false);
         assert_eq!(uris, expected);
-    }
-
-    #[test]
-    fn test_kebab_case() {
-        let check = |input, expected| {
-            let actual = HeadingIdGenerator::into_kebab_case(input);
-            assert_eq!(actual, expected);
-        };
-        check("A Heading", "a-heading");
-        check(
-            "This header has a :thumbsup: in it",
-            "this-header-has-a-thumbsup-in-it",
-        );
-        check(
-            "Header with 한글 characters (using unicode)",
-            "header-with-한글-characters-using-unicode",
-        );
-        check(
-            "Underscores foo_bar_, dots . and numbers 1.7e-3",
-            "underscores-foo_bar_-dots--and-numbers-17e-3",
-        );
-        check("Many          spaces", "many----------spaces");
     }
 
     #[test]
