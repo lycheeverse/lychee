@@ -3,4 +3,4 @@ members = ["lychee-bin", "lychee-lib", "examples/*", "benches", "test-utils"]
 resolver = "2"
 
 [workspace.package]
-version = "0.24.2"
+version = "0.24.3"
