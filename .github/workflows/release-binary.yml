@@ -326,3 +326,21 @@ jobs:
         run: |
           version="${{ needs.create-release.outputs.tag_name }}"
           gh release upload "$version" ${{ env.ASSET }} ${{ env.ASSET_SUM }}
+
+  binstall-check:
+    needs: [build-release]
+    runs-on: ubuntu-latest
+    env:
+      # Avoid 403 rate-limit failures when binstall queries GitHub releases.
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: cargo-bins/cargo-binstall@main
+
+      # Uses nightly to preview upcoming release archive changes.
+      - run: sed -i.bak 's|/{ name }-v{ version }/|/nightly/|' lychee-bin/Cargo.toml
+        if: github.event.release.prerelease
+
+      # Use `--manifest-path .` so binstall validates the in-tree binstall metadata.
+      - run: cargo binstall --manifest-path . --strategies crate-meta-data lychee --no-confirm --verbose
+

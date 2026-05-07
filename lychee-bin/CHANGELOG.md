@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.2](https://github.com/lycheeverse/lychee/compare/lychee-v0.24.1...lychee-v0.24.2) - 2026-04-30
+
+### Added
+
+- User hints ([#2021](https://github.com/lycheeverse/lychee/pull/2021))
+- Publish on PyPI ([#1931](https://github.com/lycheeverse/lychee/pull/1931))
+
+### Fixed
+
+- Typo in README.md ([#2173](https://github.com/lycheeverse/lychee/pull/2173))
+- Update binstall metadata after 0.24.0 restructure ([#2165](https://github.com/lycheeverse/lychee/pull/2165))
+
+### Other
+
+- *(deps)* bump the dependencies group with 8 updates
+- Update all container images to debian trixie ([#2177](https://github.com/lycheeverse/lychee/pull/2177))
+
 ## [0.24.1](https://github.com/lycheeverse/lychee/compare/lychee-v0.24.0...lychee-v0.24.1) - 2026-04-24
 
 ### Other

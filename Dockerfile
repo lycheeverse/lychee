@@ -1,4 +1,4 @@
-FROM rust:bookworm as builder
+FROM rust:trixie AS builder
 
 RUN USER=root cargo new --bin lychee
 WORKDIR /lychee
@@ -23,7 +23,7 @@ RUN rm ./target/release/deps/lychee* \
 
 # Our production image starts here, which uses
 # the files from the builder image above.
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y \

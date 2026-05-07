@@ -84,12 +84,13 @@ mod commands;
 mod config;
 mod files_from;
 mod formatters;
+mod hints;
 mod parse;
 mod progress;
 mod time;
 mod verbosity;
 
-use crate::formatters::stats::{OutputStats, ResponseStats, output_statistics};
+use crate::formatters::stats::{OutputStats, output_hints, output_statistics};
 use crate::{
     cache::Cache,
     config::{Config, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE, LycheeOptions},
@@ -445,8 +446,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         commands::dump(params).await?
     } else {
         let (response_stats, cache, exit_code, host_pool) = commands::check(params).await?;
-        github_warning(&response_stats, &opts.config);
-        redirect_warning(&response_stats, &opts.config);
+        hints::handle_stats(&response_stats, &opts.config);
 
         let stats = OutputStats {
             response_stats,
@@ -466,40 +466,10 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
             cookie_jar.save().context("Cannot save cookie jar")?;
         }
 
+        output_hints(&opts.config);
+
         exit_code
     };
 
     Ok(exit_code as i32)
-}
-
-/// Display user-friendly message if there were any issues with GitHub URLs
-fn github_warning(stats: &ResponseStats, config: &Config) {
-    let github_errors = stats
-        .error_map
-        .values()
-        .flatten()
-        .any(|body| body.uri.domain() == Some("github.com"));
-
-    if github_errors && config.github_token.is_none() {
-        warn!(
-            "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
-        );
-    }
-}
-
-/// Display user-friendly message if there were any redirects
-/// in non-verbose mode.
-fn redirect_warning(stats: &ResponseStats, config: &Config) {
-    let redirects = stats.redirects;
-    if redirects > 0 && config.verbose().log_level() < log::Level::Info {
-        let noun = if redirects == 1 {
-            "redirect"
-        } else {
-            "redirects"
-        };
-
-        warn!(
-            "lychee detected {redirects} {noun}. You might want to consider replacing redirecting URLs with the resolved URLs. Run lychee in verbose mode (-v/--verbose) to see details about the redirections.",
-        );
-    }
 }

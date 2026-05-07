@@ -1,3 +1,5 @@
+use std::sync::LazyLock;
+
 use lychee_lib::{CacheStatus, ResponseBody, Status};
 
 use crate::formatters::color::{DIM, GREEN, PINK, YELLOW};
@@ -13,7 +15,7 @@ pub(crate) struct ColorFormatter;
 impl ColorFormatter {
     /// Determine the color for formatted output based on the status of the
     /// response.
-    fn status_color(status: &Status) -> &'static std::sync::LazyLock<console::Style> {
+    fn status_color(status: &Status) -> &'static LazyLock<console::Style> {
         match status {
             Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) => &GREEN,
             Status::Excluded
