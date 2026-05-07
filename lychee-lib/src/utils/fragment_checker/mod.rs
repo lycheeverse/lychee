@@ -11,6 +11,7 @@ use std::{
 
 use crate::{
     FragmentCheckerOptions, Result,
+    cache::Cache,
     extract::{html::html5gum::extract_html_fragments, markdown::extract_markdown_fragments},
     types::{ErrorKind, FileType},
 };
@@ -107,14 +108,14 @@ impl FragmentBuilder {
 /// a `HashSet` of fragments as the value.
 #[derive(Default, Clone, Debug)]
 pub(crate) struct FragmentChecker {
-    cache: Arc<Mutex<HashMap<String, HashSet<String>>>>,
+    cache: Cache<String, HashSet<String>>,
 }
 
 impl FragmentChecker {
     /// Creates a new `FragmentChecker`.
     pub(crate) fn new() -> Self {
         Self {
-            cache: Arc::default(),
+            cache: Cache::new(),
         }
     }
 
@@ -184,7 +185,7 @@ impl FragmentChecker {
         };
 
         let fragment_candidates = FragmentBuilder::new(fragment, &anchor_url, file_type)?;
-        match self.cache.lock().await.entry(url_without_frag) {
+        match self.cache.lock_entry(url_without_frag) {
             Entry::Vacant(entry) => {
                 let file_frags = extractor(content);
                 let contains_fragment = fragment_candidates.any_matches(&file_frags);

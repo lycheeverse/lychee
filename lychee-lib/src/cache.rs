@@ -118,15 +118,16 @@ where
     /// # Errors
     /// An [`Err`] means the cache key is already completed or in-progress, as
     /// described above.
-    pub fn lock_entry(&self, key: &K) -> Result<CacheSetter<V>, CacheFut<V>>
+    pub fn lock_entry<T>(&self, key: T) -> Result<CacheSetter<V>, CacheFut<V>>
     where
         K: Clone,
+        T: AsRef<K>,
     {
-        if let Some(entry) = self.data.get(key) {
+        if let Some(entry) = self.data.get(key.as_ref()) {
             return Err(CacheFut(entry.value().clone()));
         }
 
-        match self.data.entry(key.clone()) {
+        match self.data.entry(key.as_ref().clone()) {
             Entry::Vacant(vac) => {
                 self.num_misses.fetch_add(1, Ordering::Relaxed);
                 let arc = vac.insert(Arc::default()).value().clone();
@@ -159,6 +160,19 @@ where
 {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<K, V> Clone for Cache<K, V>
+where
+    K: Hash + Eq + Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            data: self.data.clone(),
+            num_hits: self.num_hits.load(Ordering::Relaxed).into(),
+            num_misses: self.num_misses.load(Ordering::Relaxed).into(),
+        }
     }
 }
 
