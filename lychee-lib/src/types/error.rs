@@ -138,6 +138,10 @@ pub enum ErrorKind {
     #[error("Internal communication error, cannot send/receive message over channel: {0}")]
     Channel(#[from] tokio::sync::mpsc::error::SendError<InputContent>),
 
+    /// Error while receiving messages from Watch channel
+    #[error("Internal communication error while waiting for watch value: {0}")]
+    WatchRecv(#[from] tokio::sync::watch::error::RecvError),
+
     /// A URL without a host was found
     #[error("URL is missing a hostname")]
     InvalidUrlHost,
@@ -312,6 +316,7 @@ impl ErrorKind {
             | ErrorKind::RuntimeJoin(_)
             | ErrorKind::WikilinkInvalidBase(_)
             | ErrorKind::Channel(_)
+            | ErrorKind::WatchRecv(_)
             | ErrorKind::InsecureURL(_)
             | ErrorKind::ReadStdinInput(_)
             | ErrorKind::InvalidBase(_, _)
@@ -385,6 +390,7 @@ impl PartialEq for ErrorKind {
             (Self::Regex(e1), Self::Regex(e2)) => e1.to_string() == e2.to_string(),
             (Self::DirTraversal(e1), Self::DirTraversal(e2)) => e1.to_string() == e2.to_string(),
             (Self::Channel(_), Self::Channel(_)) => true,
+            (Self::WatchRecv(_), Self::WatchRecv(_)) => true,
             (Self::BasicAuthExtractorError(e1), Self::BasicAuthExtractorError(e2)) => {
                 e1.to_string() == e2.to_string()
             }
@@ -444,6 +450,7 @@ impl Hash for ErrorKind {
             Self::InvalidStatusCode(c) => c.hash(state),
             Self::RejectedStatusCode(c) => c.hash(state),
             Self::Channel(e) => e.to_string().hash(state),
+            Self::WatchRecv(e) => e.to_string().hash(state),
             Self::MissingGitHubToken | Self::InvalidUrlHost => {
                 std::mem::discriminant(self).hash(state);
             }

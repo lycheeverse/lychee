@@ -9,14 +9,14 @@ use std::sync::atomic::Ordering;
 
 use dashmap::DashMap;
 use dashmap::mapref::entry::Entry;
-use tokio::sync::SetOnce;
+use tokio::sync::watch;
 
 /// Cache for asynchronous operations. Each operation is associated with a key,
 /// and operations are cached, deduplicated and mutually exclusive with other
 /// operations on the same key, including in-progress operations.
 pub struct Cache<K, V> {
     /// Internal map of keys to set-once values.
-    data: DashMap<K, Arc<SetOnce<V>>>,
+    data: DashMap<K, watch::Receiver<Option<Arc<V>>>>,
     /// Number of cache hits (including hits to in-progress values).
     pub num_hits: AtomicUsize,
     /// Number of cache misses.
@@ -25,15 +25,27 @@ pub struct Cache<K, V> {
 
 /// A value returned on cache hits. [`CacheGetter::get`] returns a future which
 /// resolves when the cache value has been stored by the corresponding [`CacheSetter`].
-#[derive(Debug)]
-pub struct CacheGetter<V>(Arc<SetOnce<V>>);
+#[derive(Debug, Clone)]
+pub struct CacheGetter<T>(watch::Receiver<Option<Arc<T>>>);
 
 impl<T> CacheGetter<T> {
     /// Returns a future which resolves when the cache value is computed
     /// (by another task). If the value has already been computed and stored,
     /// the future will be ready immediately.
-    pub async fn get(&self) -> &T {
-        self.0.wait().await
+    ///
+    /// # Errors
+    /// Resolves to an error if the corresponding [`CacheSetter`] has been
+    /// dropped without setting a value.
+    pub async fn get(mut self) -> Result<Arc<T>, watch::error::RecvError> {
+        loop {
+            self.0.changed().await?;
+            let arc = match *self.0.borrow() {
+                None => continue,
+                Some(ref arc) => arc.clone(),
+            };
+            self.0.mark_changed();
+            break Ok(arc);
+        }
     }
 }
 
@@ -45,50 +57,27 @@ impl<T> CacheGetter<T> {
 /// This can be avoided by calling [`CacheSetter::with_fallback`] which will
 /// specify a fallback closure in case it is prematurely dropped.
 #[derive(Debug)]
-pub struct CacheSetter<T, Fn: FnOnce() -> T = fn() -> T>(Arc<SetOnce<T>>, Option<Fn>);
+pub struct CacheSetter<T>(watch::Sender<Option<Arc<T>>>);
 
-impl<T, Fn: FnOnce() -> T> CacheSetter<T, Fn> {
-    /// Constructs a new [`CacheSetter`] writing into the given [`SetOnce`].
-    ///
-    /// By default, no fallback is configured.
+impl<T> CacheSetter<T> {
+    /// Constructs a new [`CacheSetter`] writing into the given [`watch::Sender`].
     #[must_use]
-    pub const fn new(arc: Arc<SetOnce<T>>) -> Self {
-        Self(arc, None)
-    }
-
-    /// Returns a new [`CacheSetter`] with the configured fallback closure and
-    /// writing into the same [`SetOnce`].
-    pub fn with_fallback<F: FnOnce() -> T>(mut self, default: F) -> CacheSetter<T, F> {
-        let arc = std::mem::take(&mut self.0);
-        self.1 = None;
-        CacheSetter(arc, Some(default))
+    pub(crate) const fn new(sender: watch::Sender<Option<Arc<T>>>) -> Self {
+        Self(sender)
     }
 
     /// Writes the given value into the cache, consuming this [`CacheSetter`] and
     /// returning a [`CacheGetter`] referencing the stored value.
-    pub fn set(mut self, value: T) -> CacheGetter<T> {
-        let arc = std::mem::take(&mut self.0);
-        let _ = arc.set(value);
-        CacheGetter(arc)
+    pub fn set(self, value: T) -> CacheGetter<T> {
+        self.0.send_replace(Some(Arc::new(value)));
+        CacheGetter(self.0.subscribe())
     }
 
     /// Returns a new dissociated [`CacheSetter`]. That is, a setter which is
     /// not backed by any value within the cache. This can be useful to let
     /// uncacheable entities use the same cache-handling logic.
     pub fn dissociated() -> Self {
-        Self(Arc::default(), None)
-    }
-}
-
-/// Drop implementation that calls the stored [`CacheSetter::with_fallback`]
-/// closure, if it is configured and no value has been manually stored.
-impl<T, Fn: FnOnce() -> T> Drop for CacheSetter<T, Fn> {
-    fn drop(&mut self) {
-        if let Some(fallback_fn) = self.1.take()
-            && !self.0.initialized()
-        {
-            let _ = self.0.set(fallback_fn());
-        }
+        Self(watch::channel(None).0)
     }
 }
 
@@ -104,6 +93,11 @@ where
             num_hits: 0.into(),
             num_misses: 0.into(),
         }
+    }
+
+    pub(self) fn insert(&self, key: K, value: V) {
+        let (_, recv) = watch::channel(Some(Arc::new(value)));
+        self.data.insert(key, recv);
     }
 
     /// Locks the cache entry with the given key, adding it to the cache if
@@ -128,14 +122,15 @@ where
         K: Borrow<T>,
     {
         if let Some(entry) = self.data.get(key.borrow()) {
-            return Err(CacheGetter(entry.value().clone()));
+            return Err(CacheGetter(entry.clone()));
         }
 
         match self.data.entry(key.to_owned()) {
             Entry::Vacant(vacant) => {
                 self.num_misses.fetch_add(1, Ordering::Relaxed);
-                let arc = vacant.insert(Arc::default()).value().clone();
-                Ok(CacheSetter::new(arc))
+                let (send, recv) = watch::channel(None);
+                vacant.insert(recv);
+                Ok(CacheSetter::new(send))
             }
             Entry::Occupied(occupied) => {
                 self.num_hits.fetch_add(1, Ordering::Relaxed);
@@ -174,7 +169,7 @@ where
     fn from_iter<It: IntoIterator<Item = (K, V)>>(iter: It) -> Self {
         let cache = Self::new();
         for (k, v) in iter {
-            cache.data.insert(k, Arc::new(v.into()));
+            cache.insert(k, v);
         }
         cache
     }
