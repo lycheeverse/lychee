@@ -1,6 +1,7 @@
 //! Facility for cached asynchronous operations, with operations keyed by a
 //! key type and ensuring mutual exclusion of operations with the same key.
 
+use std::borrow::Borrow;
 use std::hash::Hash;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
@@ -31,7 +32,7 @@ impl<T> CacheFut<T> {
     /// Returns a future which resolves when the cache value is computed
     /// (by another task). If the value has already been computed and stored,
     /// the future will be ready immediately.
-    pub async fn wait(&self) -> &T {
+    pub async fn get(&self) -> &T {
         self.0.wait().await
     }
 }
@@ -63,9 +64,12 @@ impl<T, Fn: FnOnce() -> T> CacheSetter<T, Fn> {
         CacheSetter(arc, Some(default))
     }
 
-    /// Writes the given value into the cache, consuming this [`CacheSetter`].
-    pub fn set(self, value: T) {
-        let _ = self.0.set(value);
+    /// Writes the given value into the cache, consuming this [`CacheSetter`] and
+    /// returning a [`CacheFut`] referencing the stored value.
+    pub fn set(mut self, value: T) -> CacheFut<T> {
+        let arc = std::mem::take(&mut self.0);
+        let _ = arc.set(value);
+        CacheFut(arc)
     }
 
     /// Returns a new dissociated [`CacheSetter`]. That is, a setter which is
@@ -118,24 +122,24 @@ where
     /// # Errors
     /// An [`Err`] means the cache key is already completed or in-progress, as
     /// described above.
-    pub fn lock_entry<T>(&self, key: T) -> Result<CacheSetter<V>, CacheFut<V>>
+    pub fn lock_entry<T>(&self, key: &T) -> Result<CacheSetter<V>, CacheFut<V>>
     where
         K: Clone,
-        T: AsRef<K>,
+        T: Borrow<K>,
     {
-        if let Some(entry) = self.data.get(key.as_ref()) {
+        if let Some(entry) = self.data.get(key.borrow()) {
             return Err(CacheFut(entry.value().clone()));
         }
 
-        match self.data.entry(key.as_ref().clone()) {
-            Entry::Vacant(vac) => {
+        match self.data.entry(key.borrow().clone()) {
+            Entry::Vacant(vacant) => {
                 self.num_misses.fetch_add(1, Ordering::Relaxed);
-                let arc = vac.insert(Arc::default()).value().clone();
+                let arc = vacant.insert(Arc::default()).value().clone();
                 Ok(CacheSetter::new(arc))
             }
-            Entry::Occupied(occ) => {
+            Entry::Occupied(occupied) => {
                 self.num_hits.fetch_add(1, Ordering::Relaxed);
-                Err(CacheFut(occ.get().clone()))
+                Err(CacheFut(occupied.get().clone()))
             }
         }
     }

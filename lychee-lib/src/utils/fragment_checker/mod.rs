@@ -185,18 +185,11 @@ impl FragmentChecker {
         };
 
         let fragment_candidates = FragmentBuilder::new(fragment, &anchor_url, file_type)?;
-        match self.cache.lock_entry(url_without_frag) {
-            Entry::Vacant(entry) => {
-                let file_frags = extractor(content);
-                let contains_fragment = fragment_candidates.any_matches(&file_frags);
-                entry.insert(file_frags);
-                Ok(contains_fragment)
-            }
-            Entry::Occupied(entry) => {
-                let file_frags = entry.get();
-                Ok(fragment_candidates.any_matches(file_frags))
-            }
-        }
+        let file_frags = match self.cache.lock_entry(&url_without_frag) {
+            Ok(setter) => setter.set(extractor(content)),
+            Err(anchors) => anchors,
+        };
+        Ok(fragment_candidates.any_matches(file_frags.get().await))
     }
 
     fn remove_fragment(mut url: Url) -> String {
