@@ -15,7 +15,7 @@ jobs:
       - name: Link Checker
         uses: lycheeverse/lychee-action@master
         with:
-          args: --verbose --exclude-path benches --exclude-path fixtures .
+          args: --verbose --exclude-path benches --exclude-path fixtures --root-dir . .
 
       - name: Create Issue From File
         if: github.repository_owner == 'lycheeverse' && env.lychee_exit_code != 0
