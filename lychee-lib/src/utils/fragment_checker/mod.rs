@@ -2,12 +2,7 @@ mod parsed_fragment;
 mod text;
 
 use log::info;
-use std::{
-    borrow::Cow,
-    collections::{HashMap, HashSet, hash_map::Entry},
-    path::Path,
-    sync::Arc,
-};
+use std::{borrow::Cow, collections::HashSet, path::Path};
 
 use crate::{
     FragmentCheckerOptions, Result,
@@ -16,7 +11,7 @@ use crate::{
     types::{ErrorKind, FileType},
 };
 use percent_encoding::percent_decode_str;
-use tokio::{fs, sync::Mutex};
+use tokio::fs;
 use url::Url;
 
 use self::parsed_fragment::ParsedFragment;
@@ -172,6 +167,7 @@ impl FragmentChecker {
             return Ok(true);
         }
 
+        // Removing then replacing the fragment lets us remove text fragments, if any.
         let url_without_frag = Self::remove_fragment(url.clone());
         let anchor_url = Self::with_element_fragment(url, anchor_fragment);
 
@@ -185,16 +181,16 @@ impl FragmentChecker {
         };
 
         let fragment_candidates = FragmentBuilder::new(fragment, &anchor_url, file_type)?;
-        let file_frags = match self.cache.lock_entry(&url_without_frag) {
+        let file_frags = match self.cache.lock_entry(url_without_frag.as_str()) {
             Ok(setter) => setter.set(extractor(content)),
             Err(anchors) => anchors,
         };
         Ok(fragment_candidates.any_matches(file_frags.get().await))
     }
 
-    fn remove_fragment(mut url: Url) -> String {
+    fn remove_fragment(mut url: Url) -> Url {
         url.set_fragment(None);
-        url.into()
+        url
     }
 
     fn with_element_fragment(url: &Url, fragment: Option<&str>) -> Url {
