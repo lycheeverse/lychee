@@ -109,9 +109,7 @@ pub(crate) struct FragmentChecker {
 impl FragmentChecker {
     /// Creates a new `FragmentChecker`.
     pub(crate) fn new() -> Self {
-        Self {
-            cache: Cache::new(),
-        }
+        Self::default()
     }
 
     /// Checks if the given [`FragmentInput`] contains the given fragment.

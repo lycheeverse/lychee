@@ -23,12 +23,12 @@ pub struct Cache<K, V> {
     pub num_misses: AtomicUsize,
 }
 
-/// A value returned on cache hits. [`CacheFollower::get`] returns a future which
-/// resolves when the cache value has been stored by the corresponding [`CacheLeader`].
+/// A value returned on cache hits. [`CacheGetter::get`] returns a future which
+/// resolves when the cache value has been stored by the corresponding [`CacheSetter`].
 #[derive(Debug)]
-pub struct CacheFollower<V>(Arc<SetOnce<V>>);
+pub struct CacheGetter<V>(Arc<SetOnce<V>>);
 
-impl<T> CacheFollower<T> {
+impl<T> CacheGetter<T> {
     /// Returns a future which resolves when the cache value is computed
     /// (by another task). If the value has already been computed and stored,
     /// the future will be ready immediately.
@@ -38,17 +38,17 @@ impl<T> CacheFollower<T> {
 }
 
 /// A value returned on cache misses. The owner of this struct should compute
-/// the value, then call [`CacheLeader::set`] to write the value into the cache.
+/// the value, then call [`CacheSetter::set`] to write the value into the cache.
 ///
 /// If this struct is dropped before being written to (including due to panic),
-/// the value will remain empty and associated [`CacheFollower`]s will *never resolve*.
-/// This can be avoided by calling [`CacheLeader::with_fallback`] which will
+/// the value will remain empty and associated [`CacheGetter`]s will *never resolve*.
+/// This can be avoided by calling [`CacheSetter::with_fallback`] which will
 /// specify a fallback closure in case it is prematurely dropped.
 #[derive(Debug)]
-pub struct CacheLeader<T, Fn: FnOnce() -> T = fn() -> T>(Arc<SetOnce<T>>, Option<Fn>);
+pub struct CacheSetter<T, Fn: FnOnce() -> T = fn() -> T>(Arc<SetOnce<T>>, Option<Fn>);
 
-impl<T, Fn: FnOnce() -> T> CacheLeader<T, Fn> {
-    /// Constructs a new [`CacheLeader`] writing into the given [`SetOnce`].
+impl<T, Fn: FnOnce() -> T> CacheSetter<T, Fn> {
+    /// Constructs a new [`CacheSetter`] writing into the given [`SetOnce`].
     ///
     /// By default, no fallback is configured.
     #[must_use]
@@ -56,23 +56,23 @@ impl<T, Fn: FnOnce() -> T> CacheLeader<T, Fn> {
         Self(arc, None)
     }
 
-    /// Returns a new [`CacheLeader`] with the configured fallback closure and
+    /// Returns a new [`CacheSetter`] with the configured fallback closure and
     /// writing into the same [`SetOnce`].
-    pub fn with_fallback<F: FnOnce() -> T>(mut self, default: F) -> CacheLeader<T, F> {
+    pub fn with_fallback<F: FnOnce() -> T>(mut self, default: F) -> CacheSetter<T, F> {
         let arc = std::mem::take(&mut self.0);
         self.1 = None;
-        CacheLeader(arc, Some(default))
+        CacheSetter(arc, Some(default))
     }
 
-    /// Writes the given value into the cache, consuming this [`CacheLeader`] and
-    /// returning a [`CacheFollower`] referencing the stored value.
-    pub fn set(mut self, value: T) -> CacheFollower<T> {
+    /// Writes the given value into the cache, consuming this [`CacheSetter`] and
+    /// returning a [`CacheGetter`] referencing the stored value.
+    pub fn set(mut self, value: T) -> CacheGetter<T> {
         let arc = std::mem::take(&mut self.0);
         let _ = arc.set(value);
-        CacheFollower(arc)
+        CacheGetter(arc)
     }
 
-    /// Returns a new dissociated [`CacheLeader`]. That is, a setter which is
+    /// Returns a new dissociated [`CacheSetter`]. That is, a setter which is
     /// not backed by any value within the cache. This can be useful to let
     /// uncacheable entities use the same cache-handling logic.
     pub fn dissociated() -> Self {
@@ -80,14 +80,14 @@ impl<T, Fn: FnOnce() -> T> CacheLeader<T, Fn> {
     }
 }
 
-/// Drop implementation that calls the stored [`CacheLeader::with_fallback`]
+/// Drop implementation that calls the stored [`CacheSetter::with_fallback`]
 /// closure, if it is configured and no value has been manually stored.
-impl<T, Fn: FnOnce() -> T> Drop for CacheLeader<T, Fn> {
+impl<T, Fn: FnOnce() -> T> Drop for CacheSetter<T, Fn> {
     fn drop(&mut self) {
-        if let Some(f) = self.1.take()
+        if let Some(fallback_fn) = self.1.take()
             && !self.0.initialized()
         {
-            let _ = self.0.set(f());
+            let _ = self.0.set(fallback_fn());
         }
     }
 }
@@ -110,10 +110,10 @@ where
     /// it does not already exist. This function returns values which can be
     /// used to write into or read from the cache.
     ///
-    /// If this is the first task to lock this entry, [`Ok`] of [`CacheLeader`]
+    /// If this is the first task to lock this entry, [`Ok`] of [`CacheSetter`]
     /// is returned so the call can compute and store the value. If the value is
     /// already cached or another task is currently computing the value, [`Err`]
-    /// of [`CacheFollower`] is returned which can be used to wait and retrieve the value
+    /// of [`CacheGetter`] is returned which can be used to wait and retrieve the value
     /// from the cache.
     ///
     /// The given key will only be cloned if the cache does not currently have
@@ -122,24 +122,24 @@ where
     /// # Errors
     /// An [`Err`] means the cache key is already completed or in-progress, as
     /// described above.
-    pub fn lock_entry<T>(&self, key: &T) -> Result<CacheLeader<V>, CacheFollower<V>>
+    pub fn lock_entry<T>(&self, key: &T) -> Result<CacheSetter<V>, CacheGetter<V>>
     where
         T: ToOwned<Owned = K> + Eq + Hash + ?Sized,
         K: Borrow<T>,
     {
         if let Some(entry) = self.data.get(key.borrow()) {
-            return Err(CacheFollower(entry.value().clone()));
+            return Err(CacheGetter(entry.value().clone()));
         }
 
         match self.data.entry(key.to_owned()) {
             Entry::Vacant(vacant) => {
                 self.num_misses.fetch_add(1, Ordering::Relaxed);
                 let arc = vacant.insert(Arc::default()).value().clone();
-                Ok(CacheLeader::new(arc))
+                Ok(CacheSetter::new(arc))
             }
             Entry::Occupied(occupied) => {
                 self.num_hits.fetch_add(1, Ordering::Relaxed);
-                Err(CacheFollower(occupied.get().clone()))
+                Err(CacheGetter(occupied.get().clone()))
             }
         }
     }
