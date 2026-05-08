@@ -64,7 +64,7 @@ pub mod collector;
 mod quirks;
 mod retry;
 mod types;
-mod utils;
+pub mod utils;
 
 /// Functionality to extract URIs from inputs
 pub mod extract;
@@ -78,8 +78,6 @@ pub mod ratelimit;
 /// URIs that need to be treated differently, such as
 /// local IPs or e-mail addresses
 pub mod filter;
-
-pub mod cache;
 
 pub mod waiter;
 
