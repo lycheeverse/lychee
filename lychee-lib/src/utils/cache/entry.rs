@@ -44,6 +44,7 @@ impl<T> CacheGetter<T> {
     }
 
     /// Returns a value without waiting, if possible, otherwise returns [`None`].
+    #[must_use]
     pub fn try_get(&self) -> Option<Arc<T>> {
         Some(self.0.borrow().as_ref()?.clone())
     }
