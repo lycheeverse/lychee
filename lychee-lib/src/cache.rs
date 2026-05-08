@@ -37,15 +37,9 @@ impl<T> CacheGetter<T> {
     /// Resolves to an error if the corresponding [`CacheSetter`] has been
     /// dropped without setting a value.
     pub async fn get(mut self) -> Result<Arc<T>, watch::error::RecvError> {
-        loop {
-            self.0.changed().await?;
-            let arc = match *self.0.borrow() {
-                None => continue,
-                Some(ref arc) => arc.clone(),
-            };
-            self.0.mark_changed();
-            break Ok(arc);
-        }
+        let received = self.0.wait_for(Option::is_some).await?;
+        let arc = received.as_ref().expect("impossible due to is_some check");
+        Ok(arc.clone())
     }
 }
 
@@ -73,10 +67,10 @@ impl<T> CacheSetter<T> {
         CacheGetter(self.0.subscribe())
     }
 
-    /// Returns a new dissociated [`CacheSetter`]. That is, a setter which is
+    /// Returns a new detached [`CacheSetter`]. That is, a setter which is
     /// not backed by any value within the cache. This can be useful to let
     /// uncacheable entities use the same cache-handling logic.
-    pub fn dissociated() -> Self {
+    pub fn new_detached() -> Self {
         Self(watch::channel(None).0)
     }
 }
