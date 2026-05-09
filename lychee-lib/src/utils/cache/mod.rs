@@ -25,9 +25,11 @@ use entry::{CacheGetter, CacheSetter};
 pub struct Cache<K, V> {
     /// Internal map of keys to the getter for that key.
     data: DashMap<K, CacheGetter<V>>,
-    /// Number of cache hits (including hits to in-progress values).
+    /// Number of cache hits (including hits to in-progress values). This
+    /// corresponds to the number of [`CacheGetter`]s returned by the cache.
     pub num_hits: AtomicUsize,
-    /// Number of cache misses.
+    /// Number of cache misses. This corresponds to the number of
+    /// [`CacheSetter`]s returned by the cache.
     pub num_misses: AtomicUsize,
 }
 
@@ -40,12 +42,6 @@ impl<K: Hash + Eq, V> Cache<K, V> {
             num_hits: 0.into(),
             num_misses: 0.into(),
         }
-    }
-
-    /// Inserts the given key-value pair, overwriting any existing values.
-    fn insert(&self, key: K, value: V) {
-        let (_, recv) = watch::channel(Some(Arc::new(value)));
-        self.data.insert(key, CacheGetter::new(recv));
     }
 
     /// Locks the cache entry with the given key, adding it to the cache if
@@ -61,17 +57,19 @@ impl<K: Hash + Eq, V> Cache<K, V> {
     /// The given key will only be cloned if the cache does not currently have
     /// an entry for this key.
     ///
+    /// This acquires a read lock which is upgraded to a write lock if an entry
+    /// needs to be inserted.
+    ///
     /// # Errors
     /// An [`Err`] means the cache key is already completed or in-progress, as
     /// described above.
-    pub fn lock_entry<T>(&self, key: &T) -> Result<CacheSetter<V>, CacheGetter<V>>
+    pub fn lock_entry<Q>(&self, key: &Q) -> Result<CacheSetter<V>, CacheGetter<V>>
     where
-        T: ToOwned<Owned = K> + Eq + Hash + ?Sized,
-        K: Borrow<T>,
+        Q: ToOwned<Owned = K> + Eq + Hash + ?Sized,
+        K: Borrow<Q>,
     {
-        if let Some(getter) = self.data.get(key.borrow()) {
-            self.num_hits.fetch_add(1, Ordering::Relaxed);
-            return Err(getter.clone());
+        if let Some(getter) = self.get_entry(key) {
+            return Err(getter);
         }
 
         match self.data.entry(key.to_owned()) {
@@ -88,24 +86,31 @@ impl<K: Hash + Eq, V> Cache<K, V> {
         }
     }
 
+    /// Gets the cache entry with the given key, if it is completed
+    /// or in-progress. Returns [`None`] if the key does not exist.
+    ///
+    /// This acquires a read lock of the cache.
+    pub fn get_entry<Q>(&self, key: &Q) -> Option<CacheGetter<V>>
+    where
+        Q: Hash + Eq + ?Sized,
+        K: Borrow<Q>,
+    {
+        let getter = self.data.get(key.borrow())?;
+        self.num_hits.fetch_add(1, Ordering::Relaxed);
+        Some(getter.clone())
+    }
+
     /// Returns an iterator yielding borrowed key-value pairs for each
     /// completed entry within the cache. See also [`Cache::into_iter`].
     pub fn iter(&self) -> Iter<'_, K, V> {
         self.into_iter()
     }
 
-    fn into_iter_pair((k, getter): (K, CacheGetter<V>)) -> Option<(K, V)> {
-        let arc = getter.try_get()?;
-        let v = Arc::into_inner(arc)?;
-        Some((k, v))
-    }
-
-    #[expect(clippy::type_complexity)]
-    fn iter_pair(
-        mapref: RefMulti<'_, K, CacheGetter<V>>,
-    ) -> Option<(KeyRef<'_, K, CacheGetter<V>>, Arc<V>)> {
-        let arc = mapref.value().try_get()?;
-        Some((KeyRef(mapref), arc))
+    /// Inserts the given key-value pair, overwriting any existing values.
+    /// Does not modify any counters in the cache.
+    fn insert(&self, key: K, value: V) {
+        let (_, recv) = watch::channel(Some(Arc::new(value)));
+        self.data.insert(key, CacheGetter::new(recv));
     }
 }
 
@@ -125,42 +130,66 @@ impl<K: Clone + Hash + Eq, V> Clone for Cache<K, V> {
     }
 }
 
-impl<K, V> std::fmt::Debug for Cache<K, V> {
+impl<K, V> Debug for Cache<K, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Destructure will detect changes to the fields in future.
+        let Cache {
+            data: _,
+            num_hits,
+            num_misses,
+        } = self;
+
         f.debug_struct("Cache")
-            .field("num_hits", &self.num_hits)
-            .field("num_misses", &self.num_misses)
+            .field("num_hits", num_hits)
+            .field("num_misses", num_misses)
             .finish_non_exhaustive()
     }
 }
 
+impl<K: Hash + Eq, V> Extend<(K, V)> for Cache<K, V> {
+    fn extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) {
+        iter.into_iter().for_each(|(k, v)| self.insert(k, v));
+    }
+}
+
 impl<K: Hash + Eq, V> FromIterator<(K, V)> for Cache<K, V> {
-    fn from_iter<It: IntoIterator<Item = (K, V)>>(iter: It) -> Self {
+    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
         let cache = Self::new();
-        for (k, v) in iter {
-            cache.insert(k, v);
-        }
+        iter.into_iter().for_each(|(k, v)| cache.insert(k, v));
         cache
     }
 }
 
 /// Converts the [`Cache`] into an iterator yielding owned key-value pairs
-/// for each completed and non-shared entry within the cache.
+/// for each completed and non-shared value within the cache.
 impl<K: Hash + Eq, V> IntoIterator for Cache<K, V> {
     type Item = (K, V);
     type IntoIter = IntoIter<K, V>;
     fn into_iter(self) -> Self::IntoIter {
-        self.data.into_iter().filter_map(Cache::into_iter_pair)
+        let make_owned_pair = |(k, getter): (K, CacheGetter<V>)| -> Option<Self::Item> {
+            let arc = getter.into_inner()?;
+            let v = Arc::into_inner(arc)?;
+            Some((k, v))
+        };
+
+        self.data.into_iter().filter_map(make_owned_pair)
     }
 }
 
 /// Returns an iterator yielding borrowed key-value pairs for each
-/// completed entry within the cache.
+/// completed value within the cache.
+///
+/// This acquires a read lock of the cache while iterating.
 impl<'a, K: Hash + Eq, V> IntoIterator for &'a Cache<K, V> {
     type Item = (KeyRef<'a, K, CacheGetter<V>>, Arc<V>);
     type IntoIter = Iter<'a, K, V>;
     fn into_iter(self) -> Self::IntoIter {
-        self.data.iter().filter_map(Cache::iter_pair)
+        let make_borrowed_pair = |mapref: RefMulti<'a, K, CacheGetter<V>>| -> Option<Self::Item> {
+            let arc = mapref.value().get()?;
+            Some((KeyRef(mapref), arc))
+        };
+
+        self.data.iter().filter_map(make_borrowed_pair)
     }
 }
 
@@ -191,5 +220,28 @@ impl<K: Hash + Eq, V> Deref for KeyRef<'_, K, V> {
 impl<K: Debug + Hash + Eq, V> Debug for KeyRef<'_, K, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("KeyRef").field(&**self).finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Cache;
+
+    #[test]
+    fn test_cache_usize_key() {
+        let cache = Cache::<usize, usize>::new();
+        cache.lock_entry(&0).unwrap().set(0);
+    }
+
+    #[test]
+    fn test_cache_key_borrow() {
+        let cache = Cache::<String, usize>::new();
+        let str_ref = "str ref";
+        let string = "string".to_string();
+
+        cache.lock_entry(str_ref).unwrap().set(0);
+        cache.lock_entry(&string).unwrap().set(1);
+
+        assert_eq!(cache.into_iter().count(), 2);
     }
 }

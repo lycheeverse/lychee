@@ -183,7 +183,7 @@ impl FragmentChecker {
             Ok(setter) => setter.set(extractor(content)),
             Err(anchors) => anchors,
         };
-        Ok(fragment_candidates.any_matches(&*file_frags.get().await?))
+        Ok(fragment_candidates.any_matches(&*file_frags.wait().await?))
     }
 
     fn remove_fragment(mut url: Url) -> Url {

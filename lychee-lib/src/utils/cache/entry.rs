@@ -6,6 +6,10 @@ use tokio::sync::watch;
 
 /// A value returned on cache misses. The owner of this struct should compute
 /// the value, then call [`CacheSetter::set`] to write the value into the cache.
+///
+/// Within a [`super::Cache`], exactly one [`CacheSetter`] is created per key.
+/// If the [`CacheSetter`] is dropped without setting a value, its cache entry
+/// will never be set and calls to a corresponding [`CacheGetter::wait`] will error.
 #[derive(Debug)]
 #[must_use]
 pub struct CacheSetter<T>(watch::Sender<Option<Arc<T>>>);
@@ -43,10 +47,17 @@ impl<T> CacheGetter<T> {
         Self(recv)
     }
 
-    /// Returns a value without waiting, if possible, otherwise returns [`None`].
+    /// Returns the value without waiting, if possible, otherwise returns [`None`].
     #[must_use]
-    pub fn try_get(&self) -> Option<Arc<T>> {
+    pub fn get(&self) -> Option<Arc<T>> {
         Some(self.0.borrow().as_ref()?.clone())
+    }
+
+    /// Returns the value without waiting, consuming this [`CacheGetter`] in the process.
+    /// Returns [`None`] if the value is not ready.
+    #[must_use]
+    pub fn into_inner(self) -> Option<Arc<T>> {
+        self.get()
     }
 
     /// Waits until the cache value is computed and stored by the corresponding
@@ -56,7 +67,7 @@ impl<T> CacheGetter<T> {
     /// # Errors
     /// Returns an error if the corresponding [`CacheSetter`] is dropped without
     /// setting a value.
-    pub async fn get(mut self) -> Result<Arc<T>, watch::error::RecvError> {
+    pub async fn wait(mut self) -> Result<Arc<T>, watch::error::RecvError> {
         let received = self.0.wait_for(Option::is_some).await?;
 
         #[expect(clippy::missing_panics_doc, reason = "impossible due to is_some check")]
