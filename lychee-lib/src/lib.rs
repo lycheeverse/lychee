@@ -64,7 +64,7 @@ pub mod collector;
 mod quirks;
 mod retry;
 mod types;
-pub mod utils;
+mod utils;
 
 /// Functionality to extract URIs from inputs
 pub mod extract;
@@ -80,6 +80,8 @@ pub mod ratelimit;
 pub mod filter;
 
 pub mod waiter;
+
+pub mod async_lib;
 
 #[cfg(test)]
 use doc_comment as _; // required for doctest

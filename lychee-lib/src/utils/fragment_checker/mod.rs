@@ -6,9 +6,9 @@ use std::{borrow::Cow, collections::HashSet, path::Path};
 
 use crate::{
     FragmentCheckerOptions, Result,
+    async_lib::cache::Cache,
     extract::{html::html5gum::extract_html_fragments, markdown::extract_markdown_fragments},
     types::{ErrorKind, FileType},
-    utils::cache::Cache,
 };
 use percent_encoding::percent_decode_str;
 use tokio::fs;
