@@ -174,6 +174,8 @@ impl<'a, K: Hash + Eq, V> IntoIterator for &'a Cache<K, V> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::Cache;
 
     #[test]
@@ -192,5 +194,38 @@ mod tests {
         cache.lock_entry(&string).unwrap().set(1);
 
         assert_eq!(cache.into_iter().count(), 2);
+    }
+
+    #[test]
+    fn test_cache_iters() {
+        let cache = Cache::<&'static str, usize>::new();
+
+        cache.lock_entry(&"completed").unwrap().set(0);
+        let slow = cache.lock_entry(&"slow").unwrap();
+
+        cache.lock_entry(&"completed but shared").unwrap().set(0);
+        let _shared = cache.lock_entry(&"completed but shared").unwrap_err();
+
+        assert_eq!(
+            cache.iter().map(|x| *x.0).collect::<BTreeSet<_>>(),
+            ["completed", "completed but shared"].into_iter().collect(),
+            "borrow iter includes all completed values"
+        );
+
+        slow.set(2);
+
+        assert_eq!(
+            cache.iter().map(|x| *x.0).collect::<BTreeSet<_>>(),
+            ["completed", "completed but shared", "slow"]
+                .into_iter()
+                .collect(),
+            "borrow iter sees updates"
+        );
+
+        assert_eq!(
+            cache.into_iter().map(|x| x.0).collect::<BTreeSet<_>>(),
+            ["completed", "slow"].into_iter().collect(),
+            "owning iter excludes shared values (those with outstanding getters/setters)"
+        );
     }
 }
