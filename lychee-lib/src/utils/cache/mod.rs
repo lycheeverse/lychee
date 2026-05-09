@@ -1,23 +1,22 @@
 //! Facility for cached asynchronous operations, with operations keyed by a
 //! key type and ensuring mutual exclusion of operations with the same key.
 
-use core::fmt::Debug;
 use std::borrow::Borrow;
+use std::fmt::Debug;
 use std::hash::Hash;
-use std::iter::FilterMap;
-use std::ops::Deref;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 use dashmap::DashMap;
 use dashmap::mapref::entry::Entry;
-use dashmap::mapref::multiple::RefMulti;
 use tokio::sync::watch;
 
-pub mod entry;
+mod entry;
+mod iter;
 
-use entry::{CacheGetter, CacheSetter};
+pub use entry::{CacheGetter, CacheSetter};
+pub use iter::{Iter, KeyRef, OwningIter};
 
 /// Cache for asynchronous operations. Each operation is associated with a key,
 /// and operations are cached, deduplicated and mutually exclusive with other
@@ -160,66 +159,19 @@ impl<K: Hash + Eq, V> FromIterator<(K, V)> for Cache<K, V> {
     }
 }
 
-/// Converts the [`Cache`] into an iterator yielding owned key-value pairs
-/// for each completed and non-shared value within the cache.
 impl<K: Hash + Eq, V> IntoIterator for Cache<K, V> {
-    type Item = (K, V);
-    type IntoIter = IntoIter<K, V>;
-    fn into_iter(self) -> Self::IntoIter {
-        let make_owned_pair = |(k, getter): (K, CacheGetter<V>)| -> Option<Self::Item> {
-            let arc = getter.into_inner()?;
-            let v = Arc::into_inner(arc)?;
-            Some((k, v))
-        };
-
-        self.data.into_iter().filter_map(make_owned_pair)
+    type Item = <OwningIter<K, V> as Iterator>::Item;
+    type IntoIter = OwningIter<K, V>;
+    fn into_iter(self) -> OwningIter<K, V> {
+        OwningIter::new(self.data)
     }
 }
 
-/// Returns an iterator yielding borrowed key-value pairs for each
-/// completed value within the cache.
-///
-/// This acquires a read lock of the cache while iterating.
 impl<'a, K: Hash + Eq, V> IntoIterator for &'a Cache<K, V> {
-    type Item = (KeyRef<'a, K, CacheGetter<V>>, Arc<V>);
+    type Item = <Iter<'a, K, V> as Iterator>::Item;
     type IntoIter = Iter<'a, K, V>;
-    fn into_iter(self) -> Self::IntoIter {
-        let make_borrowed_pair = |mapref: RefMulti<'a, K, CacheGetter<V>>| -> Option<Self::Item> {
-            let arc = mapref.value().get()?;
-            Some((KeyRef(mapref), arc))
-        };
-
-        self.data.iter().filter_map(make_borrowed_pair)
-    }
-}
-
-/// Iterator returned by [`Cache::into_iter`].
-pub type IntoIter<K, V> = FilterMap<
-    dashmap::iter::OwningIter<K, CacheGetter<V>>,
-    fn((K, CacheGetter<V>)) -> Option<(K, V)>,
->;
-
-/// Iterator returned by [`Cache::iter`].
-pub type Iter<'a, K, V> = FilterMap<
-    dashmap::iter::Iter<'a, K, CacheGetter<V>>,
-    fn(RefMulti<'a, K, CacheGetter<V>>) -> Option<(KeyRef<'a, K, CacheGetter<V>>, Arc<V>)>,
->;
-
-/// Helper type that wraps a dashmap [`RefMulti`] and changes its
-/// [`Deref`] implementation to return the key rather than the value.
-pub struct KeyRef<'a, K: Hash + Eq, V>(RefMulti<'a, K, V>);
-
-impl<K: Hash + Eq, V> Deref for KeyRef<'_, K, V> {
-    type Target = K;
-
-    fn deref(&self) -> &Self::Target {
-        self.0.key()
-    }
-}
-
-impl<K: Debug + Hash + Eq, V> Debug for KeyRef<'_, K, V> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("KeyRef").field(&**self).finish()
+    fn into_iter(self) -> Iter<'a, K, V> {
+        Iter::new(&self.data)
     }
 }
 

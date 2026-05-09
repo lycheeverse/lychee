@@ -36,7 +36,7 @@ impl<T> CacheSetter<T> {
     }
 }
 
-/// A value returned on cache hits. [`CacheGetter::get`] returns a future which
+/// A value returned on cache hits. [`CacheGetter::wait`] returns a future which
 /// resolves when the cache value has been stored by the corresponding [`CacheSetter`].
 #[derive(Debug)]
 pub struct CacheGetter<T>(watch::Receiver<Option<Arc<T>>>);
@@ -45,19 +45,6 @@ impl<T> CacheGetter<T> {
     /// Constructs a new [`CacheGetter`] receiving from the given [`watch::Receiver`].
     pub(super) const fn new(recv: watch::Receiver<Option<Arc<T>>>) -> Self {
         Self(recv)
-    }
-
-    /// Returns the value without waiting, if possible, otherwise returns [`None`].
-    #[must_use]
-    pub fn get(&self) -> Option<Arc<T>> {
-        Some(self.0.borrow().as_ref()?.clone())
-    }
-
-    /// Returns the value without waiting, consuming this [`CacheGetter`] in the process.
-    /// Returns [`None`] if the value is not ready.
-    #[must_use]
-    pub fn into_inner(self) -> Option<Arc<T>> {
-        self.get()
     }
 
     /// Waits until the cache value is computed and stored by the corresponding
@@ -72,6 +59,19 @@ impl<T> CacheGetter<T> {
 
         #[expect(clippy::missing_panics_doc, reason = "impossible due to is_some check")]
         Ok(received.as_ref().unwrap().clone())
+    }
+
+    /// Returns the value without waiting, if possible, otherwise returns [`None`].
+    #[must_use]
+    pub fn get(&self) -> Option<Arc<T>> {
+        Some(self.0.borrow().as_ref()?.clone())
+    }
+
+    /// Returns the value without waiting, consuming this [`CacheGetter`] in the process.
+    /// Returns [`None`] if the value is not ready.
+    #[must_use]
+    pub fn into_inner(self) -> Option<Arc<T>> {
+        self.get()
     }
 }
 
