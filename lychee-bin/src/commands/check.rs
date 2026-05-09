@@ -321,7 +321,7 @@ mod tests {
     async fn test_invalid_url() {
         let client = ClientBuilder::builder().build().client().unwrap();
         let uri = Uri::try_from("http://\"").unwrap();
-        let (status, _redirects) = client.check_website(&uri, None).await;
+        let (status, _redirects) = client.check_website(&uri).await;
         assert!(matches!(
             status,
             Status::Unsupported(ErrorKind::BuildRequestClient(_))

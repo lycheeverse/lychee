@@ -12,7 +12,10 @@ pub enum BasicAuthExtractorError {
 /// Extracts basic auth credentials from a given URI.
 /// Credentials are extracted if the URI matches one of the provided
 /// [`BasicAuthSelector`] instances.
-#[derive(Debug, Clone)]
+///
+/// One [`BasicAuthExtractor`] holds multiple basic auth credentials, each
+/// associated with a different domain regex.
+#[derive(Debug, Clone, Default)]
 pub struct BasicAuthExtractor {
     credentials: Vec<BasicAuthCredentials>,
     regex_set: RegexSet,
@@ -58,18 +61,24 @@ impl BasicAuthExtractor {
         })
     }
 
+    /// Creates a new empty [`BasicAuthExtractor`] with no credentials.
+    #[must_use]
+    pub fn empty() -> Self {
+        Self {
+            credentials: vec![],
+            regex_set: RegexSet::empty(),
+        }
+    }
+
     /// Matches the provided URI against the [`RegexSet`] and returns
     /// [`BasicAuthCredentials`] if the a match was found. It should be noted
     /// that only the first match will be used to return the appropriate
     /// credentials.
     pub(crate) fn matches(&self, uri: &Uri) -> Option<BasicAuthCredentials> {
-        let matches: Vec<_> = self.regex_set.matches(uri.as_str()).into_iter().collect();
+        let matches = self.regex_set.matches(uri.as_str());
+        let match_index = matches.into_iter().next()?;
 
-        if matches.is_empty() {
-            return None;
-        }
-
-        Some(self.credentials[matches[0]].clone())
+        Some(self.credentials[match_index].clone())
     }
 }
 
