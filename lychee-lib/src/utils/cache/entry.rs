@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use tokio::sync::watch;
+use tokio::sync::watch::{Receiver, Sender, channel, error::RecvError};
 
 /// A value returned on cache misses. The owner of this struct should compute
 /// the value, then call [`CacheSetter::set`] to write the value into the cache.
@@ -12,41 +12,37 @@ use tokio::sync::watch;
 /// will never be set and calls to a corresponding [`CacheGetter::wait`] will error.
 #[derive(Debug)]
 #[must_use]
-pub struct CacheSetter<T>(watch::Sender<Option<Arc<T>>>);
+pub struct CacheSetter<T>(Sender<Option<Arc<T>>>);
 
 impl<T> CacheSetter<T> {
-    /// Constructs a new [`CacheSetter`] writing into the given [`watch::Sender`].
-    pub(super) const fn new(sender: watch::Sender<Option<Arc<T>>>) -> Self {
-        Self(sender)
-    }
-
-    /// Returns a new detached [`CacheSetter`]. That is, a setter which is
-    /// not backed by any value within the cache.
-    ///
-    /// This can be useful to let uncacheable entities use the same cache-handling logic.
-    pub fn new_detached() -> Self {
-        Self(watch::channel(None).0)
-    }
-
     /// Writes the given value into the cache, consuming this [`CacheSetter`] and
     /// returning a [`CacheGetter`] referencing the stored value.
     pub fn set(self, value: T) -> CacheGetter<T> {
         self.0.send_replace(Some(Arc::new(value)));
+        self.subscribe()
+    }
+
+    /// Attaches and returns a new [`CacheGetter`] for this [`CacheSetter`].
+    #[must_use]
+    pub fn subscribe(&self) -> CacheGetter<T> {
         CacheGetter(self.0.subscribe())
+    }
+
+    /// Creates a new detached [`CacheSetter`]. That is, a setter which is
+    /// not backed by any value within the cache.
+    ///
+    /// This can be useful to let uncacheable entities use the same cache-handling logic.
+    pub fn new_detached() -> Self {
+        Self(channel(None).0)
     }
 }
 
 /// A value returned on cache hits. [`CacheGetter::wait`] returns a future which
 /// resolves when the cache value has been stored by the corresponding [`CacheSetter`].
 #[derive(Debug)]
-pub struct CacheGetter<T>(watch::Receiver<Option<Arc<T>>>);
+pub struct CacheGetter<T>(Receiver<Option<Arc<T>>>);
 
 impl<T> CacheGetter<T> {
-    /// Constructs a new [`CacheGetter`] receiving from the given [`watch::Receiver`].
-    pub(super) const fn new(recv: watch::Receiver<Option<Arc<T>>>) -> Self {
-        Self(recv)
-    }
-
     /// Waits until the cache value is computed and stored by the corresponding
     /// [`CacheSetter`]. If the value has already been computed and stored, this
     /// function will complete immediately.
@@ -54,7 +50,7 @@ impl<T> CacheGetter<T> {
     /// # Errors
     /// Returns an error if the corresponding [`CacheSetter`] is dropped without
     /// setting a value.
-    pub async fn wait(mut self) -> Result<Arc<T>, watch::error::RecvError> {
+    pub async fn wait(mut self) -> Result<Arc<T>, RecvError> {
         let received = self.0.wait_for(Option::is_some).await?;
 
         #[expect(clippy::missing_panics_doc, reason = "impossible due to is_some check")]
@@ -64,7 +60,7 @@ impl<T> CacheGetter<T> {
     /// Returns the value without waiting, if possible, otherwise returns [`None`].
     #[must_use]
     pub fn get(&self) -> Option<Arc<T>> {
-        Some(self.0.borrow().as_ref()?.clone())
+        self.0.borrow().as_ref().cloned()
     }
 
     /// Returns the value without waiting, consuming this [`CacheGetter`] in the process.
@@ -72,6 +68,13 @@ impl<T> CacheGetter<T> {
     #[must_use]
     pub fn into_inner(self) -> Option<Arc<T>> {
         self.get()
+    }
+
+    /// Constructs a new [`CacheGetter`] which is immediately ready with the
+    /// given value.
+    pub fn ready(value: T) -> Self {
+        let (_, recv) = channel(Some(Arc::new(value)));
+        CacheGetter(recv)
     }
 }
 

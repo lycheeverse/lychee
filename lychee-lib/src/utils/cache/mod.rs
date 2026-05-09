@@ -4,13 +4,11 @@
 use std::borrow::Borrow;
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 use dashmap::DashMap;
 use dashmap::mapref::entry::Entry;
-use tokio::sync::watch;
 
 mod entry;
 mod iter;
@@ -74,9 +72,9 @@ impl<K: Hash + Eq, V> Cache<K, V> {
         match self.data.entry(key.to_owned()) {
             Entry::Vacant(vacant) => {
                 self.num_misses.fetch_add(1, Ordering::Relaxed);
-                let (send, recv) = watch::channel(None);
-                vacant.insert(CacheGetter::new(recv));
-                Ok(CacheSetter::new(send))
+                let setter = CacheSetter::new_detached();
+                vacant.insert(setter.subscribe());
+                Ok(setter)
             }
             Entry::Occupied(occupied) => {
                 self.num_hits.fetch_add(1, Ordering::Relaxed);
@@ -108,8 +106,7 @@ impl<K: Hash + Eq, V> Cache<K, V> {
     /// Inserts the given key-value pair, overwriting any existing values.
     /// Does not modify any counters in the cache.
     fn insert(&self, key: K, value: V) {
-        let (_, recv) = watch::channel(Some(Arc::new(value)));
-        self.data.insert(key, CacheGetter::new(recv));
+        self.data.insert(key, CacheGetter::ready(value));
     }
 }
 
