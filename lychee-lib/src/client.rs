@@ -412,6 +412,7 @@ impl ClientBuilder {
             self.fragment_checker_options,
             Arc::new(host_pool),
             self.basic_auth,
+            self.github_token.clone(),
         );
 
         Ok(Client {
@@ -702,7 +703,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_github_nonexistent_repo() {
-        let res = get_mock_client_response!("https://github.com/lycheeverse/not-lychee").await;
+        let res = get_mock_client_response!("https://github.com/lycheeverse/not-lychee/blob/main/nonexistent_file_xyz.md").await;
         assert!(res.status().is_error());
     }
 

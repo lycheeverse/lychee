@@ -2345,6 +2345,7 @@ version = "0.24.2"
 dependencies = [
  "async-stream",
  "async-trait",
+ "base64",
  "cookie_store",
  "dashmap 6.1.0",
  "doc-comment",

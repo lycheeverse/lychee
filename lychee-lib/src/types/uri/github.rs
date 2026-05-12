@@ -30,6 +30,8 @@ pub struct GithubUri {
     pub repo: String,
     /// e.g. `issues` in `/org/repo/issues`
     pub endpoint: Option<String>,
+    /// Whether this URL was rewritten to api.github.com by quirks
+    pub is_api: bool,
 }
 
 impl GithubUri {
@@ -40,6 +42,7 @@ impl GithubUri {
             owner: owner.into(),
             repo: repo.into(),
             endpoint: None,
+            is_api: false,
         }
     }
 
@@ -49,7 +52,49 @@ impl GithubUri {
             owner: owner.into(),
             repo: repo.into(),
             endpoint: Some(endpoint.into()),
+            is_api: false,
         }
+    }
+
+    /// Build a full github.com URL from the URI for pattern matching.
+    /// For API URLs (rewritten by quirks), query params are embedded in the endpoint path.
+    pub(crate) fn build_full_url(&self) -> String {
+        let base = format!("https://github.com/{}/{}", self.owner, self.repo);
+        let Some(endpoint) = &self.endpoint else {
+            return base;
+        };
+
+        // For API URLs, query params are part of the endpoint path (e.g., "blob/main/README.md?_lychee_readme=1")
+        if self.is_api {
+            return format!("{base}/{endpoint}");
+        }
+
+        // For normal URLs, separate query string and fragment from the endpoint
+        let (path, query_and_frag) = match endpoint.split_once('?') {
+            Some((p, q)) => (p, Some(q)),
+            None => (endpoint.as_str(), None),
+        };
+
+        let (path, frag) = match query_and_frag {
+            Some(qf) => match qf.split_once('#') {
+                Some((q, f)) => (path, Some((q, f))),
+                None => (path, Some((qf, ""))),
+            },
+            None => (path, None),
+        };
+
+       let mut url = format!("{base}/{path}");
+        if let Some((query, fragment)) = frag {
+            if !query.is_empty() {
+                url.push('?');
+                url.push_str(query);
+            }
+            if !fragment.is_empty() {
+                url.push('#');
+                url.push_str(fragment);
+            }
+        }
+        url
     }
 
     // TODO: Support GitLab etc.
@@ -66,6 +111,41 @@ impl GithubUri {
         let Some(domain) = uri.domain() else {
             return Err(ErrorKind::InvalidGithubUrl(uri.to_string()));
         };
+
+        // Handle api.github.com URLs (rewritten by quirks for fragment checks)
+        if domain == "api.github.com" {
+            let parts: Vec<_> = match uri.path_segments() {
+                Some(parts) => parts.collect(),
+                None => return Err(ErrorKind::InvalidGithubUrl(uri.to_string())),
+            };
+
+            // Expected format: /repos/{owner}/{repo}/...
+            if parts.len() < 3 || parts[0] != "repos" {
+                return Err(ErrorKind::InvalidGithubUrl(uri.to_string()));
+            }
+
+            let owner = parts[1];
+            let repo = remove_suffix(parts[2], ".git");
+
+            // Preserve query parameters (e.g., ref=main&_lychee_readme=1) in the endpoint for flag detection
+            let endpoint = if parts.len() > 3 && !parts[3].is_empty() {
+                let path_part = parts[3..].join("/");
+                if let Some(query) = uri.url.query() {
+                    Some(format!("{path_part}?{query}"))
+                } else {
+                    Some(path_part)
+                }
+            } else {
+                None
+            };
+
+            return Ok(GithubUri {
+                owner: owner.to_string(),
+                repo: repo.to_string(),
+                endpoint,
+                is_api: true,
+            });
+        }
 
         if !matches!(
             domain,
@@ -110,6 +190,7 @@ impl GithubUri {
             owner: owner.to_string(),
             repo: repo.to_string(),
             endpoint,
+            is_api: false,
         })
     }
 }
@@ -202,5 +283,29 @@ mod tests {
             ))
             .is_err()
         );
+    }
+
+    #[test]
+    fn test_github_api_url() {
+        let api_uri = GithubUri::try_from(website!("https://api.github.com/repos/user/repo")).unwrap();
+        assert_eq!(api_uri.owner, "user");
+        assert_eq!(api_uri.repo, "repo");
+        assert_eq!(api_uri.endpoint, None);
+        assert!(api_uri.is_api);
+
+        let api_uri = GithubUri::try_from(website!("https://api.github.com/repos/user/repo/issues/comments/123")).unwrap();
+        assert_eq!(api_uri.owner, "user");
+        assert_eq!(api_uri.repo, "repo");
+        assert_eq!(api_uri.endpoint, Some("issues/comments/123".to_string()));
+        assert!(api_uri.is_api);
+
+        let api_uri = GithubUri::try_from(website!("https://api.github.com/repos/user/repo/contents/README.md")).unwrap();
+        assert_eq!(api_uri.owner, "user");
+        assert_eq!(api_uri.repo, "repo");
+        assert_eq!(api_uri.endpoint, Some("contents/README.md".to_string()));
+        assert!(api_uri.is_api);
+
+        let normal_uri = GithubUri::try_from(website!("https://github.com/user/repo")).unwrap();
+        assert!(!normal_uri.is_api);
     }
 }
