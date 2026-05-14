@@ -37,9 +37,10 @@ impl FileExtensions {
         Self(vec![])
     }
 
-    /// Extend the list of existing extensions by the values from the iterator
-    pub fn extend<I: IntoIterator<Item = String>>(&mut self, iter: I) {
-        self.0.extend(iter);
+    /// Returns an iterator of file extensions as strings.
+    #[must_use]
+    pub fn iter(&self) -> <&Self as IntoIterator>::IntoIter {
+        <&Self as IntoIterator>::into_iter(self)
     }
 
     /// Check if the list of file extensions contains the given file extension
@@ -94,11 +95,27 @@ impl FromIterator<String> for FileExtensions {
     }
 }
 
-impl Iterator for FileExtensions {
-    type Item = String;
+impl Extend<String> for FileExtensions {
+    fn extend<I: IntoIterator<Item = String>>(&mut self, iter: I) {
+        self.0.extend(iter);
+    }
+}
 
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.pop()
+impl<'a> IntoIterator for &'a FileExtensions {
+    type Item = &'a String;
+    type IntoIter = Box<dyn Iterator<Item = Self::Item> + 'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Box::new(self.0.iter())
+    }
+}
+
+impl IntoIterator for FileExtensions {
+    type Item = String;
+    type IntoIter = Box<dyn Iterator<Item = Self::Item>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Box::new(self.0.into_iter())
     }
 }
 
