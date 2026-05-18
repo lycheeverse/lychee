@@ -4029,7 +4029,11 @@ file:///TMP/a/b/c/ROOT/server/1/up-one.html
             .write_stdin("[a](/a)")
             .assert()
             .failure()
-            .stdout(contains("Cannot resolve root-relative link '/a': To resolve root-relative links in local files, provide a root dir"));
+            .stdout(contains("Cannot resolve root-relative link '/a'"))
+            .stderr(contains(
+                "To resolve these links to a local directory, provide a root dir. \
+                Alternatively, if the site should be relocatable, consider using locally-relative links."
+            ));
 
         // with root-dir, locally-relative links can still fail because
         // there is no current base URL
