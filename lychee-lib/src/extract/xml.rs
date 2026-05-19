@@ -1,4 +1,6 @@
 //! Extract links from XML documents. Currently supports sitemaps, RSS and Atom feeds.
+use std::borrow::Cow;
+
 use log::warn;
 use quick_xml::Reader;
 use quick_xml::events::Event;
@@ -17,12 +19,15 @@ pub(crate) fn extract_xml<S: SpanProvider>(input: &str, span_provider: &S) -> Ve
                 b"loc" /* sitemap */ | b"link" /* RSS */ => {
                     let start_of_text_offset: usize = reader.buffer_position().try_into().unwrap_or_default();
                     let element = String::from_utf8(e.name().as_ref().to_vec()).unwrap_or_default();
-                    let text = reader.read_text(e.name()).unwrap_or_default().as_ref().to_string();
+                    let text = match reader.read_text(e.name()) {
+                        Ok(bytes_text) => bytes_text.decode().unwrap_or_default(),
+                        Err(_) => Cow::default(),
+                    };
                     let span = span_provider.span(start_of_text_offset);
 
                     if !text.is_empty() && !element.is_empty() {
                         uris.push(RawUri {
-                            text,
+                            text: text.into_owned(),
                             element: Some(element),
                             attribute: None,
                             span
