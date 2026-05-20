@@ -113,6 +113,7 @@ mod tests {
       "rate_limited": 1,
       "client_errors": 0,
       "server_errors": 1,
+      "network_errors": 0,
       "median_request_time_ms": null,
       "cache_hits": 1,
       "cache_misses": 4,

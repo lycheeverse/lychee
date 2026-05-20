@@ -182,6 +182,11 @@ impl Host {
         let response = match self.client.execute(request).await {
             Ok(response) => response,
             Err(e) => {
+                // Record the network error in the per-host totals.
+                self.stats
+                    .lock()
+                    .unwrap()
+                    .record_network_error(start_time.elapsed());
                 // Wrap network/HTTP errors to preserve the original error
                 return Err(ErrorKind::NetworkRequest(e));
             }

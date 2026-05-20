@@ -38,6 +38,9 @@ impl Display for DetailedHostStats {
             if stats.server_errors > 0 {
                 writeln!(f, "  Server errors (5xx): {}", stats.server_errors)?;
             }
+            if stats.network_errors > 0 {
+                writeln!(f, "  Network errors: {}", stats.network_errors)?;
+            }
 
             if let Some(median_time) = stats.median_request_time() {
                 writeln!(
