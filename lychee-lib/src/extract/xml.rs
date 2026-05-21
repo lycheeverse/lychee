@@ -12,8 +12,8 @@ pub(crate) fn extract_xml<S: SpanProvider>(input: &str, span_provider: &S) -> Ve
     let mut uris: Vec<RawUri> = Vec::new();
 
     loop {
-        match reader.read_event().unwrap() {
-            Event::Start(element) => match element.name().as_ref() {
+        match reader.read_event() {
+            Ok(Event::Start(element)) => match element.name().as_ref() {
                 b"loc" /* sitemap */ | b"link" /* RSS */ => {
                      if let Some(raw_uri) = extract_uri_without_attribute(&element, span_provider, &mut reader ) {
                          uris.push(raw_uri);
@@ -21,14 +21,14 @@ pub(crate) fn extract_xml<S: SpanProvider>(input: &str, span_provider: &S) -> Ve
                 },
                 _ => {}
             },
-            Event::Empty(element) if element.name().as_ref() == b"link" => {
+            Ok(Event::Empty(element)) if element.name().as_ref() == b"link" => {
                 uris.append(&mut extract_uris_from_href(
                     &element,
                     span_provider,
                     &reader,
                 ));
             }
-            Event::Eof => break,
+            Ok(Event::Eof) | Err(_) => break,
             _ => {}
         }
     }
