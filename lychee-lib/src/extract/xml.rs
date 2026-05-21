@@ -1,7 +1,7 @@
 //! Extract links from XML documents. Currently supports sitemaps, RSS and Atom feeds.
 use log::warn;
-use quick_xml::Reader;
 use quick_xml::events::Event;
+use quick_xml::{Reader, events::BytesStart};
 
 use crate::types::uri::raw::{RawUri, SpanProvider};
 
@@ -13,48 +13,20 @@ pub(crate) fn extract_xml<S: SpanProvider>(input: &str, span_provider: &S) -> Ve
 
     loop {
         match reader.read_event().unwrap() {
-            Event::Start(e) => match e.name().as_ref() {
+            Event::Start(element) => match element.name().as_ref() {
                 b"loc" /* sitemap */ | b"link" /* RSS */ => {
-                    let start_of_text_offset: usize = reader.buffer_position().try_into().unwrap_or_default();
-                    let element = String::from_utf8(e.name().as_ref().to_vec()).unwrap_or_default();
-                    let text = reader.read_text(e.name()).unwrap_or_default().as_ref().to_string();
-                    let span = span_provider.span(start_of_text_offset);
-
-                    if !text.is_empty() && !element.is_empty() {
-                        uris.push(RawUri {
-                            text,
-                            element: Some(element),
-                            attribute: None,
-                            span
-                        });
-                    }
+                     if let Some(raw_uri) = extract_uri_without_attribute(&element, span_provider, &mut reader ) {
+                         uris.push(raw_uri);
+                     }
                 },
                 _ => {}
             },
-            Event::Empty(e) if e.name().as_ref() == b"link" => {
-                for attr in e.attributes().flatten() {
-                    if attr.key.as_ref() == b"href" {
-                        let text = std::str::from_utf8(attr.value.as_ref())
-                            .unwrap_or("")
-                            .to_string();
-                        let element = std::str::from_utf8(e.name().as_ref())
-                            .unwrap_or("")
-                            .to_string();
-                        let end_of_empty_tag: usize =
-                            reader.buffer_position().try_into().unwrap_or_default();
-                        // Span is a bit imprecise, as it points to the end of the element. However, quick_xml does not provide the position of attributes, so this is the best we can do.
-                        let span = span_provider.span(end_of_empty_tag);
-
-                        if !text.is_empty() && !element.is_empty() {
-                            uris.push(RawUri {
-                                text,
-                                element: Some(element),
-                                attribute: Some("href".to_string()),
-                                span,
-                            });
-                        }
-                    }
-                }
+            Event::Empty(element) if element.name().as_ref() == b"link" => {
+                uris.append(&mut extract_uris_from_href(
+                    &element,
+                    span_provider,
+                    &reader,
+                ));
             }
             Event::Eof => break,
             _ => {}
@@ -68,6 +40,73 @@ pub(crate) fn extract_xml<S: SpanProvider>(input: &str, span_provider: &S) -> Ve
     }
 
     uris
+}
+
+/// # Returns
+///
+/// Tries to convert all `href` attributes into `RawUri`s.
+/// Errors are silently ignored.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "allow span imprecision with big numbers"
+)]
+fn extract_uris_from_href<S: SpanProvider>(
+    element: &BytesStart<'_>,
+    span_provider: &S,
+    reader: &Reader<&[u8]>,
+) -> Vec<RawUri> {
+    element
+        .attributes()
+        .flatten()
+        .filter(|attr| attr.key.as_ref() == b"href")
+        .filter_map(|attr| {
+            let text = std::str::from_utf8(attr.value.as_ref()).ok()?.to_string();
+            let element = std::str::from_utf8(element.name().as_ref())
+                .ok()?
+                .to_string();
+            let end_of_empty_tag = reader.buffer_position() as usize;
+            // Span is a bit imprecise, as it points to the end of the element. However, quick_xml does not provide the position of attributes, so this is the best we can do.
+            let span = span_provider.span(end_of_empty_tag);
+
+            Some(RawUri {
+                text,
+                element: Some(element),
+                attribute: Some("href".to_string()),
+                span,
+            })
+        })
+        .collect()
+}
+
+/// # Returns
+///
+/// Returns `None` if any errors are encountered.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "allow span imprecision with big numbers"
+)]
+fn extract_uri_without_attribute<S: SpanProvider>(
+    element: &BytesStart<'_>,
+    span_provider: &S,
+    reader: &mut Reader<&[u8]>,
+) -> Option<RawUri> {
+    let start_of_text_offset = reader.buffer_position() as usize;
+    let span = span_provider.span(start_of_text_offset);
+    let text = reader
+        .read_text(element.name())
+        .ok()?
+        .decode()
+        .ok()?
+        .as_ref()
+        .to_string();
+    let element = Some(String::from_utf8(element.name().as_ref().to_vec()).ok()?);
+
+    Some(RawUri {
+        text,
+        element,
+        attribute: None,
+        span,
+    })
 }
 
 #[cfg(test)]
