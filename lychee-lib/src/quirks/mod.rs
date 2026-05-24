@@ -26,38 +26,23 @@ static GITHUB_BLOB_LINE_FRAGMENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 pub(crate) static GITHUB_README_FRAGMENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"^https://github\.com/(?<user>[^/]+)/(?<repo>[^/]+)/blob/(?<branch>[^/]+)/README\.(?P<ext>md|markdown)(?:#(?P<fragment>.+))?",
-    )
-    .unwrap()
+    Regex::new(r"(?i)^https://github\.com/[^/]+/[^/]+(?:/tree/[^/#]+)?/?#readme$").unwrap()
 });
 
 pub(crate) static GITHUB_DIR_README_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"^https://github\.com/(?<user>[^/]+)/(?<repo>[^/]+)/tree/(?<branch>[^/]+)/(?<dir>.+)#(?<fragment>.+)$",
-    )
-    .unwrap()
+    Regex::new(r"^https://github\.com/[^/]+/[^/]+/tree/[^/#]+/.+#.+$").unwrap()
 });
 
 pub(crate) static GITHUB_ISSUE_COMMENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"^https://github\.com/(?<user>[^/]+)/(?<repo>[^/]+)/issues/(?<issue>\d+)#issuecomment-(?<comment>.+)$",
-    )
-    .unwrap()
+    Regex::new(r"^https://github\.com/[^/]+/[^/]+/issues/\d+#issuecomment-\d+$").unwrap()
 });
 
 pub(crate) static GITHUB_PR_COMMENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"^https://github\.com/(?<user>[^/]+)/(?<repo>[^/]+)/pull/(?<pr>\d+)#(?<comment>(?:pullrequestreview|discussion_r|pullrequestcomment).+)$",
-    )
-    .unwrap()
+    Regex::new(r"^https://github\.com/[^/]+/[^/]+/pull/\d+#(?:pullrequestreview-|discussion_r|pullrequestcomment-)\d+$").unwrap()
 });
 
 pub(crate) static GITHUB_DISCUSSION_COMMENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"^https://github\.com/(?<user>[^/]+)/(?<repo>[^/]+)/discussions/(?<discussion>\d+)#discussioncomment-(?<comment>.+)$",
-    )
-    .unwrap()
+    Regex::new(r"^https://github\.com/[^/]+/[^/]+/discussions/\d+#discussioncomment-\d+$").unwrap()
 });
 
 // Retrieve a map of query params for the given request
@@ -80,153 +65,76 @@ pub(crate) struct Quirks {
 impl Default for Quirks {
     fn default() -> Self {
         let quirks = vec![
-            Quirk { name: "add accept header for crates.io", pattern: &CRATES_PATTERN, rewrite: quirky_crates_io },
-            Quirk { name: "check YouTube IDs via thumbnail", pattern: &YOUTUBE_PATTERN, rewrite: quirky_youtube },
-            Quirk { name: "check YouTube IDs via thumbnail (short link)", pattern: &YOUTUBE_SHORT_PATTERN, rewrite: quirky_youtube_short },
-            Quirk { name: "delete line number fragments in GitHub links", pattern: &GITHUB_BLOB_LINE_FRAGMENT_PATTERN, rewrite: quirky_github_line_fragments },
-            Quirk { name: "fetch raw GitHub Markdown files", pattern: &GITHUB_BLOB_MARKDOWN_FRAGMENT_PATTERN, rewrite: quirky_github_raw_markdown },
-            Quirk { name: "fetch GitHub README fragment via API", pattern: &GITHUB_README_FRAGMENT_PATTERN, rewrite: quirky_github_readme_fragment },
-            Quirk { name: "fetch GitHub directory README fragment via API", pattern: &GITHUB_DIR_README_PATTERN, rewrite: quirky_github_dir_readme_fragment },
-            Quirk { name: "fetch GitHub issue comment via API", pattern: &GITHUB_ISSUE_COMMENT_PATTERN, rewrite: quirky_github_issue_comment },
-            Quirk { name: "fetch GitHub PR comment via API", pattern: &GITHUB_PR_COMMENT_PATTERN, rewrite: quirky_github_pr_comment },
-            Quirk { name: "fetch GitHub discussion comment via API", pattern: &GITHUB_DISCUSSION_COMMENT_PATTERN, rewrite: quirky_github_discussion_comment },
+            Quirk {
+                name: "add accept header for crates.io",
+                pattern: &CRATES_PATTERN,
+                rewrite: |mut request, _| {
+                    request
+                        .headers_mut()
+                        .insert(header::ACCEPT, HeaderValue::from_static("text/html"));
+                    request
+                },
+            },
+            Quirk {
+                name: "check YouTube IDs via thumbnail",
+                pattern: &YOUTUBE_PATTERN,
+                rewrite: |mut request, _| {
+                    // Extract video id if it's a video page
+                    let video_id = match request.url().path() {
+                        "/watch" => query(&request).get("v").map(ToOwned::to_owned),
+                        path if path.starts_with("/embed/") => {
+                            path.strip_prefix("/embed/").map(ToOwned::to_owned)
+                        }
+                        _ => return request,
+                    };
+
+                    // Only rewrite to thumbnail if we got a video id
+                    if let Some(id) = video_id {
+                        *request.url_mut() =
+                            Url::parse(&format!("https://img.youtube.com/vi/{id}/0.jpg")).unwrap();
+                    }
+
+                    request
+                },
+            },
+            Quirk {
+                name: "check YouTube IDs via thumbnail (short link)",
+                pattern: &YOUTUBE_SHORT_PATTERN,
+                rewrite: |mut request, _| {
+                    // Short links use the path as video id
+                    let id = request.url().path().trim_start_matches('/');
+                    if id.is_empty() {
+                        return request;
+                    }
+                    *request.url_mut() =
+                        Url::parse(&format!("https://img.youtube.com/vi/{id}/0.jpg")).unwrap();
+                    request
+                },
+            },
+            Quirk {
+                name: "delete line number fragments in GitHub links",
+                pattern: &GITHUB_BLOB_LINE_FRAGMENT_PATTERN,
+                rewrite: |mut request, _| {
+                    request.url_mut().set_fragment(None);
+                    request
+                },
+            },
+            Quirk {
+                name: "fetch raw GitHub Markdown files",
+                pattern: &GITHUB_BLOB_MARKDOWN_FRAGMENT_PATTERN,
+                rewrite: |mut request, captures| {
+                    let mut raw_url = String::new();
+                    captures.expand(
+                        "https://raw.githubusercontent.com/$user/$repo/$path/$file",
+                        &mut raw_url,
+                    );
+                    *request.url_mut() = Url::parse(&raw_url).unwrap();
+                    request
+                },
+            },
         ];
         Self { quirks }
     }
-}
-
-fn quirky_crates_io(mut request: Request, _: Captures) -> Request {
-    request.headers_mut().insert(header::ACCEPT, HeaderValue::from_static("text/html"));
-    request
-}
-
-fn quirky_youtube(mut request: Request, _: Captures) -> Request {
-    let video_id = match request.url().path() {
-        "/watch" => query(&request).get("v").map(ToOwned::to_owned),
-        path if path.starts_with("/embed/") => path.strip_prefix("/embed/").map(ToOwned::to_owned),
-        _ => return request,
-    };
-    if let Some(id) = video_id
-        && let Ok(parsed) = Url::parse(&format!("https://img.youtube.com/vi/{id}/0.jpg"))
-    {
-        *request.url_mut() = parsed;
-    }
-    request
-}
-
-fn quirky_youtube_short(mut request: Request, _: Captures) -> Request {
-    let id = request.url().path().trim_start_matches('/');
-    if id.is_empty() {
-        return request;
-    }
-    if let Ok(parsed) = Url::parse(&format!("https://img.youtube.com/vi/{id}/0.jpg")) {
-        *request.url_mut() = parsed;
-    }
-    request
-}
-
-fn quirky_github_line_fragments(mut request: Request, _: Captures) -> Request {
-    request.url_mut().set_fragment(None);
-    request
-}
-
-#[allow(clippy::needless_pass_by_value)]
-fn quirky_github_raw_markdown(mut request: Request, captures: Captures) -> Request {
-    let file = captures.name("file").map_or("", |m| m.as_str());
-    if file.to_lowercase().starts_with("readme.md") || file.to_lowercase().starts_with("readme.markdown") {
-        return request;
-    }
-    let mut raw_url = String::new();
-    captures.expand("https://raw.githubusercontent.com/$user/$repo/$path/$file", &mut raw_url);
-    if let Ok(parsed) = Url::parse(&raw_url) {
-        *request.url_mut() = parsed;
-    }
-    request
-}
-
-#[allow(clippy::needless_pass_by_value)]
-fn quirky_github_readme_fragment(mut request: Request, captures: Captures) -> Request {
-    let user = captures.name("user").map_or("", |m| m.as_str());
-    let repo = captures.name("repo").map_or("", |m| m.as_str());
-    let branch = captures.name("branch").map_or("main", |m| m.as_str());
-    let ext = captures.name("ext").map_or("md", |m| m.as_str());
-    let fragment = captures.name("fragment").map(|m| m.as_str());
-    if fragment.is_none() {
-        return request;
-    }
-    let fragment = fragment.unwrap();
-    let api_url = if fragment.is_empty() {
-        format!("https://api.github.com/repos/{user}/{repo}/contents/README.{ext}?ref={branch}&_lychee_readme=1")
-    } else {
-        format!("https://api.github.com/repos/{user}/{repo}/contents/README.{ext}?ref={branch}&_lychee_readme=1&_lychee_fragment={fragment}")
-    };
-    if let Ok(parsed) = Url::parse(&api_url) {
-        *request.url_mut() = parsed;
-    }
-    request
-}
-
-#[allow(clippy::needless_pass_by_value)]
-fn quirky_github_dir_readme_fragment(mut request: Request, captures: Captures) -> Request {
-    let user = captures.name("user").map_or("", |m| m.as_str());
-    let repo = captures.name("repo").map_or("", |m| m.as_str());
-    let branch = captures.name("branch").map_or("main", |m| m.as_str());
-    let dir = captures.name("dir").map_or("", |m| m.as_str());
-    let fragment = captures.name("fragment").map_or("", |m| m.as_str());
-    let api_url = if dir.is_empty() {
-        format!("https://api.github.com/repos/{user}/{repo}/contents/README.md?ref={branch}&_lychee_dirreadme=1")
-    } else {
-        format!("https://api.github.com/repos/{user}/{repo}/contents/{dir}/README.md?ref={branch}&_lychee_dirreadme=1")
-    };
-    let api_url = if fragment.is_empty() {
-        api_url
-    } else {
-        format!("{api_url}&_lychee_fragment={fragment}")
-    };
-    if let Ok(parsed) = Url::parse(&api_url) {
-        *request.url_mut() = parsed;
-    }
-    request
-}
-
-#[allow(clippy::needless_pass_by_value)]
-fn quirky_github_issue_comment(mut request: Request, captures: Captures) -> Request {
-    let user = captures.name("user").map_or("", |m| m.as_str());
-    let repo = captures.name("repo").map_or("", |m| m.as_str());
-    let comment = captures.name("comment").map_or("", |m| m.as_str());
-    let api_url = format!("https://api.github.com/repos/{user}/{repo}/issues/comments/{comment}?_lychee_issuecomment=1");
-    if let Ok(parsed) = Url::parse(&api_url) {
-        *request.url_mut() = parsed;
-    }
-    request
-}
-
-#[allow(clippy::needless_pass_by_value)]
-fn quirky_github_pr_comment(mut request: Request, captures: Captures) -> Request {
-    let user = captures.name("user").map_or("", |m| m.as_str());
-    let repo = captures.name("repo").map_or("", |m| m.as_str());
-    let comment = captures.name("comment").map_or("", |m| m.as_str());
-    let comment_id = comment.strip_prefix("pullrequestreview-")
-        .or_else(|| comment.strip_prefix("discussion_r"))
-        .or_else(|| comment.strip_prefix("pullrequestcomment-"))
-        .unwrap_or(comment);
-    let api_url = format!("https://api.github.com/repos/{user}/{repo}/pulls/comments/{comment_id}?_lychee_prcomment=1");
-    if let Ok(parsed) = Url::parse(&api_url) {
-        *request.url_mut() = parsed;
-    }
-    request
-}
-
-#[allow(clippy::needless_pass_by_value)]
-fn quirky_github_discussion_comment(mut request: Request, captures: Captures) -> Request {
-    let user = captures.name("user").map_or("", |m| m.as_str());
-    let repo = captures.name("repo").map_or("", |m| m.as_str());
-    let comment = captures.name("comment").map_or("", |m| m.as_str());
-    let api_url = format!("https://api.github.com/repos/{user}/{repo}/discussions/comments/{comment}?_lychee_discussioncomment=1");
-    if let Ok(parsed) = Url::parse(&api_url) {
-        *request.url_mut() = parsed;
-    }
-    request
 }
 
 impl Quirks {
@@ -279,7 +187,7 @@ mod tests {
 
     #[test]
     fn test_cratesio_request() {
-        let url = Url::parse("https://crates.io/crates/lychee").expect("valid URL");
+        let url = Url::parse("https://crates.io/crates/lychee").unwrap();
         let request = Request::new(Method::GET, url);
         let modified = Quirks::default().apply(request);
 
@@ -291,7 +199,7 @@ mod tests {
 
     #[test]
     fn test_youtube_video_request() {
-        let url = Url::parse("https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").expect("valid URL");
+        let url = Url::parse("https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").unwrap();
         let request = Request::new(Method::GET, url);
         let modified = Quirks::default().apply(request);
         let expected_url = Url::parse("https://img.youtube.com/vi/NlKuICiT470/0.jpg").unwrap();
@@ -357,13 +265,12 @@ mod tests {
                 "https://github.com/lycheeverse/lychee/blob/master/.gitignore#section",
             ),
             (
-                // README.md fragments are rewritten to API endpoint via quirks
                 "https://github.com/lycheeverse/lychee/blob/v0.15.0/README.md#features",
-                "https://api.github.com/repos/lycheeverse/lychee/contents/README.md?ref=v0.15.0&_lychee_readme=1&_lychee_fragment=features",
+                "https://raw.githubusercontent.com/lycheeverse/lychee/v0.15.0/README.md#features",
             ),
             (
                 // GITHUB_BLOB_LINE_FRAGMENT_PATTERN should have precedence over
-                // GITHUB_README_FRAGMENT_PATTERN for line-number fragments.
+                // GITHUB_BLOB_MARKDOWN_FRAGMENT_PATTERN for line-number fragments.
                 "https://github.com/lycheeverse/lychee/blob/v0.15.0/README.md#L1",
                 "https://github.com/lycheeverse/lychee/blob/v0.15.0/README.md",
             ),
@@ -428,91 +335,4 @@ mod tests {
 
         assert_eq!(MockRequest(modified), MockRequest::new(Method::GET, url));
     }
-
-    #[test]
-    fn test_github_readme_fragment_quirk() {
-        let origin = "https://github.com/user/repo/blob/main/README.md#features";
-        let expect = "https://api.github.com/repos/user/repo/contents/README.md?ref=main&_lychee_readme=1&_lychee_fragment=features";
-
-        let url = Url::parse(origin).unwrap();
-        let request = Request::new(Method::GET, url);
-        let modified = Quirks::default().apply(request);
-
-        assert_eq!(
-            MockRequest(modified),
-            MockRequest::new(Method::GET, Url::parse(expect).unwrap())
-        );
-    }
-
-    #[test]
-    fn test_github_readme_fragment_quirk_no_fragment() {
-        let origin = "https://github.com/user/repo/blob/main/README.md";
-        let url = Url::parse(origin).unwrap();
-        let request = Request::new(Method::GET, url);
-
-        // Should NOT match - pattern requires a fragment
-        let modified = Quirks::default().apply(request);
-        assert_eq!(MockRequest(modified), MockRequest::new(Method::GET, Url::parse(origin).unwrap()));
-    }
-
-    #[test]
-    fn test_github_dir_readme_quirk() {
-        let origin = "https://github.com/user/repo/tree/main/docs#installation";
-        let expect = "https://api.github.com/repos/user/repo/contents/docs/README.md?ref=main&_lychee_dirreadme=1&_lychee_fragment=installation";
-
-        let url = Url::parse(origin).unwrap();
-        let request = Request::new(Method::GET, url);
-        let modified = Quirks::default().apply(request);
-
-        assert_eq!(
-            MockRequest(modified),
-            MockRequest::new(Method::GET, Url::parse(expect).unwrap())
-        );
-    }
-
-    #[test]
-    fn test_github_issue_comment_quirk() {
-        let origin = "https://github.com/user/repo/issues/123#issuecomment-456";
-        let expect = "https://api.github.com/repos/user/repo/issues/comments/456?_lychee_issuecomment=1";
-
-        let url = Url::parse(origin).unwrap();
-        let request = Request::new(Method::GET, url);
-        let modified = Quirks::default().apply(request);
-
-        assert_eq!(
-            MockRequest(modified),
-            MockRequest::new(Method::GET, Url::parse(expect).unwrap())
-        );
-    }
-
-    #[test]
-    fn test_github_pr_comment_quirk() {
-        let origin = "https://github.com/user/repo/pull/42#pullrequestreview-789";
-        let expect = "https://api.github.com/repos/user/repo/pulls/comments/789?_lychee_prcomment=1";
-
-        let url = Url::parse(origin).unwrap();
-        let request = Request::new(Method::GET, url);
-        let modified = Quirks::default().apply(request);
-
-        assert_eq!(
-            MockRequest(modified),
-            MockRequest::new(Method::GET, Url::parse(expect).unwrap())
-        );
-    }
-
-    #[test]
-    fn test_github_discussion_comment_quirk() {
-        let origin = "https://github.com/user/repo/discussions/10#discussioncomment-500";
-        let expect = "https://api.github.com/repos/user/repo/discussions/comments/500?_lychee_discussioncomment=1";
-
-        let url = Url::parse(origin).unwrap();
-        let request = Request::new(Method::GET, url);
-        let modified = Quirks::default().apply(request);
-
-        assert_eq!(
-            MockRequest(modified),
-            MockRequest::new(Method::GET, Url::parse(expect).unwrap())
-        );
-    }
-
 }

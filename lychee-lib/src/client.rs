@@ -412,7 +412,7 @@ impl ClientBuilder {
             self.fragment_checker_options,
             Arc::new(host_pool),
             self.basic_auth,
-            self.github_token.clone(),
+            self.github_token,
         );
 
         Ok(Client {

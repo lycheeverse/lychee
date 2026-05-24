@@ -119,6 +119,15 @@ impl WebsiteChecker {
         }
     }
 
+    /// Add GitHub authentication header to a request if a token is configured.
+    fn with_github_auth(&self, request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        if let Some(token) = &self.github_token {
+            request.header("Authorization", format!("token {}", token.expose_secret()))
+        } else {
+            request
+        }
+    }
+
     /// Retry requests up to `max_retries` times
     /// with an exponential backoff.
     /// Note that, in addition, there also is a host-specific backoff
@@ -327,28 +336,24 @@ impl WebsiteChecker {
         let full_url = uri.build_full_url();
 
         // Pattern A: README fragment via API
-        if GITHUB_README_FRAGMENT_PATTERN.is_match(&full_url) && full_url.contains('#') {
+        if GITHUB_README_FRAGMENT_PATTERN.is_match(&full_url) {
             let endpoint_path = uri.endpoint.clone().unwrap_or_default();
-            let fragment = full_url.split_once('#').map_or(String::new(), |(_, f)| f.to_string());
+            let fragment = uri.fragment.as_deref().unwrap_or_default();
             let branch = endpoint_path.split('/').nth(1).unwrap_or("main");
             let ext = if endpoint_path.ends_with(".markdown") { "markdown" } else { "md" };
 
-            let mut api_url_str = format!(
-                "https://api.github.com/repos/{}/{}/contents/README.{ext}?ref={}&_lychee_readme=1",
+            let api_url_str = format!(
+                "https://api.github.com/repos/{}/{}/contents/README.{ext}?ref={}",
                 uri.owner, uri.repo, branch
             );
-            if !fragment.is_empty() {
-                api_url_str.push_str("&_lychee_fragment=");
-                api_url_str.push_str(&fragment);
-            }
             let url = Url::parse(&api_url_str).ok()?;
-            return Some(self.fetch_github_readme_fragment_api(&uri.owner, &uri.repo, &url, &fragment).await);
+            return Some(self.fetch_github_readme_fragment_api(&uri.owner, &uri.repo, &url, fragment).await);
         }
 
         // Pattern B: Directory README via API
         if GITHUB_DIR_README_PATTERN.is_match(&full_url) {
             let endpoint_path = uri.endpoint.clone().unwrap_or_default();
-            let fragment = full_url.split_once('#').map_or(String::new(), |(_, f)| f.to_string());
+            let fragment = uri.fragment.as_deref().unwrap_or_default();
             let parts: Vec<&str> = endpoint_path.split('/').collect();
             let branch = parts.get(1).copied().unwrap_or("main");
             let dir_raw = if parts.len() > 2 { parts[2..].join("/") } else { String::new() };
@@ -356,28 +361,24 @@ impl WebsiteChecker {
 
             let ext = if endpoint_path.ends_with(".markdown") { "markdown" } else { "md" };
 
-            let mut api_url_str = if dir.is_empty() {
+            let api_url_str = if dir.is_empty() {
                 format!(
-                    "https://api.github.com/repos/{}/{}/contents/README.{ext}?ref={}&_lychee_dirreadme=1",
+                    "https://api.github.com/repos/{}/{}/contents/README.{ext}?ref={}",
                     uri.owner, uri.repo, branch
                 )
             } else {
                 format!(
-                    "https://api.github.com/repos/{}/{}/contents/{}/README.{ext}?ref={}&_lychee_dirreadme=1",
+                    "https://api.github.com/repos/{}/{}/contents/{}/README.{ext}?ref={}",
                     uri.owner, uri.repo, dir, branch
                 )
             };
-            if !fragment.is_empty() {
-                api_url_str.push_str("&_lychee_fragment=");
-                api_url_str.push_str(&fragment);
-            }
             let url = Url::parse(&api_url_str).ok()?;
-            return Some(self.fetch_github_dir_readme_api(&uri.owner, &uri.repo, &url, &fragment).await);
+            return Some(self.fetch_github_dir_readme_api(&uri.owner, &uri.repo, &url, fragment).await);
         }
 
         // Pattern C: Issue comment via API
         if GITHUB_ISSUE_COMMENT_PATTERN.is_match(&full_url) {
-            let fragment = full_url.split_once('#').map_or("", |(_, f)| f);
+            let fragment = uri.fragment.as_deref().unwrap_or_default();
             let comment_id = fragment.strip_prefix("issuecomment-").unwrap_or(fragment);
             let github_url = Self::build_github_url(
                 &uri.owner,
@@ -389,7 +390,7 @@ impl WebsiteChecker {
 
         // Pattern D: PR comment via API
         if GITHUB_PR_COMMENT_PATTERN.is_match(&full_url) {
-            let fragment = full_url.split_once('#').map_or("", |(_, f)| f);
+            let fragment = uri.fragment.as_deref().unwrap_or_default();
             let comment_id = fragment.strip_prefix("pullrequestreview-")
                 .or_else(|| fragment.strip_prefix("discussion_r"))
                 .or_else(|| fragment.strip_prefix("pullrequestcomment-"))
@@ -404,7 +405,7 @@ impl WebsiteChecker {
 
         // Pattern E: Discussion comment via API
         if GITHUB_DISCUSSION_COMMENT_PATTERN.is_match(&full_url) {
-            let fragment = full_url.split_once('#').map_or("", |(_, f)| f);
+            let fragment = uri.fragment.as_deref().unwrap_or_default();
             let comment_id = fragment.strip_prefix("discussioncomment-").unwrap_or(fragment);
             let github_url = Self::build_github_url(
                 &uri.owner,
@@ -428,17 +429,6 @@ impl WebsiteChecker {
     /// A better approach would be to download the file through the API or
     /// clone the repo, but we chose the pragmatic approach.
     async fn check_github(&self, uri: GithubUri) -> Status {
-        // Handle API URLs rewritten by quirks - check for _lychee_* flags in endpoint path first
-        if uri.is_api {
-            let Some(endpoint) = &uri.endpoint else {
-                return ErrorKind::InvalidGithubUrl(format!("{}/{}/", uri.owner, uri.repo)).into();
-            };
-
-            if let Some(status) = self.handle_api_url_flags(endpoint, &uri.owner, &uri.repo).await {
-                return status;
-            }
-        }
-
         // Handle standard GitHub URL patterns via API
         if let Some(status) = self.handle_github_patterns(&uri).await {
             return status;
@@ -462,41 +452,6 @@ impl WebsiteChecker {
                 .into();
         }
         Status::Ok(StatusCode::OK)
-    }
-
-    /// Handle API URLs rewritten by quirks that contain `_lychee_*` flags.
-    async fn handle_api_url_flags(&self, endpoint: &str, owner: &str, repo: &str) -> Option<Status> {
-        if endpoint.contains("_lychee_readme=1") {
-            let fragment = endpoint.split('?').nth(1).and_then(|q| q.split('&').find(|p| p.starts_with("_lychee_fragment=")).map(|p| &p["_lychee_fragment=".len()..])).unwrap_or("");
-            let url = Url::parse(&format!("https://api.github.com/repos/{owner}/{repo}/{endpoint}")).ok()?;
-            return Some(self.fetch_github_readme_fragment_api(owner, repo, &url, fragment).await);
-        }
-
-        if endpoint.contains("_lychee_dirreadme=1") {
-            let fragment = endpoint.split('?').nth(1).and_then(|q| q.split('&').find(|p| p.starts_with("_lychee_fragment=")).map(|p| &p["_lychee_fragment=".len()..])).unwrap_or("");
-            let url = Url::parse(&format!("https://api.github.com/repos/{owner}/{repo}/{endpoint}")).ok()?;
-            return Some(self.fetch_github_dir_readme_api(owner, repo, &url, fragment).await);
-        }
-
-        if endpoint.contains("_lychee_issuecomment=1") {
-            let url = Url::parse(&format!("https://api.github.com/repos/{owner}/{repo}/{endpoint}")).ok()?;
-            let comment_id = url.path_segments().and_then(|mut segs| segs.next_back()).unwrap_or("");
-            return Some(self.fetch_github_issue_comment_api(owner, repo, &url, comment_id).await);
-        }
-
-        if endpoint.contains("_lychee_prcomment=1") {
-            let url = Url::parse(&format!("https://api.github.com/repos/{owner}/{repo}/{endpoint}")).ok()?;
-            let comment_id = url.path_segments().and_then(|mut segs| segs.next_back()).unwrap_or("");
-            return Some(self.fetch_github_pr_comment_api(owner, repo, &url, comment_id).await);
-        }
-
-        if endpoint.contains("_lychee_discussioncomment=1") {
-            let url = Url::parse(&format!("https://api.github.com/repos/{owner}/{repo}/{endpoint}")).ok()?;
-            let comment_id = url.path_segments().and_then(|mut segs| segs.next_back()).unwrap_or("");
-            return Some(self.fetch_github_discussion_comment_api(owner, repo, &url, comment_id).await);
-        }
-
-        None
     }
 
     /// Fetch content from GitHub API and check for fragments.
@@ -524,10 +479,7 @@ impl WebsiteChecker {
             "https://api.github.com/repos/{owner}/{repo}/contents/{file_path}?ref={ref_branch}",
         );
 
-        let mut request = client.get(&api_url);
-        if let Some(token) = &self.github_token {
-            request = request.header("Authorization", format!("token {}", token.expose_secret()));
-        }
+        let request = self.with_github_auth(client.get(&api_url));
         let Ok(response) = request.header("Accept", "application/vnd.github.v3+json").send().await else {
             return Status::Error(ErrorKind::InvalidFragment(url.clone().into()));
         };
@@ -602,10 +554,7 @@ impl WebsiteChecker {
             "https://api.github.com/repos/{owner}/{repo}/issues/comments/{comment_id}",
         );
 
-        let mut request = client.get(&api_url);
-        if let Some(token) = &self.github_token {
-            request = request.header("Authorization", format!("token {}", token.expose_secret()));
-        }
+        let request = self.with_github_auth(client.get(&api_url));
         let Ok(response) = request.header("Accept", "application/vnd.github.v3+json").send().await else {
             return Status::Error(ErrorKind::InvalidFragment(url.clone().into()));
         };
@@ -630,10 +579,7 @@ impl WebsiteChecker {
             "https://api.github.com/repos/{owner}/{repo}/pulls/comments/{comment_id}",
         );
 
-        let mut request = client.get(&api_url);
-        if let Some(token) = &self.github_token {
-            request = request.header("Authorization", format!("token {}", token.expose_secret()));
-        }
+        let request = self.with_github_auth(client.get(&api_url));
         let Ok(response) = request.header("Accept", "application/vnd.github.v3+json").send().await else {
             return Status::Error(ErrorKind::InvalidFragment(url.clone().into()));
         };
@@ -658,10 +604,7 @@ impl WebsiteChecker {
             "https://api.github.com/repos/{owner}/{repo}/discussions/comments/{comment_id}",
         );
 
-        let mut request = client.get(&api_url);
-        if let Some(token) = &self.github_token {
-            request = request.header("Authorization", format!("token {}", token.expose_secret()));
-        }
+        let request = self.with_github_auth(client.get(&api_url));
         let Ok(response) = request.header("Accept", "application/vnd.github.v3+json").send().await else {
             return Status::Error(ErrorKind::InvalidFragment(url.clone().into()));
         };
