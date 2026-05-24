@@ -29,9 +29,8 @@ pub(crate) static GITHUB_README_FRAGMENT_PATTERN: LazyLock<Regex> = LazyLock::ne
     Regex::new(r"(?i)^https://github\.com/[^/]+/[^/]+(?:/tree/[^/#]+)?/?#readme$").unwrap()
 });
 
-pub(crate) static GITHUB_DIR_README_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^https://github\.com/[^/]+/[^/]+/tree/[^/#]+/.+#.+$").unwrap()
-});
+pub(crate) static GITHUB_DIR_README_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^https://github\.com/[^/]+/[^/]+/tree/[^/#]+/.+#.+$").unwrap());
 
 pub(crate) static GITHUB_ISSUE_COMMENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^https://github\.com/[^/]+/[^/]+/issues/\d+#issuecomment-\d+$").unwrap()

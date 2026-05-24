@@ -14,8 +14,8 @@ use crate::{
     utils::fragment_checker::{FragmentChecker, FragmentInput},
 };
 use async_trait::async_trait;
-use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
 use http::{Method, StatusCode};
 use octocrab::Octocrab;
 use reqwest::{Client as ReqwestClient, Request, header::CONTENT_TYPE};
@@ -326,9 +326,8 @@ impl WebsiteChecker {
     /// Build a GitHub URL from owner, repo, and path segments.
     fn build_github_url(owner: &str, repo: &str, path: &str) -> Url {
         let url_str = format!("https://github.com/{owner}/{repo}/{path}");
-        Url::parse(&url_str).unwrap_or_else(|_| {
-            Url::parse("https://github.com/").expect("Invalid fallback URL")
-        })
+        Url::parse(&url_str)
+            .unwrap_or_else(|_| Url::parse("https://github.com/").expect("Invalid fallback URL"))
     }
 
     /// Handle standard GitHub URL patterns (README fragments, directory READMEs, comments) via the REST API.
@@ -340,14 +339,21 @@ impl WebsiteChecker {
             let endpoint_path = uri.endpoint.clone().unwrap_or_default();
             let fragment = uri.fragment.as_deref().unwrap_or_default();
             let branch = endpoint_path.split('/').nth(1).unwrap_or("main");
-            let ext = if endpoint_path.ends_with(".markdown") { "markdown" } else { "md" };
+            let ext = if endpoint_path.ends_with(".markdown") {
+                "markdown"
+            } else {
+                "md"
+            };
 
             let api_url_str = format!(
                 "https://api.github.com/repos/{}/{}/contents/README.{ext}?ref={}",
                 uri.owner, uri.repo, branch
             );
             let url = Url::parse(&api_url_str).ok()?;
-            return Some(self.fetch_github_readme_fragment_api(&uri.owner, &uri.repo, &url, fragment).await);
+            return Some(
+                self.fetch_github_readme_fragment_api(&uri.owner, &uri.repo, &url, fragment)
+                    .await,
+            );
         }
 
         // Pattern B: Directory README via API
@@ -356,10 +362,18 @@ impl WebsiteChecker {
             let fragment = uri.fragment.as_deref().unwrap_or_default();
             let parts: Vec<&str> = endpoint_path.split('/').collect();
             let branch = parts.get(1).copied().unwrap_or("main");
-            let dir_raw = if parts.len() > 2 { parts[2..].join("/") } else { String::new() };
+            let dir_raw = if parts.len() > 2 {
+                parts[2..].join("/")
+            } else {
+                String::new()
+            };
             let dir = dir_raw;
 
-            let ext = if endpoint_path.ends_with(".markdown") { "markdown" } else { "md" };
+            let ext = if endpoint_path.ends_with(".markdown") {
+                "markdown"
+            } else {
+                "md"
+            };
 
             let api_url_str = if dir.is_empty() {
                 format!(
@@ -373,7 +387,10 @@ impl WebsiteChecker {
                 )
             };
             let url = Url::parse(&api_url_str).ok()?;
-            return Some(self.fetch_github_dir_readme_api(&uri.owner, &uri.repo, &url, fragment).await);
+            return Some(
+                self.fetch_github_dir_readme_api(&uri.owner, &uri.repo, &url, fragment)
+                    .await,
+            );
         }
 
         // Pattern C: Issue comment via API
@@ -385,13 +402,17 @@ impl WebsiteChecker {
                 &uri.repo,
                 uri.endpoint.as_deref().unwrap_or(""),
             );
-            return Some(self.fetch_github_issue_comment_api(&uri.owner, &uri.repo, &github_url, comment_id).await);
+            return Some(
+                self.fetch_github_issue_comment_api(&uri.owner, &uri.repo, &github_url, comment_id)
+                    .await,
+            );
         }
 
         // Pattern D: PR comment via API
         if GITHUB_PR_COMMENT_PATTERN.is_match(&full_url) {
             let fragment = uri.fragment.as_deref().unwrap_or_default();
-            let comment_id = fragment.strip_prefix("pullrequestreview-")
+            let comment_id = fragment
+                .strip_prefix("pullrequestreview-")
                 .or_else(|| fragment.strip_prefix("discussion_r"))
                 .or_else(|| fragment.strip_prefix("pullrequestcomment-"))
                 .unwrap_or(fragment);
@@ -400,19 +421,32 @@ impl WebsiteChecker {
                 &uri.repo,
                 uri.endpoint.as_deref().unwrap_or(""),
             );
-            return Some(self.fetch_github_pr_comment_api(&uri.owner, &uri.repo, &github_url, comment_id).await);
+            return Some(
+                self.fetch_github_pr_comment_api(&uri.owner, &uri.repo, &github_url, comment_id)
+                    .await,
+            );
         }
 
         // Pattern E: Discussion comment via API
         if GITHUB_DISCUSSION_COMMENT_PATTERN.is_match(&full_url) {
             let fragment = uri.fragment.as_deref().unwrap_or_default();
-            let comment_id = fragment.strip_prefix("discussioncomment-").unwrap_or(fragment);
+            let comment_id = fragment
+                .strip_prefix("discussioncomment-")
+                .unwrap_or(fragment);
             let github_url = Self::build_github_url(
                 &uri.owner,
                 &uri.repo,
                 uri.endpoint.as_deref().unwrap_or(""),
             );
-            return Some(self.fetch_github_discussion_comment_api(&uri.owner, &uri.repo, &github_url, comment_id).await);
+            return Some(
+                self.fetch_github_discussion_comment_api(
+                    &uri.owner,
+                    &uri.repo,
+                    &github_url,
+                    comment_id,
+                )
+                .await,
+            );
         }
 
         None
@@ -465,22 +499,32 @@ impl WebsiteChecker {
     ) -> Status {
         let client = self.reqwest_client.clone();
 
-        let ref_branch = url.query_pairs().find(|(k, _)| k == "ref").map_or_else(|| "main".to_string(), |(_, v)| v.into_owned());
+        let ref_branch = url
+            .query_pairs()
+            .find(|(k, _)| k == "ref")
+            .map_or_else(|| "main".to_string(), |(_, v)| v.into_owned());
 
-        let file_path = url.path_segments().and_then(|mut segs| {
-            segs.next()?; // "repos"
-            segs.next()?; // owner
-            segs.next()?; // repo
-            segs.next()?; // "contents"
-            Some(segs.collect::<Vec<_>>().join("/"))
-        }).unwrap_or_else(|| expected_file.to_string());
+        let file_path = url
+            .path_segments()
+            .and_then(|mut segs| {
+                segs.next()?; // "repos"
+                segs.next()?; // owner
+                segs.next()?; // repo
+                segs.next()?; // "contents"
+                Some(segs.collect::<Vec<_>>().join("/"))
+            })
+            .unwrap_or_else(|| expected_file.to_string());
 
         let api_url = format!(
             "https://api.github.com/repos/{owner}/{repo}/contents/{file_path}?ref={ref_branch}",
         );
 
         let request = self.with_github_auth(client.get(&api_url));
-        let Ok(response) = request.header("Accept", "application/vnd.github.v3+json").send().await else {
+        let Ok(response) = request
+            .header("Accept", "application/vnd.github.v3+json")
+            .send()
+            .await
+        else {
             return Status::Error(ErrorKind::InvalidFragment(url.clone().into()));
         };
 
@@ -511,7 +555,8 @@ impl WebsiteChecker {
 
         let lines: Vec<&str> = decoded.lines().collect();
         for line in lines {
-            if line.starts_with(&format!("#{fragment}")) || line.contains(&format!(" {fragment} ")) {
+            if line.starts_with(&format!("#{fragment}")) || line.contains(&format!(" {fragment} "))
+            {
                 return Status::Ok(StatusCode::OK);
             }
         }
@@ -527,7 +572,8 @@ impl WebsiteChecker {
         url: &Url,
         fragment: &str,
     ) -> Status {
-        self.fetch_github_contents_api(owner, repo, url, "README.md", fragment).await
+        self.fetch_github_contents_api(owner, repo, url, "README.md", fragment)
+            .await
     }
 
     /// Fetch directory README via GitHub REST API and check fragments.
@@ -538,7 +584,8 @@ impl WebsiteChecker {
         url: &Url,
         fragment: &str,
     ) -> Status {
-        self.fetch_github_contents_api(owner, repo, url, "README.md", fragment).await
+        self.fetch_github_contents_api(owner, repo, url, "README.md", fragment)
+            .await
     }
 
     /// Resolve an issue comment number via GitHub REST API.
@@ -550,12 +597,15 @@ impl WebsiteChecker {
         comment_id: &str,
     ) -> Status {
         let client = self.reqwest_client.clone();
-        let api_url = format!(
-            "https://api.github.com/repos/{owner}/{repo}/issues/comments/{comment_id}",
-        );
+        let api_url =
+            format!("https://api.github.com/repos/{owner}/{repo}/issues/comments/{comment_id}",);
 
         let request = self.with_github_auth(client.get(&api_url));
-        let Ok(response) = request.header("Accept", "application/vnd.github.v3+json").send().await else {
+        let Ok(response) = request
+            .header("Accept", "application/vnd.github.v3+json")
+            .send()
+            .await
+        else {
             return Status::Error(ErrorKind::InvalidFragment(url.clone().into()));
         };
 
@@ -575,12 +625,15 @@ impl WebsiteChecker {
         comment_id: &str,
     ) -> Status {
         let client = self.reqwest_client.clone();
-        let api_url = format!(
-            "https://api.github.com/repos/{owner}/{repo}/pulls/comments/{comment_id}",
-        );
+        let api_url =
+            format!("https://api.github.com/repos/{owner}/{repo}/pulls/comments/{comment_id}",);
 
         let request = self.with_github_auth(client.get(&api_url));
-        let Ok(response) = request.header("Accept", "application/vnd.github.v3+json").send().await else {
+        let Ok(response) = request
+            .header("Accept", "application/vnd.github.v3+json")
+            .send()
+            .await
+        else {
             return Status::Error(ErrorKind::InvalidFragment(url.clone().into()));
         };
 
@@ -605,7 +658,11 @@ impl WebsiteChecker {
         );
 
         let request = self.with_github_auth(client.get(&api_url));
-        let Ok(response) = request.header("Accept", "application/vnd.github.v3+json").send().await else {
+        let Ok(response) = request
+            .header("Accept", "application/vnd.github.v3+json")
+            .send()
+            .await
+        else {
             return Status::Error(ErrorKind::InvalidFragment(url.clone().into()));
         };
 
@@ -659,10 +716,17 @@ mod tests {
     /// This prevents a regression of <https://github.com/lycheeverse/lychee/issues/2024>
     #[tokio::test]
     async fn test_github_client_integration() {
-        let client = Octocrab::builder().personal_token("dummy").build().expect("Failed to build octocrab client");
-        let uri =
-            GithubUri::try_from(Uri::try_from("https://github.com/lycheeverse/lychee/blob/main/nonexistent_file_xyz.md").expect("Invalid test URI"))
-                .expect("Failed to parse GitHub URI");
+        let client = Octocrab::builder()
+            .personal_token("dummy")
+            .build()
+            .expect("Failed to build octocrab client");
+        let uri = GithubUri::try_from(
+            Uri::try_from(
+                "https://github.com/lycheeverse/lychee/blob/main/nonexistent_file_xyz.md",
+            )
+            .expect("Invalid test URI"),
+        )
+        .expect("Failed to parse GitHub URI");
 
         let status = get_checker(client).check_github(uri).await;
 

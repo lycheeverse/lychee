@@ -703,7 +703,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_github_nonexistent_repo() {
-        let res = get_mock_client_response!("https://github.com/lycheeverse/not-lychee/blob/main/nonexistent_file_xyz.md").await;
+        let res = get_mock_client_response!(
+            "https://github.com/lycheeverse/not-lychee/blob/main/nonexistent_file_xyz.md"
+        )
+        .await;
         assert!(res.status().is_error());
     }
 
