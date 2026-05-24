@@ -331,6 +331,7 @@ impl WebsiteChecker {
     }
 
     /// Handle standard GitHub URL patterns (README fragments, directory READMEs, comments) via the REST API.
+    #[allow(clippy::too_many_lines)]
     async fn handle_github_patterns(&self, uri: &GithubUri) -> Option<Status> {
         let full_url = uri.build_full_url();
 
