@@ -3,17 +3,35 @@ use crate::{
     utils::url,
 };
 
+/// Fullwidth and CJK punctuation that delimits a URL in prose but is not part
+/// of the URL itself. The underlying link finder treats these as URL
+/// characters, so an extracted link is truncated at the first occurrence.
+const DELIMITER_PUNCTUATION: &[char] = &[
+    '\u{3001}', // ideographic comma `、`
+    '\u{3002}', // ideographic full stop `。`
+    '\u{FF0C}', // fullwidth comma `，`
+    '\u{FF0E}', // fullwidth full stop `．`
+    '\u{FF01}', // fullwidth exclamation mark `！`
+    '\u{FF1F}', // fullwidth question mark `？`
+    '\u{FF1B}', // fullwidth semicolon `；`
+    '\u{FF1A}', // fullwidth colon `：`
+];
+
 /// Extract unparsed URL strings from plaintext
 pub(crate) fn extract_raw_uri_from_plaintext(
     input: &str,
     span_provider: &impl SpanProvider,
 ) -> Vec<RawUri> {
     url::find_links(input)
-        .map(|uri| RawUri {
-            text: uri.as_str().to_owned(),
-            element: None,
-            attribute: None,
-            span: span_provider.span(uri.start()),
+        .map(|uri| {
+            let text = uri.as_str();
+            let end = text.find(DELIMITER_PUNCTUATION).unwrap_or(text.len());
+            RawUri {
+                text: text[..end].to_owned(),
+                element: None,
+                attribute: None,
+                span: span_provider.span(uri.start()),
+            }
         })
         .collect()
 }
@@ -48,5 +66,24 @@ mod tests {
 
         let uris: Vec<RawUri> = extract(input);
         assert_eq!(vec![uri], uris);
+    }
+
+    #[test]
+    fn test_fullwidth_punctuation_delimits_link() {
+        // The link finder treats fullwidth/CJK delimiters as URL characters, so
+        // a link must be truncated at the first `，`, `。` or `、`.
+        let cases = [
+            ("see https://example.com\u{FF0C}next", 5),
+            ("a https://example.com\u{3002} b", 3),
+            ("x https://example.com\u{3001}y", 3),
+        ];
+        for (input, column) in cases {
+            let links: Vec<RawUri> = extract(input);
+            assert_eq!(
+                links,
+                [RawUri::from(("https://example.com", span(1, column)))],
+                "input={input:?}"
+            );
+        }
     }
 }
