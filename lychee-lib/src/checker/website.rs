@@ -602,7 +602,7 @@ impl WebsiteChecker {
     ) -> Status {
         let client = self.reqwest_client.clone();
         let api_url =
-            format!("https://api.github.com/repos/{owner}/{repo}/issues/comments/{comment_id}",);
+            format!("https://api.github.com/repos/{owner}/{repo}/issues/comments/{comment_id}");
 
         let request = self.with_github_auth(client.get(&api_url));
         let Ok(response) = request
@@ -630,7 +630,7 @@ impl WebsiteChecker {
     ) -> Status {
         let client = self.reqwest_client.clone();
         let api_url =
-            format!("https://api.github.com/repos/{owner}/{repo}/pulls/comments/{comment_id}",);
+            format!("https://api.github.com/repos/{owner}/{repo}/pulls/comments/{comment_id}");
 
         let request = self.with_github_auth(client.get(&api_url));
         let Ok(response) = request
