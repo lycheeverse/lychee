@@ -313,6 +313,12 @@ impl WebsiteChecker {
             return status;
         }
 
+        // If the fragment checker already determined the fragment is invalid,
+        // trust that result — don't override it with a generic repo-exists check.
+        if matches!(status, Status::Error(ErrorKind::InvalidFragment(_))) {
+            return status;
+        }
+
         if let Ok(github_uri) = GithubUri::try_from(uri) {
             let status = self.check_github(github_uri).await;
             if status.is_success() {
@@ -470,9 +476,6 @@ impl WebsiteChecker {
         }
 
         // Fallback: existing repo-lookup flow
-        if uri.endpoint.is_none() {
-            return Status::Ok(StatusCode::OK);
-        }
         let Some(client) = &self.github_client else {
             return ErrorKind::MissingGitHubToken.into();
         };
