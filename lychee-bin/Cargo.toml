@@ -35,9 +35,9 @@ humantime = "2.3.0"
 humantime-serde = "1.1.1"
 numeric-sort = "0.1.5"
 indicatif = "0.18.4"
-log = "0.4.28"
+log = "0.4.30"
 regex = "1.12.2"
-reqwest = "0.13.3"
+reqwest = "0.13.4"
 reqwest_cookie_store = { version = "0.10.0", features = ["serde"] }
 rlimit = "0.11.0"
 # Make build work on Apple Silicon.
@@ -47,7 +47,7 @@ rlimit = "0.11.0"
 ring = "0.17.14"
 secrecy = { version = "0.10.3", features = ["serde"] }
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
+serde_json = "1.0.150"
 strum = { version = "0.28.0", features = ["derive"] }
 supports-color = "3.0.2"
 tabled = "0.20.0"
