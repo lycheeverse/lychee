@@ -1210,12 +1210,10 @@ mod cli {
 
         let regex = test_utils::arg_regex_help!()?;
         let excluded = [
-            "base",         // deprecated
-            "exclude_file", // deprecated
-            "config",       // not part of config
-            "quiet",        // not part of config
-            "help",         // special clap argument
-            "version",      // special clap argument
+            "config",  // not part of config
+            "quiet",   // not part of config
+            "help",    // special clap argument
+            "version", // special clap argument
         ];
 
         let arguments: Vec<String> = help_text
@@ -1301,25 +1299,6 @@ The config file should contain every possible key for documentation purposes."
         let output = cmd.get_output();
         let output = std::str::from_utf8(&output.stdout).unwrap();
         assert_eq!(output.lines().count(), 3);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_lycheeignore_and_exclude_file() -> Result<()> {
-        let test_path = fixtures_path!().join("lycheeignore");
-        let excludes_path = test_path.join("normal-exclude-file");
-
-        cargo_bin_cmd!()
-            .current_dir(test_path)
-            .arg("--insecure")
-            .arg("TEST.md")
-            .arg("--exclude-file")
-            .arg(excludes_path)
-            .assert()
-            .success()
-            .stdout(contains("8 Total"))
-            .stdout(contains("6 Excluded"));
 
         Ok(())
     }
