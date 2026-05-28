@@ -226,8 +226,8 @@ the options you can use to customise lychee.
 | **HTTP features**     |                         |               |          |                       |              |                      |                       |        |
 | Custom user agent     | [![yes]<sup>*</sup>][2] | ![no]         | ![no]    | ![yes]                | ![no]        | ![yes]               | ![no]                 | ![no]  |
 | Basic Auth            | [![yes]<sup>*</sup>][1] | ![no]         | ![no]    | ![yes]                | ![no]        | ![yes]               | ![no]                 | ![no]  |
-| [Filter status code]  | ![yes]                  | ![yes]        | ![no]    | ![no]                 | ![no]        | ![no]                | ![yes]                | ![no]  |
-| [Custom headers]      | [![yes]<sup>*</sup>][4] | ![no]         | ![yes]   | ![no]                 | ![no]        | ![no]                | ![yes]                | ![yes] |
+| Filter status code    | [![yes]<sup>*</sup>][8] | ![yes]        | ![no]    | ![no]                 | ![no]        | ![no]                | ![yes]                | ![no]  |
+| Custom headers        | [![yes]<sup>*</sup>][4] | ![no]         | ![yes]   | ![no]                 | ![no]        | ![no]                | ![yes]                | ![yes] |
 | Custom timeout        | ![yes]                  | ![yes]        | ![yes]   | ![no]                 | ![yes]       | ![yes]               | ![no]                 | ![yes] |
 | `HEAD` requests       | [![yes]<sup>*</sup>][5] | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![yes]               | ![no]                 | ![no]  |
 | Handle redirects      | ![yes]                  | ![yes]        | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
@@ -258,19 +258,18 @@ the options you can use to customise lychee.
 [1]: https://lychee.cli.rs/guides/cli/#--basic-auth
 [2]: https://lychee.cli.rs/guides/cli/#-u---user-agent
 [3]: https://lychee.cli.rs/guides/cli/#--include-fragments
-[4]: https://lychee.cli.rs/guides/cli/#-h---header
+[4]: https://lychee.cli.rs/troubleshooting/custom-headers/
 [5]: https://lychee.cli.rs/guides/cli/#-x---method
 [6]: https://lychee.cli.rs/guides/cli/#--include-mail
 [7]: https://lychee.cli.rs/guides/cli/#-e---exclude-all-private
+[8]: https://lychee.cli.rs/troubleshooting/status-codes/
 
 [yes]: ./assets/yes.svg
 [no]: ./assets/no.svg
 [maybe]: ./assets/maybe.svg
 
-[custom headers]: https://github.com/rust-lang/crates.io/issues/788
-[filter status code]: https://github.com/tcort/markdown-link-check/issues/94
 [use as library]: https://docs.rs/lychee-lib/latest/lychee_lib/
-[config file]: https://github.com/lycheeverse/lychee/blob/master/lychee.example.toml
+[config file]: https://lychee.cli.rs/guides/config/
 [URL anchor fragments]: https://developer.mozilla.org/en-US/docs/Web/URI/Reference/Fragment
 [URL text fragments]: https://developer.mozilla.org/en-US/docs/Web/URI/Reference/Fragment/Text_fragments
 
