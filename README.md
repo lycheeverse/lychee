@@ -215,7 +215,7 @@ the options you can use to customise lychee.
 | Colored output        | ![yes]                  | ![maybe]      | ![yes]   | ![maybe]              | ![yes]       | ![yes]               | ![no]                 | ![yes] |
 | Summary               | ![yes]                  | ![yes]        | ![yes]   | ![maybe]              | ![yes]       | ![yes]               | ![no]                 | ![yes] |
 | Quiet mode            | ![yes]                  | ![no]         | ![no]    | ![no]                 | ![yes]       | ![yes]               | ![yes]                | ![yes] |
-| JSON output           | ![yes]                  | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![maybe]<sup>1</sup> | ![yes]                | ![yes] |
+| JSON output           | ![yes]                  | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![maybe]<sup>(supports CSV)</sup> | ![yes]   | ![yes] |
 | [Config file]         | ![yes]                  | ![no]         | ![no]    | ![no]                 | ![yes]       | ![yes]               | ![yes]                | ![no]  |
 | [Use as library]      | ![yes]                  | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![no]                | ![yes]                | ![no]  |
 | **Selecting links**   |                         |               |          |                       |              |                      |                       |        |
@@ -274,7 +274,6 @@ the options you can use to customise lychee.
 [URL text fragments]: https://developer.mozilla.org/en-US/docs/Web/URI/Reference/Fragment/Text_fragments
 
 <sup>*</sup> May need configuration. Click the ![yes] icon for more information.
-<sup>1</sup> Other machine-readable formats like CSV are supported.
 
 ## Commandline usage
 
