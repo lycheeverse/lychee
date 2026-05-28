@@ -230,10 +230,7 @@ async fn request_channel_task(
             )
             .await;
 
-            send_resp
-                .send((guard, response))
-                .await
-                .expect("cannot send response to queue");
+            send_resp.send((guard, response)).await.unwrap_or_default();
         },
     )
     .await;
