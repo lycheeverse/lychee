@@ -269,8 +269,7 @@ the options you can use to customise lychee.
 
 [custom headers]: https://github.com/rust-lang/crates.io/issues/788
 [filter status code]: https://github.com/tcort/markdown-link-check/issues/94
-[skip private domains]: https://github.com/appscodelabs/liche/blob/a5102b0bf90203b467a4f3b4597d22cd83d94f99/url_checker.go
-[use as library]: https://github.com/raviqqe/liche/issues/13
+[use as library]: https://docs.rs/lychee-lib/latest/lychee_lib/
 [config file]: https://github.com/lycheeverse/lychee/blob/master/lychee.example.toml
 [URL anchor fragments]: https://developer.mozilla.org/en-US/docs/Web/URI/Reference/Fragment
 [URL text fragments]: https://developer.mozilla.org/en-US/docs/Web/URI/Reference/Fragment/Text_fragments
