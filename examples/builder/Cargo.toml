@@ -12,7 +12,7 @@ lychee-lib = { path = "../../lychee-lib", default-features = false }
 tokio = { version = "1.52.3", features = ["full"] }
 regex = "1.12.2"
 http = "1.4.0"
-reqwest = "0.13.3"
+reqwest = "0.13.4"
 
 [features]
 email-check = ["lychee-lib/email-check"]
