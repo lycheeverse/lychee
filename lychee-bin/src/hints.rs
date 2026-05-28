@@ -123,7 +123,7 @@ fn root_relative_links(stats: &ResponseStats) {
         hint!(
             "Unresolved root-relative links in local files. \
             To resolve these links to a local directory, provide a root dir with `--root-dir`. \
-            Alternatively, if the site should be relocatable, consider using locally-relative links."
+            Alternatively, if the site should be relocatable, consider using directory-relative links instead."
         );
     }
 }
