@@ -10,7 +10,7 @@ pub(crate) fn handle_stats(stats: &ResponseStats, config: &Config) {
     any_redirects(stats, config);
     rejected_status_codes(stats, config);
     unfollowed_redirects(stats, config);
-    root_relative_links(stats, config);
+    root_relative_links(stats);
 }
 
 fn rate_limit(stats: &ResponseStats, config: &Config) {
@@ -111,7 +111,7 @@ fn unfollowed_redirects(stats: &ResponseStats, config: &Config) {
     }
 }
 
-fn root_relative_links(stats: &ResponseStats, _config: &Config) {
+fn root_relative_links(stats: &ResponseStats) {
     let any_root_relative_links = stats.error_map.values().flatten().any(|r| match &r.status {
         Status::RequestError(RequestError::CreateRequestItem(_, _, e)) => {
             matches!(**e, ErrorKind::RootRelativeLinkWithoutRoot(_))
