@@ -23,19 +23,18 @@ use regex::Regex;
 static REGEX_TO_REMOVE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"[^\w -]").expect("fragment regex failed"));
 
-/// Converts the given header text into a hyphen-separated fragment ID, mimicking
-/// the algorithm used by GitHub. However, does not guarantee that the returned
-/// IDs are unique between calls. For most uses, [`GithubHeadingIdGenerator`]
-/// should be used instead.
-pub fn generate_without_disambiguation(text: &str) -> String {
-    // Rust's to_lowercase handles the special cases as in
-    // <https://www.unicode.org/Public/3.2-Update/SpecialCasing-3.2.0.txt>,
-    // but GitHub's algorithm does not, presumably because it is implemented
-    // in Ruby: https://ruby-doc.org/3.4.1/case_mapping_rdoc.html#label-Default+Case+Mapping
-    REGEX_TO_REMOVE
-        .split(text)
-        .flat_map(str::chars)
+/// Lowercase the given string while exactly matching Github's algorithm for
+/// lowercasing fragment identifiers.
+///
+/// Github's lowercase algorithm does not handle special case rules (as
+/// described in <https://www.unicode.org/Public/3.2-Update/SpecialCasing-3.2.0.txt>),
+/// but Rust's `to_lowercase` *does* implement these rules. This function
+/// needs to compensate for this difference.
+fn github_lowercase(chars: impl Iterator<Item = char>) -> String {
+    chars
         .map(|c| {
+            // Manually lowercase certain characters to avoid Rust's handling
+            // of special case rules.
             match c {
                 ' ' => '-',
                 '\u{0130}' => 'i', // U+0130 LATIN CAPITAL LETTER I WITH DOT ABOVE
@@ -45,6 +44,14 @@ pub fn generate_without_disambiguation(text: &str) -> String {
         })
         .collect::<String>()
         .to_lowercase()
+}
+
+/// Converts the given header text into a hyphen-separated fragment ID, mimicking
+/// the algorithm used by GitHub. However, does not guarantee that the returned
+/// IDs are unique between calls. For most uses, [`GithubHeadingIdGenerator`]
+/// should be used instead.
+pub fn generate_without_disambiguation(text: &str) -> String {
+    github_lowercase(REGEX_TO_REMOVE.split(text).flat_map(str::chars))
 }
 
 /// A stateful type for generating fragment identifiers in the style
