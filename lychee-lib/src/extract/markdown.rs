@@ -272,10 +272,11 @@ fn raw_uri(dest_url: &CowStr<'_>, span: RawUriSpan) -> Vec<RawUri> {
 /// Extract fragments/anchors from a Markdown string.
 ///
 /// Fragments are generated from headings using the same unique kebab case method as GitHub.
-/// If a [heading attribute](https://github.com/raphlinus/pulldown-cmark/blob/master/specs/heading_attrs.txt)
-/// is present,
-/// this will be added to the fragment set **alongside** the other generated fragment.
-/// It means a single heading such as `## Frag 1 {#frag-2}` would generate two fragments.
+/// If a [heading attribute][] is present, this will be added to the fragment set
+/// **alongside** the other generated fragment. It means a single heading such as
+/// `## Frag 1 {#frag-2}` would generate two fragments.
+///
+/// [heading attribute]: https://github.com/pulldown-cmark/pulldown-cmark/blob/94e7011a22a235e3abc5c5d6f3615192a6b1e42b/pulldown-cmark/specs/heading_attrs.txt
 pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
     let mut in_heading = false;
     let mut heading_text = String::new();
