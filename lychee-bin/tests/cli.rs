@@ -4031,8 +4031,8 @@ file:///TMP/a/b/c/ROOT/server/1/up-one.html
             .failure()
             .stdout(contains("Cannot resolve root-relative link '/a'"))
             .stderr(contains(
-                "To resolve these links to a local directory, provide a root dir. \
-                Alternatively, if the site should be relocatable, consider using locally-relative links."
+                "To resolve these links to a local directory, provide a root dir with `--root-dir`. \
+                Alternatively, if the site should be relocatable, consider using directory-relative links instead."
             ));
 
         // with root-dir, locally-relative links can still fail because
