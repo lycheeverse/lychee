@@ -893,6 +893,15 @@ Rust](https://hello-rust.github.io/10/). Thanks to all GitHub and Patreon sponso
 for supporting the development since the beginning. Also, thanks to all the
 great contributors who have since made this project more mature.
 
+<a href="https://nlnet.nl/project/lychee/">
+  <img src="/assets/nlnet.svg" alt="NLnet logo" width="100" height="75" />
+</a>
+
+lychee received financial support through the [NGI0 Core Fund](https://nlnet.nl/core),
+established by NLnet with financial support from the European Commission's
+[Next Generation Internet](https://ngi.eu) programme.
+NLnet is supporting the open internet since 1997.
+
 ## License
 
 lychee is licensed under either of
