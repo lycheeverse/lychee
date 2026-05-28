@@ -11,5 +11,5 @@ excluder = "excluder"
 [default]
 extend-ignore-re = [
   # Ignore the line after `// spellchecker:ignore-next-line`:
-  "(#|//)\\s*spellchecker\\s*:\\s*ignore-next-line\\n.*",
+  "(#|//|///|//!)\\s*spellchecker:ignore-next-line\\n.*",
 ]
