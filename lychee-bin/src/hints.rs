@@ -1,5 +1,5 @@
 use http::StatusCode;
-use lychee_lib::{ErrorKind, Status, StatusCodeSelector, hint};
+use lychee_lib::{ErrorKind, RequestError, Status, StatusCodeSelector, hint};
 
 use crate::{config::Config, formatters::stats::ResponseStats};
 
@@ -10,6 +10,7 @@ pub(crate) fn handle_stats(stats: &ResponseStats, config: &Config) {
     any_redirects(stats, config);
     rejected_status_codes(stats, config);
     unfollowed_redirects(stats, config);
+    root_relative_links(stats);
 }
 
 fn rate_limit(stats: &ResponseStats, config: &Config) {
@@ -106,6 +107,23 @@ fn unfollowed_redirects(stats: &ResponseStats, config: &Config) {
             "Rejected redirectional status codes. \
              This means some redirects were not followed. \
              You might want to increase the limit for `-m`/`--max-redirects`."
+        );
+    }
+}
+
+fn root_relative_links(stats: &ResponseStats) {
+    let any_root_relative_links = stats.error_map.values().flatten().any(|r| match &r.status {
+        Status::RequestError(RequestError::CreateRequestItem(_, _, e)) => {
+            matches!(**e, ErrorKind::RootRelativeLinkWithoutRoot(_))
+        }
+        _ => false,
+    });
+
+    if any_root_relative_links {
+        hint!(
+            "Unresolved root-relative links in local files. \
+            To resolve these links to a local directory, provide a root dir with `--root-dir`. \
+            Alternatively, if the site should be relocatable, consider using directory-relative links instead."
         );
     }
 }

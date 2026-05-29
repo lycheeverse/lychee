@@ -242,9 +242,6 @@ impl ErrorKind {
 
                 format!("{self}{detail}")
             }
-            ErrorKind::RootRelativeLinkWithoutRoot(_) => {
-                format!("{self}: To resolve root-relative links in local files, provide a root dir")
-            }
             ErrorKind::BuildRequestClient(_) => {
                 format!("{self}: Check system configuration")
             }
@@ -318,6 +315,7 @@ impl ErrorKind {
             | ErrorKind::WikilinkNotFound(_, _)
             | ErrorKind::EmptyUrl
             | ErrorKind::InvalidUrlHost
+            | ErrorKind::RootRelativeLinkWithoutRoot(_)
             | ErrorKind::PreprocessorError {
                 command: _,
                 reason: _,
