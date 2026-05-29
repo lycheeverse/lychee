@@ -1,6 +1,7 @@
 use crate::{
     ratelimit::{CacheableResponse, headers},
     retry::RetryExt,
+    utils::anti_bot,
 };
 use dashmap::DashMap;
 use governor::{
@@ -190,6 +191,7 @@ impl Host {
         self.update_stats(response.status(), start_time.elapsed());
         self.update_backoff(response.status());
         self.handle_rate_limit_headers(&response);
+        anti_bot::hint_bot_detection(&uri, &response);
 
         let response = CacheableResponse::from_response(response, needs_body).await?;
         self.cache_result(&uri, response.clone());

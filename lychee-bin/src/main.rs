@@ -336,7 +336,10 @@ fn run_main() -> Result<i32> {
         Err(e) if Some(ErrorKind::BrokenPipe) == underlying_io_error_kind(&e) => {
             exit(ExitCode::Success as i32);
         }
-        res => res,
+        res => {
+            output_hints(&opts.config); // show hints independently of result
+            res
+        }
     }
 }
 
@@ -465,8 +468,6 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
             info!("Saving cookie jar");
             cookie_jar.save().context("Cannot save cookie jar")?;
         }
-
-        output_hints(&opts.config);
 
         exit_code
     };
