@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.24.2...lychee-lib-v0.25.0) - 2026-05-29
+
+### Other
+
+- tweaks features table in readme ([#2171](https://github.com/lycheeverse/lychee/pull/2171))
+- Use hints for root-relative links error ([#2197](https://github.com/lycheeverse/lychee/pull/2197))
+- Merge pull request #2207 from lycheeverse/dependabot/cargo/dependencies-db312993ac
+- Credit NLnet ([#2200](https://github.com/lycheeverse/lychee/pull/2200))
+- Don't unwrap events
+- Extract methods & better error handling
+- *(deps)* bump the dependencies group across 1 directory with 7 updates
+- move basic auth credentials out of Request  ([#2164](https://github.com/lycheeverse/lychee/pull/2164))
+- *(deps)* bump the dependencies group with 2 updates
+- Update changelogs for v0.24.2 ([#2180](https://github.com/lycheeverse/lychee/pull/2180))
+
 ## [0.24.2](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.24.1...lychee-lib-v0.24.2) - 2026-04-30
 
 ### Added
