@@ -1,0 +1,11 @@
+---
+title: Sample
+---
+
+Real link: <https://example.com>.
+
+```{.bash}
+curl -O https://cdn.posit.co/r/rhel-10/pkgs/R-${R_VERSION}-1-1.$(arch).rpm
+```
+
+Inline `https://inline.example.com/code` should also be excluded.
