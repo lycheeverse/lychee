@@ -3266,8 +3266,9 @@ dependencies = [
 
 [[package]]
 name = "rate-limits"
-version = "0.6.0"
-source = "git+https://github.com/mre/rate-limits?branch=parser#0e6b80ba2c40ac49abdfa612e473f7489c063ed3"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4d33a413912e8383bf8f74369109c7cf3c64e17adb5f24413a3621a8a04281cd"
 dependencies = [
  "bitflags",
  "displaydoc",

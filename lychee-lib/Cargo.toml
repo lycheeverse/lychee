@@ -13,7 +13,7 @@ version.workspace = true
 rust-version = "1.88.0"
 
 [dependencies]
-rate-limits = { git = "https://github.com/mre/rate-limits", branch = "parser" }
+rate-limits = "0.7.0"
 async-stream = "0.3.6"
 async-trait = "0.1.88"
 cookie_store = "0.22.1"

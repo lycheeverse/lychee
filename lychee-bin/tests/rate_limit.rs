@@ -14,42 +14,58 @@ const RATE_LIMIT_DELAY_SECONDS: u64 = 1;
 /// backoff of at least `RATE_LIMIT_DELAY_SECONDS`.
 const RATE_LIMIT_RESET_OFFSET_SECONDS: u64 = RATE_LIMIT_DELAY_SECONDS + 1;
 
-/// How far below the expected delay is still considered a passing result,
-/// accounting for timing imprecision in the test environment.
-///
-/// For tests that encode an *absolute* Unix timestamp (GitHub, GitLab), the
-/// measured server-side delay is `RATE_LIMIT_RESET_OFFSET_SECONDS` minus the
-/// time between `calculate_reset_time()` and lychee parsing the response
-/// headers. That includes process spawn, TLS setup, and the first HTTP
-/// round-trip, which can be well over 500ms on slow CI runners.
+/// How far the measured delay may deviate from the expected delay, in either
+/// direction, and still be considered a passing result. This absorbs scheduling
+/// jitter, process spawn time, and the HTTP round-trip, which together can add
+/// up to several hundred milliseconds on slow CI runners.
 const TIMING_TOLERANCE: Duration = Duration::from_millis(1000);
 
-/// Maximum additional time beyond the expected delay before the test fails.
-/// Intentionally generous to handle slow CI environments while still catching
-/// runaway delays (e.g. the 60-second `MAXIMUM_BACKOFF` cap being mistakenly applied).
-const MAX_OVERHEAD: Duration = Duration::from_secs(5);
+/// How the rate-limit reset point is encoded in the response headers.
+enum Reset {
+    /// An absolute Unix timestamp (GitHub, GitLab). lychee computes the wait as
+    /// `reset - now`, so the effective delay shrinks as time passes between
+    /// sending the headers and lychee parsing them.
+    ///
+    /// We carry the whole-second-truncated `SystemTime` (exactly what the header
+    /// encodes) so the expected delay can be derived from the moment the first
+    /// request actually reaches the server. This avoids flakiness from both
+    /// Unix-second truncation and process-spawn jitter.
+    Absolute(SystemTime),
+    /// A relative number of seconds until the window resets (IETF draft,
+    /// `Retry-After`). lychee waits exactly this long after parsing the headers.
+    Relative(Duration),
+}
 
-/// Calculates an absolute Unix epoch timestamp `RATE_LIMIT_RESET_OFFSET_SECONDS` from now.
-fn calculate_reset_time() -> String {
-    (SystemTime::now()
+/// An absolute reset `SystemTime`, `RATE_LIMIT_RESET_OFFSET_SECONDS` from now,
+/// truncated to whole seconds to match what a Unix-timestamp header encodes.
+fn absolute_reset_time() -> SystemTime {
+    let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs()
-        + RATE_LIMIT_RESET_OFFSET_SECONDS)
+        + RATE_LIMIT_RESET_OFFSET_SECONDS;
+    UNIX_EPOCH + Duration::from_secs(secs)
+}
+
+/// Formats a `SystemTime` as a whole-second Unix timestamp string.
+fn unix_timestamp(time: SystemTime) -> String {
+    time.duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
         .to_string()
 }
 
 /// Sets up a mock server with two paths, runs lychee sequentially over both,
 /// and asserts that the time between the two server-side request arrivals falls
-/// within `[expected_delay - TIMING_TOLERANCE, expected_delay + MAX_OVERHEAD]`.
+/// within `[expected_delay - TIMING_TOLERANCE, expected_delay + TIMING_TOLERANCE]`.
 ///
-/// Pass `Duration::from_secs(RATE_LIMIT_RESET_OFFSET_SECONDS)` for headers that
-/// encode an *absolute* Unix timestamp (GitHub, GitLab), and
-/// `Duration::from_secs(RATE_LIMIT_DELAY_SECONDS)` for headers that encode a
-/// *relative* delay in seconds (IETF draft, `Retry-After`).
-async fn run_rate_limit_test(headers: &[(&str, &str)], expected_delay: Duration) {
+/// For [`Reset::Absolute`] headers the expected delay is derived from the time
+/// the first request reaches the server, so it reflects the wait lychee actually
+/// computes (`reset - now`). For [`Reset::Relative`] headers it is the encoded
+/// delay directly.
+async fn run_rate_limit_test(headers: &[(&str, &str)], reset: Reset) {
     let mock_server = MockServer::start().await;
-    let request_times = Arc::new(Mutex::new(Vec::<Instant>::new()));
+    let request_times = Arc::new(Mutex::new(Vec::<(Instant, SystemTime)>::new()));
 
     // We need at least two paths because rate limiting happens *between* requests.
     // The first request receives the rate-limit headers; the second is delayed.
@@ -65,7 +81,10 @@ async fn run_rate_limit_test(headers: &[(&str, &str)], expected_delay: Duration)
         Mock::given(method("GET"))
             .and(path(format!("/{path_str}")))
             .respond_with(move |_: &wiremock::Request| {
-                request_times.lock().unwrap().push(Instant::now());
+                request_times
+                    .lock()
+                    .unwrap()
+                    .push((Instant::now(), SystemTime::now()));
                 template.clone()
             })
             .expect(1)
@@ -86,7 +105,7 @@ async fn run_rate_limit_test(headers: &[(&str, &str)], expected_delay: Duration)
         .assert()
         .success();
 
-    let elapsed = {
+    let (elapsed, first_request_at) = {
         let times = request_times.lock().unwrap();
         assert_eq!(
             times.len(),
@@ -96,21 +115,31 @@ async fn run_rate_limit_test(headers: &[(&str, &str)], expected_delay: Duration)
             times.len()
         );
 
-        times
-            .last()
-            .unwrap()
-            .duration_since(*times.first().unwrap())
+        let (first_instant, first_system) = *times.first().unwrap();
+        let (last_instant, _) = *times.last().unwrap();
+        (last_instant.duration_since(first_instant), first_system)
+    };
+
+    // Derive the delay lychee was expected to apply. For absolute timestamps this
+    // depends on when the first request actually arrived at the server, which
+    // removes the Unix-second rounding and spawn-time jitter that would otherwise
+    // make the lower bound flaky.
+    let expected_delay = match reset {
+        Reset::Relative(delay) => delay,
+        Reset::Absolute(reset_at) => reset_at
+            .duration_since(first_request_at)
+            .unwrap_or(Duration::ZERO),
     };
 
     let expected_min = expected_delay.saturating_sub(TIMING_TOLERANCE);
-    let expected_max = expected_delay + MAX_OVERHEAD;
+    let expected_max = expected_delay.saturating_add(TIMING_TOLERANCE);
 
     assert!(
         elapsed >= expected_min,
         "Rate limit headers were not respected! Expected at least {expected_min:?}, but got {elapsed:?}"
     );
     assert!(
-        elapsed < expected_max,
+        elapsed <= expected_max,
         "Rate limit wait was unexpectedly long! Expected at most {expected_max:?}, but got {elapsed:?}"
     );
 
@@ -119,26 +148,25 @@ async fn run_rate_limit_test(headers: &[(&str, &str)], expected_delay: Duration)
 
 #[tokio::test]
 async fn test_github_rate_limit_exhausted() {
-    let reset_time = calculate_reset_time();
+    let reset_time = absolute_reset_time();
+    let reset_header = unix_timestamp(reset_time);
 
     run_rate_limit_test(
         &[
             ("x-ratelimit-limit", "100"),
             ("x-ratelimit-remaining", "0"),
             // Absolute Unix timestamp; lychee computes `reset - now` as the wait duration.
-            ("x-ratelimit-reset", &reset_time),
+            ("x-ratelimit-reset", &reset_header),
         ],
-        // The wait is approximately RATE_LIMIT_RESET_OFFSET_SECONDS minus the small
-        // amount of time that elapses between calculating reset_time and lychee
-        // parsing the response headers.
-        Duration::from_secs(RATE_LIMIT_RESET_OFFSET_SECONDS),
+        Reset::Absolute(reset_time),
     )
     .await;
 }
 
 #[tokio::test]
 async fn test_gitlab_rate_limit_exhausted() {
-    let reset_time = calculate_reset_time();
+    let reset_time = absolute_reset_time();
+    let reset_header = unix_timestamp(reset_time);
 
     run_rate_limit_test(
         &[
@@ -146,15 +174,14 @@ async fn test_gitlab_rate_limit_exhausted() {
             ("RateLimit-Remaining", "0"),
             // Absolute Unix timestamp — same header name as the IETF draft, but
             // different semantics (see `test_ietf_draft_exhausted` below).
-            ("RateLimit-Reset", &reset_time),
+            ("RateLimit-Reset", &reset_header),
             // `RateLimit-Observed` is a GitLab-specific header. Its presence tells
             // the `rate-limits` crate to interpret `RateLimit-Reset` as an absolute
             // Unix timestamp rather than as a relative second count (IETF draft).
             // Without it the two header sets would be ambiguous.
             ("RateLimit-Observed", "100"),
         ],
-        // Same reasoning as the GitHub test: wait ≈ RATE_LIMIT_RESET_OFFSET_SECONDS.
-        Duration::from_secs(RATE_LIMIT_RESET_OFFSET_SECONDS),
+        Reset::Absolute(reset_time),
     )
     .await;
 }
@@ -172,7 +199,7 @@ async fn test_ietf_draft_exhausted() {
             // timestamp, distinguished by the presence of `RateLimit-Observed`.
             ("RateLimit-Reset", &delay_str),
         ],
-        Duration::from_secs(RATE_LIMIT_DELAY_SECONDS),
+        Reset::Relative(Duration::from_secs(RATE_LIMIT_DELAY_SECONDS)),
     )
     .await;
 }
@@ -232,14 +259,14 @@ async fn test_retry_rate_limit_headers() {
     let elapsed = second.duration_since(first);
 
     let expected_min = RETRY_DELAY.saturating_sub(TIMING_TOLERANCE);
-    let expected_max = RETRY_DELAY + MAX_OVERHEAD;
+    let expected_max = RETRY_DELAY.saturating_add(TIMING_TOLERANCE);
 
     assert!(
         elapsed >= expected_min,
         "Retry-After was not respected: expected at least {expected_min:?}, got {elapsed:?}"
     );
     assert!(
-        elapsed < expected_max,
+        elapsed <= expected_max,
         "Retry wait was unexpectedly long: expected at most {expected_max:?}, got {elapsed:?}"
     );
 }
@@ -317,14 +344,14 @@ async fn test_retry_after_seconds() {
 
     let expected_delay = Duration::from_secs(RATE_LIMIT_DELAY_SECONDS);
     let expected_min = expected_delay.saturating_sub(TIMING_TOLERANCE);
-    let expected_max = expected_delay + MAX_OVERHEAD;
+    let expected_max = expected_delay.saturating_add(TIMING_TOLERANCE);
 
     assert!(
         elapsed >= expected_min,
         "Retry-After backoff not respected: expected at least {expected_min:?}, got {elapsed:?}"
     );
     assert!(
-        elapsed < expected_max,
+        elapsed <= expected_max,
         "Retry-After backoff was too long: expected at most {expected_max:?}, got {elapsed:?}"
     );
 
