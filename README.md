@@ -31,7 +31,6 @@ Available as command-line utility,
 - [Commandline usage](#commandline-usage)
 - [Supported file formats](#supported-file-formats)
 - [Library usage](#library-usage)
-- [GitHub Action Usage](#github-action-usage)
 - [Pre-commit Usage](#pre-commit-usage)
 - [Contributing to lychee](#contributing-to-lychee)
 - [Troubleshooting and Workarounds](#troubleshooting-and-workarounds)
