@@ -387,21 +387,47 @@ impl Handler<Request, Status> for WebsiteChecker {
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, time::Duration};
+    use std::{str::FromStr, sync::Arc, time::Duration};
 
-    use http::Method;
+    use http::{Method, StatusCode};
     use octocrab::Octocrab;
+    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method as method_matcher};
 
     use crate::{
         BasicAuthExtractor, FragmentCheckerOptions, Uri,
         chain::RequestChain,
         checker::website::WebsiteChecker,
-        ratelimit::HostPool,
+        ratelimit::{HostConfigs, HostPool, RateLimitConfig},
         types::{
-            DEFAULT_ACCEPTED_STATUS_CODES, redirect_history::RedirectHistory,
+            DEFAULT_ACCEPTED_STATUS_CODES, Methods, redirect_history::RedirectHistory,
             uri::github::GithubUri,
         },
     };
+
+    /// Build a checker for the given methods, routing requests through a
+    /// `HostPool` that uses the supplied `reqwest::Client` (so tests can control
+    /// e.g. the request timeout).
+    fn checker_with(methods: Methods, client: reqwest::Client) -> WebsiteChecker {
+        let host_pool = HostPool::new(
+            RateLimitConfig::default(),
+            HostConfigs::default(),
+            client,
+            std::collections::HashMap::new(),
+        );
+        WebsiteChecker::new(
+            methods,
+            Duration::ZERO,
+            RedirectHistory::new(),
+            0,
+            DEFAULT_ACCEPTED_STATUS_CODES.clone(),
+            None,
+            false,
+            RequestChain::default(),
+            FragmentCheckerOptions::default(),
+            Arc::new(host_pool),
+            BasicAuthExtractor::empty(),
+        )
+    }
 
     /// Test GitHub client integration.
     /// This prevents a regression of <https://github.com/lycheeverse/lychee/issues/2024>
@@ -417,6 +443,66 @@ mod tests {
         // Because of the invalid authentication token the request failed.
         // But we proved how we could build a client and perform a request.
         assert!(status.is_error());
+    }
+
+    /// When every configured method fails, the status of the *last* method
+    /// attempted is returned (not the first).
+    #[tokio::test]
+    async fn test_fallback_returns_last_status_when_all_fail() {
+        let server = MockServer::start().await;
+        Mock::given(method_matcher("HEAD"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        Mock::given(method_matcher("GET"))
+            .respond_with(ResponseTemplate::new(403))
+            .mount(&server)
+            .await;
+
+        let methods = Methods::from_str("head,get").unwrap();
+        let checker = checker_with(methods, reqwest::Client::new());
+        let uri = Uri::try_from(server.uri().as_str()).unwrap();
+
+        let (status, _) = checker.check_website(&uri).await;
+
+        assert!(status.is_error());
+        // 403 is GET's response: the loop fell back from HEAD and kept GET's
+        // status as the final result.
+        assert_eq!(status.code(), Some(StatusCode::FORBIDDEN));
+    }
+
+    /// A timeout is method-independent, so the fallback loop stops immediately
+    /// instead of retrying with the next method (which would incur a second,
+    /// equally long timeout).
+    #[tokio::test]
+    async fn test_timeout_short_circuits_fallback() {
+        let server = MockServer::start().await;
+        // HEAD hangs long enough to trip the client timeout below.
+        Mock::given(method_matcher("HEAD"))
+            .respond_with(ResponseTemplate::new(200).set_delay(Duration::from_secs(30)))
+            .mount(&server)
+            .await;
+        // GET would succeed immediately, so if the loop fell through we'd see
+        // success rather than a timeout.
+        Mock::given(method_matcher("GET"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_millis(100))
+            .build()
+            .unwrap();
+        let methods = Methods::from_str("head,get").unwrap();
+        let checker = checker_with(methods, client);
+        let uri = Uri::try_from(server.uri().as_str()).unwrap();
+
+        let (status, _) = checker.check_website(&uri).await;
+
+        assert!(
+            status.is_timeout(),
+            "expected timeout to short-circuit fallback, got {status:?}"
+        );
     }
 
     fn get_checker(client: Octocrab) -> WebsiteChecker {

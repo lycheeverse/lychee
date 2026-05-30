@@ -849,6 +849,18 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_builder_with_multiple_methods() {
+        // The builder accepts a `Methods` with multiple HTTP methods (used for
+        // method fallback) and successfully creates a client.
+        let methods =
+            crate::Methods::try_from(vec![reqwest::Method::HEAD, reqwest::Method::GET]).unwrap();
+
+        let client = ClientBuilder::builder().methods(methods).build().client();
+
+        assert!(client.is_ok());
+    }
+
+    #[tokio::test]
     async fn test_require_https() {
         let client = ClientBuilder::builder().build().client().unwrap();
         let res = client.check("http://rust-lang.org/").await.unwrap();

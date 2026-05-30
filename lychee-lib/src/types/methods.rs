@@ -44,6 +44,11 @@ impl Methods {
     }
 
     /// Returns the first (primary) method.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the list is empty. This cannot happen, because `Methods` is
+    /// guaranteed to be non-empty by construction.
     #[must_use]
     pub fn first(&self) -> &Method {
         self.0.first().expect(
@@ -179,6 +184,47 @@ mod tests {
     }
 
     #[test]
+    fn test_try_from_non_empty_vec() {
+        let methods = Methods::try_from(vec![Method::HEAD, Method::GET]).unwrap();
+        assert_eq!(methods.first(), &Method::HEAD);
+        assert_eq!(
+            methods.iter().cloned().collect::<Vec<_>>(),
+            vec![Method::HEAD, Method::GET]
+        );
+    }
+
+    #[test]
+    fn test_trailing_comma_is_empty_error() {
+        // A trailing (or leading) comma produces an empty token, which is
+        // rejected rather than silently ignored.
+        assert_eq!(Methods::from_str("get,"), Err(MethodsError::Empty));
+        assert_eq!(Methods::from_str(",get"), Err(MethodsError::Empty));
+    }
+
+    #[test]
+    fn test_duplicate_methods_are_preserved() {
+        // We deliberately do not deduplicate: the caller's order and repetition
+        // are kept as-is.
+        let methods = Methods::from_str("get,get").unwrap();
+        assert_eq!(
+            methods.iter().cloned().collect::<Vec<_>>(),
+            vec![Method::GET, Method::GET]
+        );
+    }
+
+    #[test]
+    fn test_unknown_token_parses_as_extension_method() {
+        // `http::Method` accepts any syntactically valid token as a custom
+        // extension method, so typos like `gett` do NOT error. They are parsed
+        // verbatim (uppercased). This is a known footgun worth pinning down.
+        let methods = Methods::from_str("gett").unwrap();
+        assert_eq!(methods.first().as_str(), "GETT");
+
+        let methods = Methods::from_str("purge").unwrap();
+        assert_eq!(methods.first().as_str(), "PURGE");
+    }
+
+    #[test]
     fn test_from_single_method() {
         let methods = Methods::from(Method::HEAD);
         assert_eq!(methods.first(), &Method::HEAD);
@@ -198,6 +244,29 @@ mod tests {
 
         let config: Config = toml::from_str(input).unwrap();
         assert_eq!(config.method.iter().cloned().collect::<Vec<_>>(), expected);
+    }
+
+    #[test]
+    fn test_deserialize_invalid_method_in_string_is_error() {
+        #[derive(Deserialize)]
+        struct Config {
+            #[allow(dead_code)]
+            method: Methods,
+        }
+
+        // The space makes `ge t` an invalid HTTP token.
+        assert!(toml::from_str::<Config>(r#"method = "ge t""#).is_err());
+    }
+
+    #[test]
+    fn test_deserialize_invalid_method_in_seq_is_error() {
+        #[derive(Deserialize)]
+        struct Config {
+            #[allow(dead_code)]
+            method: Methods,
+        }
+
+        assert!(toml::from_str::<Config>(r#"method = ["ge t"]"#).is_err());
     }
 
     #[test]
