@@ -156,15 +156,13 @@ impl std::fmt::Display for FileType {
 }
 
 impl FileType {
-    /// All known Markdown extensions
-    // NOTE: Stored in reverse-popularity order because the `Iterator` impl for
-    // `FileExtensions` pops from the end
+    /// All known Markdown extensions, ordered by popularity
     const MARKDOWN_EXTENSIONS: &'static [&'static str] = &[
-        "mkdown", "mdown", "mdwn", "mkdn", "mkd", "rmd", "qmd", "mdx", "markdown", "md",
+        "md", "markdown", "mdx", "qmd", "rmd", "mkd", "mkdn", "mdwn", "mdown", "mkdown",
     ];
 
     /// All known HTML extensions
-    const HTML_EXTENSIONS: &'static [&'static str] = &["htm", "html"];
+    const HTML_EXTENSIONS: &'static [&'static str] = &["html", "htm"];
 
     /// All known CSS extensions
     const CSS_EXTENSIONS: &'static [&'static str] = &["css"];
