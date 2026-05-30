@@ -23,39 +23,26 @@ impl CookieJar {
     ///
     /// This function will return an error if
     /// - the file cannot be opened (except for `NotFound`) or
-    /// - if the file is not valid JSON in either new or legacy format
+    /// - if the file is not valid JSON
     pub fn load(path: PathBuf) -> Result<Self> {
-        match std::fs::File::open(&path).map(std::io::BufReader::new) {
-            Ok(mut reader) => {
+        let store = match std::fs::read_to_string(&path) {
+            // A missing or empty jar (e.g. a freshly `touch`ed file) simply
+            // starts out with an empty cookie store.
+            Err(e) if e.kind() == IoErrorKind::NotFound => ReqwestCookieStore::default(),
+            Ok(contents) if contents.trim().is_empty() => ReqwestCookieStore::default(),
+            Ok(contents) => {
                 info!("Loading cookies from {}", path.display());
-
-                // Try loading with new format first, fall back to legacy format
-                #[allow(clippy::single_match_else)]
-                let store = match cookie_store::serde::json::load(&mut reader) {
-                    Ok(store) => store,
-                    Err(_) => {
-                        // Reopen file for legacy format attempt
-                        let reader = std::fs::File::open(&path).map(std::io::BufReader::new)?;
-                        #[allow(deprecated)]
-                        ReqwestCookieStore::load_json(reader).map_err(|e| {
-                            ErrorKind::Cookies(format!("Failed to load cookies: {e}"))
-                        })?
-                    }
-                };
-
-                Ok(Self {
-                    path,
-                    inner: Arc::new(CookieStoreMutex::new(store)),
-                })
+                cookie_store::serde::json::load(contents.as_bytes())
+                    .map_err(|e| ErrorKind::Cookies(format!("Failed to load cookies: {e}")))?
             }
-            // Create a new cookie store if the file does not exist
-            Err(e) if e.kind() == IoErrorKind::NotFound => Ok(Self {
-                path,
-                inner: Arc::new(CookieStoreMutex::new(ReqwestCookieStore::default())),
-            }),
             // Propagate other IO errors (like permission denied) to the caller
-            Err(e) => Err(e.into()),
-        }
+            Err(e) => return Err(e.into()),
+        };
+
+        Ok(Self {
+            path,
+            inner: Arc::new(CookieStoreMutex::new(store)),
+        })
     }
 
     /// Save the cookie store to file as JSON
@@ -97,5 +84,45 @@ impl PartialEq for CookieJar {
         // Comparing the cookie stores directly is not possible because the
         // `CookieStore` struct does not implement `Eq`
         self.path == other.path
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CookieJar;
+    use std::io::Write;
+
+    #[test]
+    fn test_load_missing_file_creates_empty_jar() {
+        // A path inside a fresh temp dir is guaranteed not to exist yet.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("does-not-exist.json");
+        let jar = CookieJar::load(path).expect("missing file should yield an empty jar");
+        assert_eq!(jar.inner.lock().unwrap().iter_any().count(), 0);
+    }
+
+    #[test]
+    fn test_load_empty_file_creates_empty_jar() {
+        // A pre-created but empty cookie jar (e.g. via `touch`) must load
+        // gracefully as an empty store rather than failing to parse.
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        file.flush().unwrap();
+        let jar = CookieJar::load(file.path().to_path_buf())
+            .expect("empty file should yield an empty jar");
+        assert_eq!(jar.inner.lock().unwrap().iter_any().count(), 0);
+    }
+
+    #[test]
+    fn test_load_new_format_array() {
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        write!(
+            file,
+            r#"[{{"raw_cookie":"foo=bar; Path=/; Domain=example.com; Expires=Tue, 03 Aug 2100 00:38:37 GMT","path":["/",true],"domain":{{"Suffix":"example.com"}},"expires":{{"AtUtc":"2100-08-03T00:38:37Z"}}}}]"#
+        )
+        .unwrap();
+        file.flush().unwrap();
+        let jar =
+            CookieJar::load(file.path().to_path_buf()).expect("valid new-format jar should load");
+        assert_eq!(jar.inner.lock().unwrap().iter_any().count(), 1);
     }
 }
