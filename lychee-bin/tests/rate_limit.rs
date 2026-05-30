@@ -4,40 +4,28 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-/// The rate limit delay (in seconds) encoded in test headers.
+/// Rate limit delay (in seconds) encoded in the test headers.
 const RATE_LIMIT_DELAY_SECONDS: u64 = 1;
 
-/// For tests using absolute Unix timestamps as the reset time, we set the
-/// reset time `RATE_LIMIT_DELAY_SECONDS + 1` seconds into the future.
-/// The extra second gives lychee time to make the first request and parse
-/// the headers before the reset window expires, ensuring a measurable
-/// backoff of at least `RATE_LIMIT_DELAY_SECONDS`.
+/// Reset offset for absolute-timestamp headers. The extra second lets lychee
+/// send the first request and parse the headers before the window resets.
 const RATE_LIMIT_RESET_OFFSET_SECONDS: u64 = RATE_LIMIT_DELAY_SECONDS + 1;
 
-/// How far the measured delay may deviate from the expected delay, in either
-/// direction, and still be considered a passing result. This absorbs scheduling
-/// jitter, process spawn time, and the HTTP round-trip, which together can add
-/// up to several hundred milliseconds on slow CI runners.
+/// Allowed deviation (either direction) between measured and expected delay.
+/// Absorbs scheduling jitter, process spawn, and the HTTP round-trip.
 const TIMING_TOLERANCE: Duration = Duration::from_millis(1000);
 
-/// How the rate-limit reset point is encoded in the response headers.
+/// How the reset point is encoded in the response headers.
 enum Reset {
-    /// An absolute Unix timestamp (GitHub, GitLab). lychee computes the wait as
-    /// `reset - now`, so the effective delay shrinks as time passes between
-    /// sending the headers and lychee parsing them.
-    ///
-    /// We carry the whole-second-truncated `SystemTime` (exactly what the header
-    /// encodes) so the expected delay can be derived from the moment the first
-    /// request actually reaches the server. This avoids flakiness from both
-    /// Unix-second truncation and process-spawn jitter.
+    /// Absolute Unix timestamp (GitHub, GitLab); lychee waits `reset - now`.
     Absolute(SystemTime),
-    /// A relative number of seconds until the window resets (IETF draft,
-    /// `Retry-After`). lychee waits exactly this long after parsing the headers.
+    /// Relative seconds until reset (IETF draft, `Retry-After`); lychee waits
+    /// that long after parsing the headers.
     Relative(Duration),
 }
 
-/// An absolute reset `SystemTime`, `RATE_LIMIT_RESET_OFFSET_SECONDS` from now,
-/// truncated to whole seconds to match what a Unix-timestamp header encodes.
+/// Absolute reset time `RATE_LIMIT_RESET_OFFSET_SECONDS` from now, truncated to
+/// whole seconds to match a Unix-timestamp header.
 fn absolute_reset_time() -> SystemTime {
     let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -55,20 +43,17 @@ fn unix_timestamp(time: SystemTime) -> String {
         .to_string()
 }
 
-/// Sets up a mock server with two paths, runs lychee sequentially over both,
-/// and asserts that the time between the two server-side request arrivals falls
-/// within `[expected_delay - TIMING_TOLERANCE, expected_delay + TIMING_TOLERANCE]`.
+/// Runs lychee sequentially over two paths and asserts the gap between the two
+/// server-side requests is within `TIMING_TOLERANCE` of the expected delay.
 ///
-/// For [`Reset::Absolute`] headers the expected delay is derived from the time
-/// the first request reaches the server, so it reflects the wait lychee actually
-/// computes (`reset - now`). For [`Reset::Relative`] headers it is the encoded
-/// delay directly.
+/// For [`Reset::Absolute`] the expected delay is derived from the first
+/// request's arrival; for [`Reset::Relative`] it is the encoded delay.
 async fn run_rate_limit_test(headers: &[(&str, &str)], reset: Reset) {
     let mock_server = MockServer::start().await;
     let request_times = Arc::new(Mutex::new(Vec::<(Instant, SystemTime)>::new()));
 
-    // We need at least two paths because rate limiting happens *between* requests.
-    // The first request receives the rate-limit headers; the second is delayed.
+    // Two paths are needed because the backoff applies *between* requests: the
+    // first receives the rate-limit headers, the second is delayed.
     let paths = ["path1", "path2"];
 
     for path_str in paths {
@@ -120,10 +105,8 @@ async fn run_rate_limit_test(headers: &[(&str, &str)], reset: Reset) {
         (last_instant.duration_since(first_instant), first_system)
     };
 
-    // Derive the delay lychee was expected to apply. For absolute timestamps this
-    // depends on when the first request actually arrived at the server, which
-    // removes the Unix-second rounding and spawn-time jitter that would otherwise
-    // make the lower bound flaky.
+    // Absolute timestamps derive the expected delay from the first request's
+    // actual arrival, avoiding flakiness from second-rounding and spawn time.
     let expected_delay = match reset {
         Reset::Relative(delay) => delay,
         Reset::Absolute(reset_at) => reset_at
@@ -155,7 +138,6 @@ async fn test_github_rate_limit_exhausted() {
         &[
             ("x-ratelimit-limit", "100"),
             ("x-ratelimit-remaining", "0"),
-            // Absolute Unix timestamp; lychee computes `reset - now` as the wait duration.
             ("x-ratelimit-reset", &reset_header),
         ],
         Reset::Absolute(reset_time),
@@ -172,13 +154,10 @@ async fn test_gitlab_rate_limit_exhausted() {
         &[
             ("RateLimit-Limit", "100"),
             ("RateLimit-Remaining", "0"),
-            // Absolute Unix timestamp — same header name as the IETF draft, but
-            // different semantics (see `test_ietf_draft_exhausted` below).
             ("RateLimit-Reset", &reset_header),
-            // `RateLimit-Observed` is a GitLab-specific header. Its presence tells
-            // the `rate-limits` crate to interpret `RateLimit-Reset` as an absolute
-            // Unix timestamp rather than as a relative second count (IETF draft).
-            // Without it the two header sets would be ambiguous.
+            // GitLab-specific. Its presence tells the `rate-limits` crate to read
+            // `RateLimit-Reset` as an absolute timestamp rather than relative
+            // seconds (IETF draft), which share the same header name.
             ("RateLimit-Observed", "100"),
         ],
         Reset::Absolute(reset_time),
@@ -194,9 +173,7 @@ async fn test_ietf_draft_exhausted() {
         &[
             ("RateLimit-Limit", "100"),
             ("RateLimit-Remaining", "0"),
-            // Relative seconds until the window resets (IETF draft semantics).
-            // Contrast with GitLab above, where `RateLimit-Reset` is an absolute Unix
-            // timestamp, distinguished by the presence of `RateLimit-Observed`.
+            // Relative seconds (IETF draft), unlike GitLab's absolute timestamp.
             ("RateLimit-Reset", &delay_str),
         ],
         Reset::Relative(Duration::from_secs(RATE_LIMIT_DELAY_SECONDS)),
@@ -209,9 +186,8 @@ async fn test_retry_rate_limit_headers() {
     const RETRY_DELAY: Duration = Duration::from_secs(1);
     let server = MockServer::start().await;
 
-    // Record server-side timestamps in both mock handlers and assert in the test
-    // body. Panicking inside a mock handler surfaces as a cryptic connection error
-    // rather than a clear assertion failure.
+    // Record timestamps in the handlers but assert in the test body: a panic
+    // inside a handler surfaces as a confusing connection error.
     let first_request_time: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
     let second_request_time: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
 
@@ -239,7 +215,7 @@ async fn test_retry_rate_limit_headers() {
 
     let mut cmd = Command::cargo_bin("lychee").unwrap();
     cmd.arg("-")
-        // Zero out the generic retry wait to isolate only the `Retry-After`-driven delay.
+        // Isolate the `Retry-After`-driven delay from the generic retry wait.
         .arg("--retry-wait-time")
         .arg("0")
         .write_stdin(server.uri())
@@ -273,16 +249,14 @@ async fn test_retry_rate_limit_headers() {
 
 #[tokio::test]
 async fn test_retry_after_seconds() {
-    // Test that a `Retry-After` header on a 429 response causes lychee to apply
-    // a per-host backoff *between* requests to different paths on the same host.
-    // This is distinct from `test_retry_rate_limit_headers`, which verifies the
-    // retry behaviour for the *same* URL; here we check that the backoff set by
-    // the first response delays the second, independent URL.
+    // A `Retry-After` on a 429 should delay the *next* request to a different
+    // path on the same host. Unlike `test_retry_rate_limit_headers` (same URL),
+    // this checks that the backoff carries over to an independent URL.
     let mock_server = MockServer::start().await;
     let request_times = Arc::new(Mutex::new(Vec::<Instant>::new()));
     let delay_str = RATE_LIMIT_DELAY_SECONDS.to_string();
 
-    // path1: 429 + Retry-After on the first hit, 200 on the subsequent retry.
+    // path1: 429 + Retry-After on the first hit, 200 on the retry.
     let times_clone_1 = request_times.clone();
     let delay_header = delay_str.clone();
     Mock::given(method("GET"))
@@ -296,7 +270,7 @@ async fn test_retry_after_seconds() {
         .mount(&mock_server)
         .await;
 
-    // Fallback for the path1 retry that arrives after the backoff expires.
+    // Serves the path1 retry once the backoff expires.
     Mock::given(method("GET"))
         .and(path("/path1"))
         .respond_with(ResponseTemplate::new(200))
@@ -324,7 +298,7 @@ async fn test_retry_after_seconds() {
     cmd.arg("-")
         .arg("--max-concurrency")
         .arg("1") // sequential so the backoff order is deterministic
-        // Zero out the generic retry wait to isolate the Retry-After-driven delay.
+        // Isolate the Retry-After-driven delay from the generic retry wait.
         .arg("--retry-wait-time")
         .arg("0")
         .write_stdin(inputs)
