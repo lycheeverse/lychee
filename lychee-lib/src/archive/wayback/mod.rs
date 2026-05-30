@@ -41,13 +41,11 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 /// (one per failed URL), all aimed at the same host. Sharing a client
 /// lets them reuse the connection pool, TLS session cache, and DNS
 /// resolver instead of paying those costs per request.
-///
-/// Redirects are intentionally *not* followed: a Wayback hit answers with a
-/// `302` whose `Location` already holds the snapshot URL, so following it
-/// would just download the archived page for no reason.
 static CLIENT: LazyLock<Client> = LazyLock::new(|| {
     Client::builder()
         .timeout(REQUEST_TIMEOUT)
+        // Wayback's `302` response directly gives
+        // us the snapshot URL in the `Location`
         .redirect(Policy::none())
         .build()
         .expect("Wayback HTTP client should always build with default config")
@@ -79,7 +77,11 @@ pub(crate) async fn get_archive_snapshot(url: &Url) -> Result<Option<Url>, Error
     }
 
     if status.is_redirection() {
-        // The `Location` header holds the resolved timestamped snapshot URL
+        // Read the snapshot straight from the `Location` header rather than
+        // following the redirect. We only need the URL, not the archived
+        // page body, and skipping the second request avoids downloading it.
+        //
+        // The header holds the resolved timestamped snapshot URL
         // (e.g. `/web/20020120142510/http://example.com/`). It may be
         // relative, so resolve it against the request URL.
         let snapshot = response
