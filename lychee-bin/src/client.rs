@@ -6,14 +6,14 @@ use lychee_lib::BasicAuthExtractor;
 use lychee_lib::{Client, ClientBuilder, ratelimit::RateLimitConfig};
 use regex::RegexSet;
 use reqwest_cookie_store::CookieStoreMutex;
+use std::collections::HashSet;
 use std::sync::Arc;
-use std::{collections::HashSet, str::FromStr};
 
 /// Creates a client according to the command-line config
 pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -> Result<Client> {
     let timeout = cfg.timeout();
     let retry_wait_time = cfg.retry_wait_time();
-    let method: reqwest::Method = reqwest::Method::from_str(&cfg.method().to_uppercase())?;
+    let methods = cfg.methods();
 
     let remaps = parse_remaps(&cfg.remap)?;
     let includes = RegexSet::new(&cfg.include)?;
@@ -49,7 +49,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .user_agent(cfg.user_agent())
         .allow_insecure(cfg.insecure())
         .custom_headers(headers)
-        .method(method)
+        .methods(methods)
         .timeout(timeout)
         .retry_wait_time(retry_wait_time)
         .max_retries(cfg.max_retries())

@@ -5,7 +5,7 @@ use governor::{
     clock::DefaultClock,
     state::{InMemoryState, NotKeyed},
 };
-use http::StatusCode;
+use http::{Method, StatusCode};
 use humantime_serde::re::humantime::format_duration;
 use log::warn;
 use reqwest::{Client as ReqwestClient, Request, Response as ReqwestResponse};
@@ -28,8 +28,16 @@ use crate::{
 /// Cap maximum backoff duration to reasonable limits
 const MAXIMUM_BACKOFF: Duration = Duration::from_secs(60);
 
-/// Per-host cache for storing request results
-type HostCache = DashMap<Uri, CacheableResponse>;
+/// Identifies a request for caching and de-duplication purposes.
+///
+/// The [`Method`] is part of the key because the same URL can yield different
+/// results per method (e.g. a server may reject `HEAD` but accept `GET`).
+/// Keying by method ensures method fallback re-requests instead of reusing a
+/// previous method's cached response.
+type RequestKey = (Method, Uri);
+
+/// Per-host cache for storing request results.
+type HostCache = DashMap<RequestKey, CacheableResponse>;
 
 /// Represents a single host with its own rate limiting, concurrency control,
 /// HTTP client configuration, and request cache.
@@ -65,7 +73,7 @@ pub struct Host {
     cache: HostCache,
 
     /// Keep track of currently active requests, to prevent duplicate concurrent requests
-    active_requests: DashMap<Uri, Arc<tokio::sync::Mutex<()>>>,
+    active_requests: DashMap<RequestKey, Arc<tokio::sync::Mutex<()>>>,
 }
 
 impl Host {
@@ -98,10 +106,10 @@ impl Host {
         }
     }
 
-    /// Check if a URI is cached and returns the cached response if it is valid
-    /// and satisfies the `needs_body` requirement.
-    fn get_cached_status(&self, uri: &Uri, needs_body: bool) -> Option<CacheableResponse> {
-        let cached = self.cache.get(uri)?.clone();
+    /// Check if a request is cached and returns the cached response if it is
+    /// valid and satisfies the `needs_body` requirement.
+    fn get_cached_status(&self, key: &RequestKey, needs_body: bool) -> Option<CacheableResponse> {
+        let cached = self.cache.get(key)?.clone();
         if needs_body {
             if cached.text.is_some() {
                 Some(cached)
@@ -131,10 +139,10 @@ impl Host {
     }
 
     /// Cache a request result
-    fn cache_result(&self, uri: &Uri, response: CacheableResponse) {
+    fn cache_result(&self, key: RequestKey, response: CacheableResponse) {
         // Do not cache responses that are potentially retried
         if !response.status.should_retry() {
-            self.cache.insert(uri.clone(), response);
+            self.cache.insert(key, response);
         }
     }
 
@@ -152,12 +160,13 @@ impl Host {
         request: Request,
         needs_body: bool,
     ) -> Result<CacheableResponse> {
+        let method = request.method().clone();
         let mut url = request.url().clone();
         url.set_fragment(None);
-        let uri = Uri::from(url);
-        let _uri_guard = self.lock_uri_mutex(uri.clone()).await;
+        let key = (method, Uri::from(url));
+        let _uri_guard = self.lock_uri_mutex(key.clone()).await;
 
-        if let Some(cached) = self.get_cached_status(&uri, needs_body) {
+        if let Some(cached) = self.get_cached_status(&key, needs_body) {
             self.record_cache_hit();
             return Ok(cached);
         }
@@ -171,7 +180,7 @@ impl Host {
             rate_limiter.until_ready().await;
         }
 
-        self.perform_request(request, uri, needs_body).await
+        self.perform_request(request, key, needs_body).await
     }
 
     pub(crate) const fn get_client(&self) -> &ReqwestClient {
@@ -181,7 +190,7 @@ impl Host {
     async fn perform_request(
         &self,
         request: Request,
-        uri: Uri,
+        key: RequestKey,
         needs_body: bool,
     ) -> Result<CacheableResponse> {
         let start_time = Instant::now();
@@ -198,7 +207,7 @@ impl Host {
         self.parse_rate_limit_headers(&response);
 
         let response = CacheableResponse::from_response(response, needs_body).await?;
-        self.cache_result(&uri, response.clone());
+        self.cache_result(key, response.clone());
         Ok(response)
     }
 
@@ -219,11 +228,11 @@ impl Host {
     }
 
     /// Get a [`tokio::sync::OwnedMutexGuard<()>`]
-    /// to prevent concurrent requests to identical [`Uri`]s.
-    async fn lock_uri_mutex(&self, uri: Uri) -> tokio::sync::OwnedMutexGuard<()> {
+    /// to prevent concurrent identical requests (same method and [`Uri`]).
+    async fn lock_uri_mutex(&self, key: RequestKey) -> tokio::sync::OwnedMutexGuard<()> {
         let uri_mutex = self
             .active_requests
-            .entry(uri)
+            .entry(key)
             .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
             .clone();
 

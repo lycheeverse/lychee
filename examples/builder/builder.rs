@@ -26,7 +26,7 @@ async fn main() -> Result<()> {
         .user_agent("custom useragent")
         .allow_insecure(true)
         .custom_headers(headers)
-        .method(Method::HEAD)
+        .methods(Method::HEAD)
         .timeout(Duration::from_secs(5))
         .schemes(HashSet::from_iter(vec![
             "http".to_string(),

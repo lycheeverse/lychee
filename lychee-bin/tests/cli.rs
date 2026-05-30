@@ -2876,6 +2876,62 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[tokio::test]
+    async fn test_method_fallback_head_to_get() {
+        // A server that rejects HEAD (405) but accepts GET (200).
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("HEAD"))
+                    .respond_with(wiremock::ResponseTemplate::new(405)),
+            )
+            .await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .respond_with(wiremock::ResponseTemplate::new(200)),
+            )
+            .await;
+
+        // With a fallback list, lychee tries HEAD first, then falls back to GET
+        // and succeeds. The URL is passed via stdin so it is checked as a link
+        // (rather than fetched as an input, which always uses GET).
+        cargo_bin_cmd!()
+            .arg("--method")
+            .arg("head,get")
+            .arg("-")
+            .write_stdin(server.uri())
+            .assert()
+            .success();
+    }
+
+    #[tokio::test]
+    async fn test_method_no_fallback_by_default() {
+        // The same server: HEAD is rejected (405), GET would succeed.
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("HEAD"))
+                    .respond_with(wiremock::ResponseTemplate::new(405)),
+            )
+            .await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .respond_with(wiremock::ResponseTemplate::new(200)),
+            )
+            .await;
+
+        // With only a single method and no fallback, the check fails.
+        cargo_bin_cmd!()
+            .arg("--method")
+            .arg("head")
+            .arg("-")
+            .write_stdin(server.uri())
+            .assert()
+            .failure();
+    }
+
+    #[tokio::test]
     async fn test_user_agent_set_on_remote_input() {
         // When a URL is passed directly as a CLI input, the configured user-agent
         // should be sent in the request headers. Previously the resolver used a

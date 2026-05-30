@@ -29,7 +29,7 @@ use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
 use crate::{
-    BaseInfo, ErrorKind, Request, Response, Result, Status, Uri,
+    BaseInfo, ErrorKind, Methods, Request, Response, Result, Status, Uri,
     chain::RequestChain,
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::Filter,
@@ -269,9 +269,12 @@ pub struct ClientBuilder {
     /// [here]: https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.default_headers
     custom_headers: HeaderMap,
 
-    /// HTTP method used for requests, e.g. `GET` or `HEAD`.
-    #[builder(default = reqwest::Method::GET)]
-    method: reqwest::Method,
+    /// HTTP methods used for requests, in order of preference.
+    ///
+    /// Lychee tries each method in order and returns the first success. This
+    /// allows falling back to e.g. `GET` when a server rejects `HEAD` requests.
+    #[builder(default = Methods::from(reqwest::Method::GET))]
+    methods: Methods,
 
     /// Set of accepted return codes / status codes.
     ///
@@ -401,7 +404,7 @@ impl ClientBuilder {
         };
 
         let website_checker = WebsiteChecker::new(
-            self.method,
+            self.methods,
             self.retry_wait_time,
             redirect_history.clone(),
             self.max_retries,

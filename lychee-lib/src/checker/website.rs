@@ -1,5 +1,5 @@
 use crate::{
-    BasicAuthExtractor, ErrorKind, FileType, FragmentCheckerOptions, Status, Uri,
+    BasicAuthExtractor, ErrorKind, FileType, FragmentCheckerOptions, Methods, Status, Uri,
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
     quirks::Quirks,
     ratelimit::HostPool,
@@ -19,8 +19,12 @@ use url::Url;
 
 #[derive(Debug, Clone)]
 pub(crate) struct WebsiteChecker {
-    /// Request method used for making requests.
-    method: reqwest::Method,
+    /// Request methods used for making requests, in order of preference.
+    ///
+    /// Some servers don't handle certain methods properly (e.g. `HEAD`
+    /// requests), so lychee can be configured to try multiple methods in order
+    /// and return the first successful one.
+    methods: Methods,
 
     /// GitHub client used for requests.
     github_client: Option<Octocrab>,
@@ -75,7 +79,7 @@ impl WebsiteChecker {
 
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        method: reqwest::Method,
+        methods: Methods,
         retry_wait_time: Duration,
         redirect_history: RedirectHistory,
         max_retries: u64,
@@ -88,7 +92,7 @@ impl WebsiteChecker {
         basic_auth: BasicAuthExtractor,
     ) -> Self {
         Self {
-            method,
+            methods,
             github_client,
             plugin_request_chain,
             redirect_history,
@@ -266,10 +270,45 @@ impl WebsiteChecker {
     /// - The request failed.
     /// - The response status code is not accepted.
     async fn check_website_inner(&self, uri: &Uri, default_chain: &RequestChain) -> Status {
-        let request = self.host_pool.build_request(self.method.clone(), uri);
+        let mut last_status = None;
 
-        let request = match request {
-            Ok(r) => r,
+        // Try each configured method in order and return the first success.
+        //
+        // Misconfigured servers reject requests with wildly varying status
+        // codes (404, 403, 405, ...), so we deliberately fall back on any error
+        // response without inspecting the reason. We also fall back on connection
+        // errors, since some servers reject `HEAD` by resetting the connection
+        // rather than returning a status code.
+        //
+        // The one exception is timeouts: a timeout is method-independent (`HEAD`
+        // does strictly less work than `GET`) and retrying would incur a second,
+        // equally long timeout, so we stop early instead.
+        for method in self.methods.iter() {
+            let status = self
+                .check_with_method(method.clone(), uri, default_chain)
+                .await;
+
+            if status.is_success() || status.is_timeout() {
+                return status;
+            }
+
+            last_status = Some(status);
+        }
+
+        // `methods` is guaranteed to be non-empty (see `Methods`), so the loop
+        // always runs at least once and `last_status` is always `Some` here.
+        last_status.expect("Methods is guaranteed to be non-empty")
+    }
+
+    /// Build and check a single request for `uri` using the given `method`.
+    async fn check_with_method(
+        &self,
+        method: Method,
+        uri: &Uri,
+        default_chain: &RequestChain,
+    ) -> Status {
+        let request = match self.host_pool.build_request(method, uri) {
+            Ok(request) => request,
             Err(e) => return e.into(),
         };
 
@@ -383,7 +422,7 @@ mod tests {
     fn get_checker(client: Octocrab) -> WebsiteChecker {
         let host_pool = HostPool::default();
         WebsiteChecker::new(
-            Method::GET,
+            Method::GET.into(),
             Duration::ZERO,
             RedirectHistory::new(),
             0,
