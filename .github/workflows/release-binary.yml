@@ -10,11 +10,21 @@ name: Release Binary
 # Only do the release on x.y.z tags or manual workflow dispatch
 on:
   release:
+    # Trigger on `published` only. Creating a non-draft (pre-)release fires
+    # `created`, `prereleased` and `published` together; listening to all of
+    # them spawned three concurrent runs that raced to `gh release upload` the
+    # same assets, causing "asset already exists" failures and leaving the
+    # release with missing artifacts (e.g. aarch64-musl). `published` alone
+    # covers both stable tag releases and the nightly prerelease in one run.
     types:
       - published
-      - created
-      - prereleased
   workflow_dispatch:
+
+# Never run more than one release build for the same tag at a time, so reruns
+# or overlapping triggers can't race each other while uploading assets.
+concurrency:
+  group: release-binary-${{ github.event.release.tag_name || github.ref }}
+  cancel-in-progress: false
 
 # We need this to be able to upload releases
 permissions:
@@ -325,7 +335,9 @@ jobs:
         shell: bash
         run: |
           version="${{ needs.create-release.outputs.tag_name }}"
-          gh release upload "$version" ${{ env.ASSET }} ${{ env.ASSET_SUM }}
+          # `--clobber` overwrites existing assets instead of failing, keeping
+          # uploads idempotent across reruns or overlapping triggers.
+          gh release upload "$version" ${{ env.ASSET }} ${{ env.ASSET_SUM }} --clobber
 
   binstall-check:
     needs: [build-release]
