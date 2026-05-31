@@ -2905,6 +2905,46 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[tokio::test]
+    async fn test_method_fallback() {
+        // A server that rejects HEAD (405) but accepts GET (200).
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("HEAD"))
+                    .respond_with(wiremock::ResponseTemplate::new(405)),
+            )
+            .await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .respond_with(wiremock::ResponseTemplate::new(200)),
+            )
+            .await;
+
+        // With a fallback list, lychee tries HEAD first, then falls back to GET
+        // and succeeds. The URL is passed via stdin so it is checked as a link
+        // (rather than fetched as an input, which always uses GET).
+        cargo_bin_cmd!()
+            .arg("--method")
+            .arg("head,get")
+            .arg("-")
+            .write_stdin(server.uri())
+            .assert()
+            .success();
+
+        // With only a single method and no fallback, the check against the same
+        // server fails because HEAD is rejected and there is nothing to fall
+        // back to.
+        cargo_bin_cmd!()
+            .arg("--method")
+            .arg("head")
+            .arg("-")
+            .write_stdin(server.uri())
+            .assert()
+            .failure();
+    }
+
+    #[tokio::test]
     async fn test_user_agent_set_on_remote_input() {
         // When a URL is passed directly as a CLI input, the configured user-agent
         // should be sent in the request headers. Previously the resolver used a
@@ -4553,6 +4593,50 @@ exclude_path = ["exclude_package.txt"]
             .arg("-q") // hide user hints
             .assert()
             .stderr(contains("Hint").not());
+    }
+
+    #[tokio::test]
+    async fn test_fragment_check_non_get_method_hint() {
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("HEAD"))
+                    .respond_with(wiremock::ResponseTemplate::new(200)),
+            )
+            .await;
+
+        // Fragment checking + a non-GET primary method emits a hint, because
+        // links that succeed via HEAD never fetch the body needed for fragments.
+        // The hint must spell out the exact fix.
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--include-fragments")
+            .arg("--method")
+            .arg("head")
+            .write_stdin(server.uri())
+            .assert()
+            .stderr(contains(
+                "Hint: Fragments aren't checked for `HEAD` requests. Use `--method get`.",
+            ));
+
+        // With GET as the (only) method, no such hint is printed.
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--include-fragments")
+            .arg("--method")
+            .arg("get")
+            .write_stdin(server.uri())
+            .assert()
+            .stderr(contains("Fragments aren't checked").not());
+
+        // Without fragment checking, no hint either (even with HEAD).
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--method")
+            .arg("head")
+            .write_stdin(server.uri())
+            .assert()
+            .stderr(contains("Fragments aren't checked").not());
     }
 }
 

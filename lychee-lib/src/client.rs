@@ -29,7 +29,7 @@ use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
 use crate::{
-    BaseInfo, ErrorKind, Request, Response, Result, Status, Uri,
+    BaseInfo, ErrorKind, Methods, Request, Response, Result, Status, Uri,
     chain::RequestChain,
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::Filter,
@@ -269,9 +269,12 @@ pub struct ClientBuilder {
     /// [here]: https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.default_headers
     custom_headers: HeaderMap,
 
-    /// HTTP method used for requests, e.g. `GET` or `HEAD`.
-    #[builder(default = reqwest::Method::GET)]
-    method: reqwest::Method,
+    /// HTTP methods used for requests, in order of preference.
+    ///
+    /// Lychee tries each method in order and returns the first success. This
+    /// allows falling back to e.g. `GET` when a server rejects `HEAD` requests.
+    #[builder(default = Methods::from(reqwest::Method::GET))]
+    method: Methods,
 
     /// Set of accepted return codes / status codes.
     ///
@@ -843,6 +846,18 @@ mod tests {
         assert!(client.is_excluded(&Uri {
             url: "tel:1234567890".try_into().unwrap()
         }));
+    }
+
+    #[tokio::test]
+    async fn test_builder_with_multiple_methods() {
+        // The builder accepts a `Methods` with multiple HTTP methods (used for
+        // method fallback) and successfully creates a client.
+        let methods =
+            crate::Methods::try_from(vec![reqwest::Method::HEAD, reqwest::Method::GET]).unwrap();
+
+        let client = ClientBuilder::builder().method(methods).build().client();
+
+        assert!(client.is_ok());
     }
 
     #[tokio::test]

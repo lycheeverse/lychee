@@ -770,7 +770,11 @@ Options:
           Print version
 
   -X, --method <METHOD>
-          Request method
+          Request method(s)
+
+          Accepts a single method or a comma-separated list. When multiple methods are given, lychee tries each one in order and returns the first success. This is useful for servers that reject `HEAD` requests: `--method head,get` falls back to `GET` when `HEAD` fails.
+
+          Note: checking URL fragments requires the response body, which is only fetched for `GET` requests. When a link succeeds with a non-`GET` method (e.g. `HEAD`), its fragment is not checked.
 
           [default: get]
 ```

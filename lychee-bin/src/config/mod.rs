@@ -27,7 +27,7 @@ use lychee_lib::ratelimit::HostConfigs;
 use lychee_lib::{
     BaseInfo, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, FileExtensions, FileType,
-    FragmentCheckerOptions, Input, StatusCodeSelector, archive::Archive,
+    FragmentCheckerOptions, Input, Methods, StatusCodeSelector, archive::Archive,
 };
 use lychee_lib::{DEFAULT_USER_AGENT, Preprocessor};
 use secrecy::SecretString;
@@ -534,12 +534,21 @@ pub(crate) struct Config {
     #[arg(short, long)]
     retry_wait_time: Option<u64>,
 
-    /// Request method
+    /// Request method(s)
+    ///
+    /// Accepts a single method or a comma-separated list. When multiple methods
+    /// are given, lychee tries each one in order and returns the first success.
+    /// This is useful for servers that reject `HEAD` requests: `--method head,get`
+    /// falls back to `GET` when `HEAD` fails.
+    ///
+    /// Note: checking URL fragments requires the response body, which is only
+    /// fetched for `GET` requests. When a link succeeds with a non-`GET` method
+    /// (e.g. `HEAD`), its fragment is not checked.
     ///
     /// [default: get]
     // Using `-X` as a short param similar to curl
     #[arg(short = 'X', long)]
-    method: Option<String>,
+    method: Option<Methods>,
 
     /// Base URL to use when resolving relative URLs in local files. If specified,
     /// relative links in local files are interpreted as being relative to the given
@@ -719,10 +728,15 @@ impl Config {
         Duration::from_secs(seconds)
     }
 
-    /// HTTP method used for requests
-    pub(crate) fn method(&self) -> String {
-        let default_method: String = "get".into();
-        self.method.clone().unwrap_or(default_method)
+    /// HTTP method(s) used for requests, in order of preference
+    ///
+    /// If no method is specified, defaults to `GET`. Note that `HEAD` is not
+    /// used by default because some servers reject `HEAD` requests, which would
+    /// lead to false positives.
+    pub(crate) fn methods(&self) -> Methods {
+        self.method
+            .clone()
+            .unwrap_or_else(|| http::Method::GET.into())
     }
 
     /// Maximum age of cache entries
