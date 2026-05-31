@@ -40,7 +40,7 @@ jobs:
       # are prefixed (`lychee-v1.2.3`) and the version is only recovered via the
       # `match=` regex, so `auto`'s detection is unreliable here. Gating `latest`
       # on the release-tag ref ourselves is the documented, predictable approach:
-      # https://github.com/docker/metadata-action#conditionally-tag-with-latest-for-a-specific-branch
+      # https://github.com/docker/metadata-action#latest-tag
       # Note: this gate assumes all `lychee-v*` tags are stable. If pre-release
       # tags are ever introduced, also exclude them here (e.g. `!contains(github.ref, '-')`).
       - name: Docker meta (debian)
