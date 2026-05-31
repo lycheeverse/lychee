@@ -4565,6 +4565,50 @@ exclude_path = ["exclude_package.txt"]
             .assert()
             .stderr(contains("Hint").not());
     }
+
+    #[tokio::test]
+    async fn test_fragment_check_non_get_method_hint() {
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("HEAD"))
+                    .respond_with(wiremock::ResponseTemplate::new(200)),
+            )
+            .await;
+
+        // Fragment checking + a non-GET primary method emits a hint, because
+        // links that succeed via HEAD never fetch the body needed for fragments.
+        // The hint must spell out the exact fix.
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--include-fragments")
+            .arg("--method")
+            .arg("head")
+            .write_stdin(server.uri())
+            .assert()
+            .stderr(contains(
+                "Hint: Fragments aren't checked for `HEAD` requests. Use `--method get`.",
+            ));
+
+        // With GET as the (only) method, no such hint is printed.
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--include-fragments")
+            .arg("--method")
+            .arg("get")
+            .write_stdin(server.uri())
+            .assert()
+            .stderr(contains("Fragments aren't checked").not());
+
+        // Without fragment checking, no hint either (even with HEAD).
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--method")
+            .arg("head")
+            .write_stdin(server.uri())
+            .assert()
+            .stderr(contains("Fragments aren't checked").not());
+    }
 }
 
 #[cfg(unix)]
