@@ -367,14 +367,15 @@ impl ClientBuilder {
             .build()
             .map_err(ErrorKind::BuildRequestClient)?;
 
-        let client_map = self.build_host_clients(&redirect_history)?;
+        // User-specified host configuration takes precedence over the built-in
+        // defaults, which in turn take precedence over the global defaults.
+        // This must happen before building the host clients, since host headers
+        // are baked into the per-host reqwest client.
+        let hosts = self.hosts.clone().merge(HostConfigs::builtin_defaults());
 
-        let host_pool = HostPool::new(
-            self.rate_limit_config,
-            self.hosts,
-            reqwest_client,
-            client_map,
-        );
+        let client_map = self.build_host_clients(&hosts, &redirect_history)?;
+
+        let host_pool = HostPool::new(self.rate_limit_config, hosts, reqwest_client, client_map);
 
         let github_client = match self.github_token.as_ref().map(ExposeSecret::expose_secret) {
             Some(token) if !token.is_empty() => Some(
@@ -430,8 +431,12 @@ impl ClientBuilder {
     }
 
     /// Build the host-specific clients with their host-specific headers
-    fn build_host_clients(&self, redirect_history: &RedirectHistory) -> Result<ClientMap> {
-        self.hosts
+    fn build_host_clients(
+        &self,
+        hosts: &HostConfigs,
+        redirect_history: &RedirectHistory,
+    ) -> Result<ClientMap> {
+        hosts
             .iter()
             .map(|(host, config)| {
                 let mut headers = self.default_headers()?;
@@ -799,6 +804,48 @@ mod tests {
             .check("https://crates.io/crates/lychee")
             .await
             .unwrap();
+        assert!(res.status().is_success());
+    }
+
+    #[tokio::test]
+    async fn test_per_host_header_is_sent() {
+        use crate::ratelimit::{HostConfig, HostConfigs, HostKey};
+        use url::Url;
+        use wiremock::{
+            MockServer, ResponseTemplate,
+            matchers::{header, method},
+        };
+
+        // The mock only responds with 200 if the request carries the
+        // host-specific user-agent. Any other request yields a 404.
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(header("user-agent", "my-host-agent"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&mock_server)
+            .await;
+
+        let url = Url::parse(&mock_server.uri()).unwrap();
+        let host_key = HostKey::try_from(&url).unwrap();
+        let mut headers = HeaderMap::new();
+        headers.insert(header::USER_AGENT, "my-host-agent".parse().unwrap());
+        let hosts = HostConfigs::from([(
+            host_key,
+            HostConfig {
+                headers,
+                ..HostConfig::default()
+            },
+        )]);
+
+        let res = ClientBuilder::builder()
+            .hosts(hosts)
+            .build()
+            .client()
+            .unwrap()
+            .check(mock_server.uri())
+            .await
+            .unwrap();
+
         assert!(res.status().is_success());
     }
 
