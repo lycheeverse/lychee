@@ -107,13 +107,16 @@ mod tests {
 
     use super::get_archive_snapshot;
 
+    /// Both cases run in a single test (and therefore a single Tokio runtime)
+    /// on purpose: `get_archive_snapshot` uses a process-wide static
+    /// `reqwest::Client` whose connection pool is bound to the runtime that
+    /// first initializes it. Splitting these into two `#[tokio::test]`s would
+    /// give each its own runtime and let one reuse a pooled connection whose
+    /// runtime has already been torn down, failing with `DispatchGone`.
     #[tokio::test]
-    /// Real Wayback request: `example.com` is archived many times over,
-    /// so this should resolve to a concrete timestamped snapshot URL.
-    ///
-    /// Tolerates 503s, which `web.archive.org` returns intermittently
-    /// under load.
     async fn wayback_suggestion_real() -> Result<(), Box<dyn Error>> {
+        // Real Wayback request: `example.com` is archived many times over,
+        // so this should resolve to a concrete timestamped snapshot URL.
         let url: Url = "https://example.com".parse()?;
         match get_archive_snapshot(&url).await {
             Ok(snapshot) => {
@@ -132,27 +135,22 @@ mod tests {
                     "expected a timestamped snapshot, got: {s}"
                 );
             }
-            Err(e) if e.status() == Some(StatusCode::SERVICE_UNAVAILABLE) => {
-                // ignore 503s which are *probably* transient
-            }
+            // Ignore 503s, which `web.archive.org` returns intermittently
+            // under load.
+            Err(e) if e.status() == Some(StatusCode::SERVICE_UNAVAILABLE) => {}
             Err(e) => Err(e)?,
         }
-        Ok(())
-    }
 
-    #[tokio::test]
-    /// Real Wayback request for a URL that doesn't exist (and therefore
-    /// can't have been archived). Wayback responds 404 and we must
-    /// return `None` so lychee doesn't suggest a dead-end link.
-    async fn wayback_suggestion_real_unknown() -> Result<(), Box<dyn Error>> {
+        // Real Wayback request for a URL that doesn't exist (and therefore
+        // can't have been archived). Wayback responds 404 and we must
+        // return `None` so lychee doesn't suggest a dead-end link.
         let url: Url = "https://example.com/this-page-does-not-exist-abc123xyz".parse()?;
         match get_archive_snapshot(&url).await {
             Ok(snapshot) => assert_eq!(snapshot, None),
-            Err(e) if e.status() == Some(StatusCode::SERVICE_UNAVAILABLE) => {
-                // ignore 503s which are *probably* transient
-            }
+            Err(e) if e.status() == Some(StatusCode::SERVICE_UNAVAILABLE) => {}
             Err(e) => Err(e)?,
         }
+
         Ok(())
     }
 }
