@@ -541,6 +541,10 @@ pub(crate) struct Config {
     /// This is useful for servers that reject `HEAD` requests: `--method head,get`
     /// falls back to `GET` when `HEAD` fails.
     ///
+    /// Note: checking URL fragments requires the response body, which is only
+    /// fetched for `GET` requests. When a link succeeds with a non-`GET` method
+    /// (e.g. `HEAD`), its fragment is not checked.
+    ///
     /// [default: get]
     // Using `-X` as a short param similar to curl
     #[arg(short = 'X', long)]

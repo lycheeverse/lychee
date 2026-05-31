@@ -2876,7 +2876,7 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[tokio::test]
-    async fn test_method_fallback_head_to_get() {
+    async fn test_method_fallback() {
         // A server that rejects HEAD (405) but accepts GET (200).
         let server = wiremock::MockServer::start().await;
         server
@@ -2902,26 +2902,10 @@ The config file should contain every possible key for documentation purposes."
             .write_stdin(server.uri())
             .assert()
             .success();
-    }
 
-    #[tokio::test]
-    async fn test_method_no_fallback_by_default() {
-        // The same server: HEAD is rejected (405), GET would succeed.
-        let server = wiremock::MockServer::start().await;
-        server
-            .register(
-                wiremock::Mock::given(wiremock::matchers::method("HEAD"))
-                    .respond_with(wiremock::ResponseTemplate::new(405)),
-            )
-            .await;
-        server
-            .register(
-                wiremock::Mock::given(wiremock::matchers::method("GET"))
-                    .respond_with(wiremock::ResponseTemplate::new(200)),
-            )
-            .await;
-
-        // With only a single method and no fallback, the check fails.
+        // With only a single method and no fallback, the check against the same
+        // server fails because HEAD is rejected and there is nothing to fall
+        // back to.
         cargo_bin_cmd!()
             .arg("--method")
             .arg("head")

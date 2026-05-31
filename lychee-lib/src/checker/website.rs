@@ -274,15 +274,16 @@ impl WebsiteChecker {
 
         // Try each configured method in order and return the first success.
         //
-        // Misconfigured servers reject requests with wildly varying status
-        // codes (404, 403, 405, ...), so we deliberately fall back on any error
+        // Servers that don't accept a given method signal this in many different
+        // ways (404, 403, 405, ...), so we deliberately fall back on any error
         // response without inspecting the reason. We also fall back on connection
-        // errors, since some servers reject `HEAD` by resetting the connection
+        // errors, since some servers reject a method by resetting the connection
         // rather than returning a status code.
         //
-        // The one exception is timeouts: a timeout is method-independent (`HEAD`
-        // does strictly less work than `GET`) and retrying would incur a second,
-        // equally long timeout, so we stop early instead.
+        // The one exception is timeouts: a timeout is unlikely to be resolved by
+        // switching methods (a heavier method such as `GET` would, if anything,
+        // take longer than a lighter one such as `HEAD`), and retrying would
+        // incur a second, equally long timeout, so we stop early instead.
         for method in self.methods.iter() {
             let status = self
                 .check_with_method(method.clone(), uri, default_chain)

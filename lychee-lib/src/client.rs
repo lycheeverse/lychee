@@ -274,7 +274,7 @@ pub struct ClientBuilder {
     /// Lychee tries each method in order and returns the first success. This
     /// allows falling back to e.g. `GET` when a server rejects `HEAD` requests.
     #[builder(default = Methods::from(reqwest::Method::GET))]
-    methods: Methods,
+    method: Methods,
 
     /// Set of accepted return codes / status codes.
     ///
@@ -404,7 +404,7 @@ impl ClientBuilder {
         };
 
         let website_checker = WebsiteChecker::new(
-            self.methods,
+            self.method,
             self.retry_wait_time,
             redirect_history.clone(),
             self.max_retries,
@@ -855,7 +855,7 @@ mod tests {
         let methods =
             crate::Methods::try_from(vec![reqwest::Method::HEAD, reqwest::Method::GET]).unwrap();
 
-        let client = ClientBuilder::builder().methods(methods).build().client();
+        let client = ClientBuilder::builder().method(methods).build().client();
 
         assert!(client.is_ok());
     }

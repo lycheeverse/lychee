@@ -49,7 +49,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .user_agent(cfg.user_agent())
         .allow_insecure(cfg.insecure())
         .custom_headers(headers)
-        .methods(methods)
+        .method(methods)
         .timeout(timeout)
         .retry_wait_time(retry_wait_time)
         .max_retries(cfg.max_retries())
