@@ -94,6 +94,16 @@ sudo port install lychee
 docker pull lycheeverse/lychee
 ```
 
+Image tags (each also has an `-alpine` variant, e.g. `latest-alpine`):
+
+| Tag              | Description                                  |
+| ---------------- | -------------------------------------------- |
+| `latest`         | Most recent stable release (recommended)     |
+| `X.Y.Z` / `X.Y`  | A specific release, e.g. `0.20.0` / `0.20`   |
+| `nightly`        | Bleeding-edge build from the `master` branch |
+| `master`         | Alias of `nightly`                           |
+| `sha-<sha>`      | Build for a specific commit                  |
+
 ### Nix
 
 ```sh
