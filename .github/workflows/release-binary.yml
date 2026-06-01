@@ -340,8 +340,24 @@ jobs:
           gh release upload "$version" ${{ env.ASSET }} ${{ env.ASSET_SUM }} --clobber
 
   binstall-check:
+    name: binstall-check (${{ matrix.target }})
     needs: [build-release]
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
+          - armv7-unknown-linux-gnueabihf
+          - arm-unknown-linux-musleabi
+          - arm-unknown-linux-musleabihf
+          - aarch64-unknown-linux-gnu
+          - aarch64-unknown-linux-musl
+          - i686-unknown-linux-gnu
+          - x86_64-apple-darwin
+          - aarch64-apple-darwin
+          - x86_64-pc-windows-msvc
     env:
       # Avoid 403 rate-limit failures when binstall queries GitHub releases.
       GITHUB_TOKEN: ${{ github.token }}
@@ -353,6 +369,6 @@ jobs:
       - run: sed -i.bak 's|/{ name }-v{ version }/|/nightly/|' lychee-bin/Cargo.toml
         if: github.event.release.prerelease
 
-      # Use `--manifest-path .` so binstall validates the in-tree binstall metadata.
-      - run: cargo binstall --manifest-path . --strategies crate-meta-data lychee --no-confirm --verbose
-
+      # Use `--manifest-path .` so binstall validates the in-tree binstall metadata. 
+      # Dry-run still downloads and extracts the archive, which validates the release URL, archive format, and binary path without installing foreign target binaries on the Ubuntu runner.
+      - run: cargo binstall --dry-run --manifest-path . --strategies crate-meta-data --targets ${{ matrix.target }} lychee --no-confirm --verbose
