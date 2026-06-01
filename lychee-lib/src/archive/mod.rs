@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use reqwest::{Error, Url};
 use serde::Deserialize;
 use strum::{Display, EnumIter, EnumString, VariantNames};
@@ -21,14 +23,21 @@ impl Archive {
     /// Query the `Archive` to try and find the latest snapshot of the specified `url`.
     /// Returns `None` if the specified `url` hasn't been archived in the past.
     ///
+    /// `timeout` bounds the lookup, so it can be kept in step with the timeout
+    /// used for ordinary link checks.
+    ///
     /// # Errors
     ///
     /// Returns an error if the underlying HTTP request fails.
-    pub async fn get_archive_snapshot(&self, url: &Url) -> Result<Option<Url>, Error> {
+    pub async fn get_archive_snapshot(
+        &self,
+        url: &Url,
+        timeout: Duration,
+    ) -> Result<Option<Url>, Error> {
         let function = match self {
             Archive::WaybackMachine => wayback::get_archive_snapshot,
         };
 
-        function(url).await
+        function(url, timeout).await
     }
 }

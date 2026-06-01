@@ -32,18 +32,17 @@ use reqwest::header::LOCATION;
 use reqwest::redirect::Policy;
 use reqwest::{Client, Error, Url};
 
-/// Per-request timeout for Wayback lookups.
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
-
 /// Shared HTTP client for all Wayback suggestion lookups.
 ///
 /// The suggestion path may issue dozens of lookups in quick succession
 /// (one per failed URL), all aimed at the same host. Sharing a client
 /// lets them reuse the connection pool, TLS session cache, and DNS
 /// resolver instead of paying those costs per request.
+///
+/// The timeout is applied per-request (see [`get_archive_snapshot`]) so it can
+/// honour the caller's `--timeout`
 static CLIENT: LazyLock<Client> = LazyLock::new(|| {
     Client::builder()
-        .timeout(REQUEST_TIMEOUT)
         // Wayback's `302` response directly gives
         // us the snapshot URL in the `Location`
         .redirect(Policy::none())
@@ -60,7 +59,13 @@ static CLIENT: LazyLock<Client> = LazyLock::new(|| {
 /// - a redirect (`302`) carries the timestamped snapshot in its `Location`
 ///   header, which we return without following, and
 /// - a `404` means there is no snapshot, so we return `None`.
-pub(crate) async fn get_archive_snapshot(url: &Url) -> Result<Option<Url>, Error> {
+///
+/// `timeout` bounds the lookup so callers can keep it in step with the
+/// `--timeout` they use for ordinary requests.
+pub(crate) async fn get_archive_snapshot(
+    url: &Url,
+    timeout: Duration,
+) -> Result<Option<Url>, Error> {
     let wayback = format!("https://web.archive.org/web/{url}");
     // `Url::parse` cannot fail here for any well-formed input `url`, but
     // if it ever did we'd rather report "no suggestion" than panic.
@@ -69,7 +74,7 @@ pub(crate) async fn get_archive_snapshot(url: &Url) -> Result<Option<Url>, Error
         return Ok(None);
     };
 
-    let response = CLIENT.get(snapshot_url).send().await?;
+    let response = CLIENT.get(snapshot_url).timeout(timeout).send().await?;
     let status = response.status();
 
     if status == StatusCode::NOT_FOUND {
@@ -92,8 +97,8 @@ pub(crate) async fn get_archive_snapshot(url: &Url) -> Result<Option<Url>, Error
         return Ok(snapshot);
     }
 
-    // Any other non-success (rate limiting, 5xx, ...) bubbles up so the
-    // caller can decide; the suggestion path currently swallows errors.
+    // Any other non-success (rate limiting, 5xx, ...) bubbles up as an `Err`
+    // so the caller can log it and explain why a suggestion is missing.
     // Anything else (an unexpected `2xx`) means no usable snapshot.
     response.error_for_status()?;
     Ok(None)
@@ -103,9 +108,12 @@ pub(crate) async fn get_archive_snapshot(url: &Url) -> Result<Option<Url>, Error
 mod tests {
     use http::StatusCode;
     use std::error::Error;
+    use std::time::Duration;
     use url::Url;
 
     use super::get_archive_snapshot;
+
+    const TEST_TIMEOUT: Duration = Duration::from_secs(20);
 
     /// Both cases run in a single test (and therefore a single Tokio runtime)
     /// on purpose: `get_archive_snapshot` uses a process-wide static
@@ -113,12 +121,16 @@ mod tests {
     /// first initializes it. Splitting these into two `#[tokio::test]`s would
     /// give each its own runtime and let one reuse a pooled connection whose
     /// runtime has already been torn down, failing with `DispatchGone`.
+    ///
+    /// Hits the live Wayback Machine, which is flaky, so it's ignored to
+    /// keep CI deterministic.
     #[tokio::test]
+    #[ignore = "requires network access to web.archive.org"]
     async fn wayback_suggestion_real() -> Result<(), Box<dyn Error>> {
         // Real Wayback request: `example.com` is archived many times over,
         // so this should resolve to a concrete timestamped snapshot URL.
         let url: Url = "https://example.com".parse()?;
-        match get_archive_snapshot(&url).await {
+        match get_archive_snapshot(&url, TEST_TIMEOUT).await {
             Ok(snapshot) => {
                 let snapshot = snapshot.expect("example.com should have a snapshot");
                 let s = snapshot.as_str();
@@ -145,7 +157,7 @@ mod tests {
         // can't have been archived). Wayback responds 404 and we must
         // return `None` so lychee doesn't suggest a dead-end link.
         let url: Url = "https://example.com/this-page-does-not-exist-abc123xyz".parse()?;
-        match get_archive_snapshot(&url).await {
+        match get_archive_snapshot(&url, TEST_TIMEOUT).await {
             Ok(snapshot) => assert_eq!(snapshot, None),
             Err(e) if e.status() == Some(StatusCode::SERVICE_UNAVAILABLE) => {}
             Err(e) => Err(e)?,

@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::time::Duration;
 
 use futures::StreamExt;
 use http::StatusCode;
@@ -99,7 +100,14 @@ where
             level,
             &params.cfg.mode(),
         );
-        suggest_archived_links(params.cfg.archive(), &mut stats, progress, max_concurrency).await;
+        suggest_archived_links(
+            params.cfg.archive(),
+            &mut stats,
+            progress,
+            max_concurrency,
+            params.cfg.timeout(),
+        )
+        .await;
     }
 
     let is_success = if accept_timeouts {
@@ -121,6 +129,7 @@ async fn suggest_archived_links(
     stats: &mut ResponseStats,
     progress: Progress,
     max_concurrency: usize,
+    timeout: Duration,
 ) {
     let failed_urls = &get_failed_urls(stats);
     progress.set_length(failed_urls.len() as u64);
@@ -128,18 +137,28 @@ async fn suggest_archived_links(
     let suggestions = Mutex::new(&mut stats.suggestion_map);
 
     futures::stream::iter(failed_urls)
-        .map(|(input, url)| (input, url, archive.get_archive_snapshot(url)))
+        .map(|(input, url)| (input, url, archive.get_archive_snapshot(url, timeout)))
         .for_each_concurrent(max_concurrency, |(input, url, future)| async {
-            if let Ok(Some(suggestion)) = future.await {
-                suggestions
-                    .lock()
-                    .unwrap()
-                    .entry(input.clone())
-                    .or_default()
-                    .insert(Suggestion {
-                        suggestion,
-                        original: url.clone(),
-                    });
+            match future.await {
+                Ok(Some(suggestion)) => {
+                    suggestions
+                        .lock()
+                        .unwrap()
+                        .entry(input.clone())
+                        .or_default()
+                        .insert(Suggestion {
+                            suggestion,
+                            original: url.clone(),
+                        });
+                }
+                // No snapshot exists for this URL; nothing to suggest.
+                Ok(None) => {}
+                // The archive lookup itself failed (rate limiting, 5xx,
+                // timeout, ...). Surface it so users understand why a
+                // suggestion is missing (rather than silently dropping it).
+                Err(e) => {
+                    log::warn!("Failed to get archive snapshot for {}: {e}", url.as_str());
+                }
             }
 
             progress.update(None);
