@@ -161,6 +161,7 @@ See the lychee-action repository for usage instructions.
 
 We provide binaries for Linux, macOS, and Windows for every release. You can
 download them from the [releases page](https://github.com/lycheeverse/lychee/releases).
+
 You can also use [`cargo-binstall`](https://github.com/cargo-bins/cargo-binstall#cargo-binaryinstall)
 to install these binaries:
 
