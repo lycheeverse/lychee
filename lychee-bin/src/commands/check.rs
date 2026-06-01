@@ -139,16 +139,26 @@ async fn suggest_archived_links(
     futures::stream::iter(failed_urls)
         .map(|(input, url)| (input, url, archive.get_archive_snapshot(url, timeout)))
         .for_each_concurrent(max_concurrency, |(input, url, future)| async {
-            if let Ok(Some(suggestion)) = future.await {
-                suggestions
-                    .lock()
-                    .unwrap()
-                    .entry(input.clone())
-                    .or_default()
-                    .insert(Suggestion {
-                        suggestion,
-                        original: url.clone(),
-                    });
+            match future.await {
+                Ok(Some(suggestion)) => {
+                    suggestions
+                        .lock()
+                        .unwrap()
+                        .entry(input.clone())
+                        .or_default()
+                        .insert(Suggestion {
+                            suggestion,
+                            original: url.clone(),
+                        });
+                }
+                // No snapshot exists for this URL; nothing to suggest.
+                Ok(None) => {}
+                // The archive lookup itself failed (rate limiting, 5xx,
+                // timeout, ...). Surface it so users understand why a
+                // suggestion is missing (rather than silently dropping it).
+                Err(e) => {
+                    log::warn!("Failed to get archive snapshot for {}: {e}", url.as_str());
+                }
             }
 
             progress.update(None);
