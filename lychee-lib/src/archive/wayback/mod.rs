@@ -32,15 +32,18 @@ use reqwest::header::LOCATION;
 use reqwest::redirect::Policy;
 use reqwest::{Client, Error, Url};
 
+/// Base URL for Wayback Machine snapshot lookups.
+///
+/// Appending a URL (and omitting a timestamp) tells Wayback to resolve the
+/// latest available snapshot of that page.
+const WAYBACK_BASE_URL: &str = "https://web.archive.org/web/";
+
 /// Shared HTTP client for all Wayback suggestion lookups.
 ///
 /// The suggestion path may issue dozens of lookups in quick succession
 /// (one per failed URL), all aimed at the same host. Sharing a client
 /// lets them reuse the connection pool, TLS session cache, and DNS
 /// resolver instead of paying those costs per request.
-///
-/// The timeout is applied per-request (see [`get_archive_snapshot`]) so it can
-/// honour the caller's `--timeout`
 static CLIENT: LazyLock<Client> = LazyLock::new(|| {
     Client::builder()
         // Wayback's `302` response directly gives
@@ -59,14 +62,11 @@ static CLIENT: LazyLock<Client> = LazyLock::new(|| {
 /// - a redirect (`302`) carries the timestamped snapshot in its `Location`
 ///   header, which we return without following, and
 /// - a `404` means there is no snapshot, so we return `None`.
-///
-/// `timeout` bounds the lookup so callers can keep it in step with the
-/// `--timeout` they use for ordinary requests.
 pub(crate) async fn get_archive_snapshot(
     url: &Url,
     timeout: Duration,
 ) -> Result<Option<Url>, Error> {
-    let wayback = format!("https://web.archive.org/web/{url}");
+    let wayback = format!("{WAYBACK_BASE_URL}{url}");
     // `Url::parse` cannot fail here for any well-formed input `url`, but
     // if it ever did we'd rather report "no suggestion" than panic.
     let Ok(snapshot_url) = Url::parse(&wayback) else {
@@ -92,6 +92,8 @@ pub(crate) async fn get_archive_snapshot(
         let snapshot = response
             .headers()
             .get(LOCATION)
+            // HTTP header values aren't guaranteed to be UTF-8.
+            // If string conversion fails, it gets treated as "no snapshot."
             .and_then(|location| location.to_str().ok())
             .and_then(|location| response.url().join(location).ok());
         return Ok(snapshot);
@@ -111,7 +113,7 @@ mod tests {
     use std::time::Duration;
     use url::Url;
 
-    use super::get_archive_snapshot;
+    use super::{WAYBACK_BASE_URL, get_archive_snapshot};
 
     const TEST_TIMEOUT: Duration = Duration::from_secs(20);
 
@@ -135,7 +137,7 @@ mod tests {
                 let snapshot = snapshot.expect("example.com should have a snapshot");
                 let s = snapshot.as_str();
                 let after = s
-                    .strip_prefix("https://web.archive.org/web/")
+                    .strip_prefix(WAYBACK_BASE_URL)
                     .unwrap_or_else(|| panic!("unexpected snapshot URL: {s}"));
                 // A resolved snapshot embeds a numeric timestamp
                 // (e.g. `/web/20020120142510/...`). If we got the bare,

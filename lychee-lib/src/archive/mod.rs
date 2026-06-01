@@ -23,8 +23,8 @@ impl Archive {
     /// Query the `Archive` to try and find the latest snapshot of the specified `url`.
     /// Returns `None` if the specified `url` hasn't been archived in the past.
     ///
-    /// `timeout` bounds the lookup, so it can be kept in step with the timeout
-    /// used for ordinary link checks.
+    /// The timeout guarantees that the function doesn't wait indefinitely for a
+    /// response from the archive.
     ///
     /// # Errors
     ///
