@@ -50,7 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prevent autolink duplication ([#2151](https://github.com/lycheeverse/lychee/pull/2151))
 - Prevent 0 value for max-concurrency and threads ([#2145](https://github.com/lycheeverse/lychee/pull/2145))
 - Quirk: remove line number fragments from github URLs ([#2116](https://github.com/lycheeverse/lychee/pull/2116))
-- Use the remapped URI for the cache key ([#1818](https://github.com/lycheeverse/lychee/pull/1818)) ([#2109](https://github.com/lycheeverse/lychee/pull/2109))
+- Use the remapped URI for the cache key ([#1818](https://github.com/lycheeverse/lychee/issues/1818)) ([#2109](https://github.com/lycheeverse/lychee/pull/2109))
 - Fix matching logic for glob hidden files ([#2130](https://github.com/lycheeverse/lychee/pull/2130))
 - Fix toc action ([#2055](https://github.com/lycheeverse/lychee/pull/2055))
 - Prevent duplicate requests to the same URLs ([#2067](https://github.com/lycheeverse/lychee/pull/2067))
