@@ -29,13 +29,13 @@ dashmap = { version = "6.2.1", features = ["serde"] }
 env_logger = "0.11.10"
 futures = "0.3.32"
 headers = "0.4.1"
-http = "1.4.0"
+http = "1.4.1"
 http-serde = "2.1.1"
 humantime = "2.3.0"
 humantime-serde = "1.1.1"
 numeric-sort = "0.1.5"
 indicatif = "0.18.4"
-log = "0.4.30"
+log = "0.4.31"
 regex = "1.12.2"
 reqwest = "0.13.4"
 reqwest_cookie_store = { version = "0.10.0", features = ["serde"] }
@@ -50,7 +50,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
 strum = { version = "0.28.0", features = ["derive"] }
 supports-color = "3.0.2"
-tabled = "0.20.0"
+tabled = "0.21.0"
 tokio = { version = "1.52.3", features = ["full"] }
 tokio-stream = "0.1.18"
 toml = "1.1.2"
@@ -69,7 +69,7 @@ tracing-subscriber = { version = "0.3.23", default-features = false, features = 
     "registry",
     "env-filter",
 ] }
-uuid = { version = "1.23.1", features = ["v4"] }
+uuid = { version = "1.23.2", features = ["v4"] }
 wiremock = "0.6.5"
 
 [features]
