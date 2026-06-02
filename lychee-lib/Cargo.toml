@@ -25,13 +25,13 @@ governor = "0.10.4"
 headers = "0.4.1"
 html5ever = "0.39.0"
 html5gum = "0.8.3"
-http = "1.4.0"
+http = "1.4.1"
 humantime-serde = "1.1.1"
-hyper = "1.9.0"
+hyper = "1.10.1"
 ignore = "0.4.25"
 ip_network = "0.4.1"
 linkify = "0.11.0"
-log = "0.4.30"
+log = "0.4.31"
 mailify-lib = { version = "0.2.0", optional = true }
 octocrab = { version = "0.51.0", default-features = false, features = [
     "default-client",
