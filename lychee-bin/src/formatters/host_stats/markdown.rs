@@ -32,6 +32,8 @@ struct HostStatsTableEntry {
     requests: u64,
     #[tabled(rename = "Success Rate")]
     success_rate: String,
+    #[tabled(rename = "Network Errors")]
+    network_errors: u64,
     #[tabled(rename = "Median Time")]
     median_time: String,
     #[tabled(rename = "Cache Hit Rate")]
@@ -52,6 +54,7 @@ fn host_stats_table(host_stats: &HostStatsMap) -> String {
                 host: hostname.clone(),
                 requests: stats.total_requests,
                 success_rate: format!("{:.1}%", stats.success_rate() * 100.0),
+                network_errors: stats.network_errors,
                 median_time,
                 cache_hit_rate: format!("{:.1}%", stats.cache_hit_rate() * 100.0),
             }
