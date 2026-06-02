@@ -124,10 +124,11 @@ mod tests {
     /// give each its own runtime and let one reuse a pooled connection whose
     /// runtime has already been torn down, failing with `DispatchGone`.
     ///
-    /// Hits the live Wayback Machine, which is flaky, so it's ignored to
-    /// keep CI deterministic.
+    /// This hits the live Wayback Machine on purpose: it's our only guard
+    /// against the upstream API changing its redirect/`404` behavior in a way
+    /// that silently breaks suggestions. To keep it from failing CI on
+    /// transient hiccups, intermittent `503`s are tolerated below.
     #[tokio::test]
-    #[ignore = "requires network access to web.archive.org"]
     async fn wayback_suggestion_real() -> Result<(), Box<dyn Error>> {
         // Real Wayback request: `example.com` is archived many times over,
         // so this should resolve to a concrete timestamped snapshot URL.
