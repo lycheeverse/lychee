@@ -29,7 +29,7 @@ use crate::utils;
 #[serde(try_from = "String")]
 pub enum BaseInfo {
     /// No base information is available. This is for sources with no base
-    /// information, such as [`ResolvedInputSource::Stdin`], and for URLs which
+    /// information, such as [`crate::ResolvedInputSource::Stdin`], and for URLs which
     /// *cannot be a base*, such as `data:` and `tel:`. [`BaseInfo::None`]
     /// can resolve no relative links; only fully-qualified links will be
     /// parsed successfully.

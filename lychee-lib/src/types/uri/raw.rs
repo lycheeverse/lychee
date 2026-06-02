@@ -9,7 +9,7 @@ pub struct RawUri {
     /// Unparsed URI represented as a `String`. There is no guarantee that it
     /// can be parsed into a URI object
     pub text: String,
-    /// Name of the element that contained the URI (e.g. `a` for the <a> tag).
+    /// Name of the element that contained the URI (e.g. `a` for the `<a>` tag).
     /// This is a way to classify links to make it easier to offer fine control
     /// over the links that will be checked e.g. by trying to filter out links
     /// that were found in unwanted tags like `<pre>` or `<code>`.
