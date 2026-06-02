@@ -15,7 +15,11 @@ jobs:
       - name: Link Checker
         uses: lycheeverse/lychee-action@master
         with:
-          args: --verbose --exclude-path benches --exclude-path fixtures --root-dir . .
+          # Only the input path is passed here.
+          #
+          # All other options live in `lychee.toml` (which lychee-action
+          # auto-loads from the repo root).
+          args: .
 
       - name: Create Issue From File
         if: github.repository_owner == 'lycheeverse' && env.lychee_exit_code != 0

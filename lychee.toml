@@ -1,0 +1,19 @@
+# Configuration for checking this repository's own links.
+# Used by the scheduled link check in .github/workflows/links.yml.
+# See lychee.example.toml for all available options.
+
+# Show info-level output (equivalent to a single `--verbose`).
+verbose = "info"
+
+# Root path for resolving absolute local links (resolved relative to the
+# working directory, i.e. the repository root).
+root_dir = "."
+
+# Paths to skip when collecting inputs.
+exclude_path = ["benches", "fixtures"]
+
+# gitlab.torproject.org rejects lychee's default User-Agent with a 403, even
+# though the page is reachable. Override the User-Agent for just this host so we
+# don't have to change the global one (which other hosts, e.g. crates.io, reject).
+[hosts."gitlab.torproject.org"]
+headers = { "User-Agent" = "curl/8.7.1" }

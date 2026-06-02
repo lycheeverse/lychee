@@ -937,7 +937,7 @@ great contributors who have since made this project more mature.
   <img src="/assets/nlnet.svg" alt="NLnet logo" width="100" height="75" />
 </a>
 
-lychee received financial support through the [NGI0 Core Fund](https://nlnet.nl/core),
+lychee received financial support through the [NGI0 Core Fund](https://nlnet.nl/core/),
 established by NLnet with financial support from the European Commission's
 [Next Generation Internet](https://ngi.eu) programme.
 NLnet is supporting the open internet since 1997.
