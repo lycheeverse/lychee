@@ -188,9 +188,11 @@ pub(crate) struct Config {
     ///
     /// Examples:
     ///
-    ///     lychee --files-from list.txt
-    ///     find . -name '*.md' | lychee --files-from -
-    ///     echo 'README.md' | lychee --files-from -
+    /// ```text
+    /// lychee --files-from list.txt
+    /// find . -name '*.md' | lychee --files-from -
+    /// echo 'README.md' | lychee --files-from -
+    /// ```
     ///
     /// File Format:
     /// - Each line should contain one input (file path, URL, or glob pattern).
@@ -674,7 +676,7 @@ pub(crate) struct Config {
     /// To invoke programs with custom arguments or to use multiple preprocessors, use a
     /// wrapper program such as a shell script. An example script looks like this:
     ///
-    /// ```
+    /// ```bash
     /// #!/usr/bin/env bash
     /// case "$1" in
     /// *.pdf)
