@@ -117,17 +117,13 @@ mod tests {
 
     const TEST_TIMEOUT: Duration = Duration::from_secs(20);
 
-    /// Both cases run in a single test (and therefore a single Tokio runtime)
-    /// on purpose: `get_archive_snapshot` uses a process-wide static
-    /// `reqwest::Client` whose connection pool is bound to the runtime that
-    /// first initializes it. Splitting these into two `#[tokio::test]`s would
-    /// give each its own runtime and let one reuse a pooled connection whose
-    /// runtime has already been torn down, failing with `DispatchGone`.
+    /// Checks that we can get a snapshot URL from the real Wayback Machine, so
+    /// we notice if it ever changes how it responds.
     ///
-    /// Hits the live Wayback Machine, which is flaky, so it's ignored to
-    /// keep CI deterministic.
+    /// Both cases share one runtime because the static `reqwest::Client`'s
+    /// connection pool is bound to the first runtime that uses it, so separate
+    /// `#[tokio::test]`s would risk `DispatchGone` from cross-runtime reuse.
     #[tokio::test]
-    #[ignore = "requires network access to web.archive.org"]
     async fn wayback_suggestion_real() -> Result<(), Box<dyn Error>> {
         // Real Wayback request: `example.com` is archived many times over,
         // so this should resolve to a concrete timestamped snapshot URL.
