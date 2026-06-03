@@ -14,7 +14,6 @@ use lychee_lib::InputSource;
 use lychee_lib::RequestError;
 use lychee_lib::Status;
 use lychee_lib::archive::Archive;
-use lychee_lib::waiter::{WaitGroup, WaitGuard};
 use lychee_lib::{Client, ErrorKind, Request, Response};
 
 use crate::formatters::stats::ResponseStats;
@@ -23,6 +22,21 @@ use crate::progress::Progress;
 use crate::{ExitCode, cache::Cache};
 
 use super::CommandParams;
+
+struct PendingRequest {
+    // TODO this could option to be even light if recursion is not used
+    /// Ride along sender used to enqueue recursively discovered children.
+    ///
+    /// By passing this along with the request/response we can rely on native
+    /// rust ownership to prevent deadlocks and automatic cleanup
+    send_req: mpsc::Sender<PendingRequest>,
+    request: Result<Request, RequestError>,
+}
+
+struct PendingResponse {
+    send_req: mpsc::Sender<PendingRequest>,
+    response: Result<Response, ErrorKind>,
+}
 
 pub(crate) async fn check<S>(
     params: CommandParams<S>,
@@ -34,7 +48,6 @@ where
     let max_concurrency = params.cfg.max_concurrency().get();
     let (send_req, recv_req) = mpsc::channel(max_concurrency);
     let (send_resp, recv_resp) = mpsc::channel(max_concurrency);
-    let (waiter, wait_guard) = WaitGroup::new();
 
     let start = std::time::Instant::now(); // Measure check time
 
@@ -65,17 +78,11 @@ where
     let level = params.cfg.verbose().log_level();
 
     let progress = Progress::new("Extracting links", hide_bar, level, &params.cfg.mode());
-    let stats_handle = tokio::spawn(collect_responses(
-        recv_resp,
-        send_req.clone(),
-        waiter,
-        progress.clone(),
-        stats,
-    ));
+    let stats_handle = tokio::spawn(collect_responses(recv_resp, progress.clone(), stats));
 
     // Send requests into the channel. Note that this will run within the main task
     // and doesn't start until awaited.
-    let send_task = send_requests(params.requests, wait_guard, send_req, &progress);
+    let send_task = send_requests(params.requests, send_req, &progress);
 
     // Waits for all futures to finish, either normally or due to panic.
     let (stats_result, request_result, send_result) =
@@ -168,59 +175,59 @@ async fn suggest_archived_links(
     progress.finish("Finished searching for alternatives");
 }
 
-// drops the `send_req` channel on exit
-// required for the receiver task to end, which closes send_resp, which allows
-// the show_results_task to finish
+// Drops the `send_req` channel on exit. This releases the initial
+// outstanding work token: once every queued/in-flight item has also dropped
+// its ride along sender and the request channel closes, which closes send_resp,
+// which lets `collect_responses` finish.
 async fn send_requests(
     requests: impl futures::Stream<Item = Result<Request, RequestError>>,
-    guard: WaitGuard,
-    send_req: mpsc::Sender<(WaitGuard, Result<Request, RequestError>)>,
+    send_req: mpsc::Sender<PendingRequest>,
     progress: &Progress,
 ) -> Result<(), ()> {
     tokio::pin!(requests);
     while let Some(request) = requests.next().await {
         progress.inc_length(1);
         send_req
-            .send((guard.clone(), request))
+            .send(PendingRequest {
+                send_req: send_req.clone(),
+                request,
+            })
             .await
             .map_err(|_| ())?;
     }
     Ok(())
 }
 
-/// Reads from the request channel and updates the progress bar status
+/// Reads from the response channel and updates the progress bar status.
+///
+/// Each item carries the ride-along request sender (see [`PendingRequest`]).
+/// The sender is dropped at the end of each iteration once the response has
+/// been handled. When the last one drops, the request channel closes and the
+/// pipeline terminates. To recurse, clone `send_req` onto each discovered
+/// child before it is dropped here.
 async fn collect_responses(
-    recv_resp: mpsc::Receiver<(WaitGuard, Result<Response, ErrorKind>)>,
-    send_req: mpsc::Sender<(WaitGuard, Result<Request, RequestError>)>,
-    waiter: WaitGroup,
+    recv_resp: mpsc::Receiver<PendingResponse>,
     progress: Progress,
     mut stats: ResponseStats,
 ) -> Result<ResponseStats, ErrorKind> {
-    // Wrap recv_resp until the WaitGroup finishes, at which time the
-    // recv_resp_until_done stream will be closed. The correctness of
-    // WaitGroup guarantees that if the waiter finishes, every channel
-    // with a WaitGuard must be empty.
-    let mut recv_resp_until_done = ReceiverStream::new(recv_resp)
-        .take_until(waiter.wait())
-        .boxed();
+    let mut recv_resp = ReceiverStream::new(recv_resp);
 
-    while let Some((_guard, response)) = recv_resp_until_done.next().await {
+    while let Some(PendingResponse { send_req, response }) = recv_resp.next().await {
         let response = response?;
         progress.update(Some(response.body()));
         stats.add(response);
+
+        // TODO: recurse by enqueuing discovered child URLs via `send_req`,
+        // cloning it onto each child before this `send_req` is dropped below.
+        let _ = &send_req;
     }
 
-    // unused for now, but will be used for recursion eventually. by holding
-    // an extra `send_req` endpoint, we prevent the natural termination when
-    // each channel finishes and closes. instead, we rely on the WaitGroup to
-    // break the cyclic channels.
-    let _ = send_req;
     Ok(stats)
 }
 
 async fn request_channel_task(
-    recv_req: mpsc::Receiver<(WaitGuard, Result<Request, RequestError>)>,
-    send_resp: mpsc::Sender<(WaitGuard, Result<Response, ErrorKind>)>,
+    recv_req: mpsc::Receiver<PendingRequest>,
+    send_resp: mpsc::Sender<PendingResponse>,
     max_concurrency: usize,
     client: Client,
     cache: Cache,
@@ -230,7 +237,7 @@ async fn request_channel_task(
     StreamExt::for_each_concurrent(
         ReceiverStream::new(recv_req),
         max_concurrency,
-        |(guard, request): (WaitGuard, Result<Request, RequestError>)| async {
+        |PendingRequest { send_req, request }: PendingRequest| async {
             let response = handle(
                 &client,
                 &cache,
@@ -240,7 +247,12 @@ async fn request_channel_task(
             )
             .await;
 
-            send_resp.send((guard, response)).await.unwrap_or_default();
+            // The ride along sender moves onto the response, so it stays alive
+            // across the whole check window
+            send_resp
+                .send(PendingResponse { send_req, response })
+                .await
+                .unwrap_or_default();
         },
     )
     .await;
