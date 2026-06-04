@@ -53,6 +53,13 @@ jobs:
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
+      - name: Check lychee-docker pre-commit version matches Cargo.toml
+        run: |
+          version=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "lychee") | .version')
+          if ! grep -q "lycheeverse/lychee:$version" .pre-commit-hooks.yaml; then
+            echo "::error::Bump the lycheeverse/lychee docker tag in .pre-commit-hooks.yaml to $version"
+            exit 1
+          fi
       - name: Run cargo fmt (check if all code is rustfmt-ed)
         run: cargo fmt --all --check
       - name: Run cargo clippy (deny warnings)
