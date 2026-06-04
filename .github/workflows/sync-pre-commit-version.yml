@@ -1,0 +1,49 @@
+# Keep the pinned `lychee-docker` pre-commit hook version in sync with the
+# workspace version that release-plz bumps.
+#
+# release-plz opens (and updates) a release PR on a `release-plz-*` branch that
+# bumps `[workspace.package] version` in `Cargo.toml`. This workflow reacts to
+# those pushes, rewrites the pinned image tag in `.pre-commit-hooks.yaml`, and
+# commits the change back onto the same release branch.
+#
+# Doing it here (rather than after the tag is published) is important: pre-commit
+# reads `.pre-commit-hooks.yaml` from the *tagged* commit, so the docker tag must
+# already be correct by the time the release is tagged.
+
+name: Sync pre-commit docker version
+
+on:
+  push:
+    branches:
+      - release-plz-master
+      - release-plz-main
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Sync lychee-docker version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref_name }}
+          # Use the release-plz token so the resulting commit can trigger the
+          # usual CI checks on the release PR.
+          token: ${{ secrets.RELEASE_PLZ_TOKEN }}
+
+      - name: Sync docker version into pre-commit hooks
+        run: ./scripts/sync_docker_pre_commit_version.sh
+
+      - name: Commit and push if changed
+        run: |
+          if git diff --quiet; then
+            echo "Nothing to sync."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: sync lychee-docker pre-commit version"
+          git push

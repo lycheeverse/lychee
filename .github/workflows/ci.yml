@@ -53,6 +53,8 @@ jobs:
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
+      - name: Check lychee-docker pre-commit version is in sync
+        run: ./scripts/sync_docker_pre_commit_version.sh --check
       - name: Run cargo fmt (check if all code is rustfmt-ed)
         run: cargo fmt --all --check
       - name: Run cargo clippy (deny warnings)
