@@ -378,7 +378,9 @@ jobs:
     permissions:
       attestations: write # to write attestations
       id-token: write # to sign attestations
-      artifact-metadata: write # required by actions/attest@v4
+      # artifact-metadata: write is documented as required by actions/attest@v4.
+      # However, it does not actually seem to be required in our use of the action,
+      # and the documentation around it is quite terse, so omitting for now.
     steps:
       - name: Download release asset digests
         uses: actions/download-artifact@v8
