@@ -294,7 +294,11 @@ jobs:
         if: startsWith(matrix.os, 'windows')
         run: |
           7z a "$ARCHIVE.zip" "$ARCHIVE"
-          certutil -hashfile "$ARCHIVE.zip" SHA256 > "$ARCHIVE.zip.sha256"
+          # Use shasum (bundled with Git for Windows) instead of certutil so the
+          # checksum file matches the shasum format that the attest job feeds to
+          # `subject-checksums`. certutil's multi-line, filename-less output is
+          # not a valid checksums file.
+          shasum -a 256 "$ARCHIVE.zip" > "$ARCHIVE.zip.sha256"
           echo "ASSET=$ARCHIVE.zip" >> $GITHUB_ENV
           echo "ASSET_SUM=$ARCHIVE.zip.sha256" >> $GITHUB_ENV
 
@@ -339,11 +343,16 @@ jobs:
           # uploads idempotent across reruns or overlapping triggers.
           gh release upload "$version" ${{ env.ASSET }} ${{ env.ASSET_SUM }} --clobber
 
-      - name: Upload release asset digest
+      - name: Upload release asset digests
         uses: actions/upload-artifact@v7
         with:
-          path: ${{ env.ASSET_SUM }}
-          archive: false
+          # Artifact names must be unique within a run, so key it on the target.
+          # Glob every *.sha256 instead of a single file because the aarch64-macos
+          # job produces two digests (tar.gz + dmg); `archive: false` only allows
+          # one file and would silently drop them.
+          name: release-asset-digests-${{ matrix.target }}
+          path: "*.sha256"
+          if-no-files-found: error
 
   binstall-check:
     needs: [build-release]
@@ -369,6 +378,9 @@ jobs:
     permissions:
       attestations: write # to write attestations
       id-token: write # to sign attestations
+      # artifact-metadata: write is documented as required by actions/attest@v4.
+      # However, it does not actually seem to be required in our use of the action,
+      # and the documentation around it is quite terse, so omitting for now.
     steps:
       - name: Download release asset digests
         uses: actions/download-artifact@v8
