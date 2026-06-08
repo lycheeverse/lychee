@@ -79,8 +79,6 @@ pub mod ratelimit;
 /// local IPs or e-mail addresses
 pub mod filter;
 
-pub mod waiter;
-
 #[cfg(test)]
 use doc_comment as _; // required for doctest
 use ring as _; // required for apple silicon
