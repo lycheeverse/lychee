@@ -6,7 +6,7 @@ use std::{
 use super::StatsFormatter;
 use anyhow::Result;
 use http::StatusCode;
-use lychee_lib::{InputSource, ResponseBody, Status};
+use lychee_lib::{InputSource, RequestError, ResponseBody, Status};
 use std::fmt::Write;
 use tabled::{
     Table, Tabled,
@@ -77,11 +77,11 @@ fn stats_table(stats: &ResponseStats) -> String {
 ///
 /// Optional details get added if available.
 fn markdown_response(response: &ResponseBody) -> Result<String> {
-    let mut formatted = format!(
-        "* [{}] <{}>",
-        response.status.code_as_string(),
-        response.uri,
-    );
+    let uri = match &response.status {
+        Status::RequestError(RequestError::CreateRequestItem(raw, _, _)) => &raw.text,
+        _ => response.uri.as_str(),
+    };
+    let mut formatted = format!("* [{}] <{}>", response.status.code_as_string(), uri,);
 
     if let Some(span) = response.span {
         formatted = format!("{formatted} (at {span})");
@@ -180,8 +180,8 @@ mod tests {
     use std::time::Duration;
 
     use http::StatusCode;
-    use lychee_lib::RawUriSpan;
-    use lychee_lib::{CacheStatus, ResponseBody, Status, Uri};
+    use lychee_lib::{CacheStatus, ErrorKind, RawUri, RawUriSpan, ResolvedInputSource};
+    use lychee_lib::{RequestError, ResponseBody, Status, Uri};
     use pretty_assertions::assert_eq;
 
     use crate::formatters::stats::get_dummy_stats;
@@ -240,6 +240,36 @@ mod tests {
             markdown,
             "* [400] <http://example.com/> (at 1:1) | Error (cached)"
         );
+    }
+
+    #[test]
+    fn test_markdown_response_request_error_uses_raw_uri() {
+        let raw = RawUri {
+            text: "https://example]org/malformed_two".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+            span: SPAN.unwrap(),
+        };
+        let response = ResponseBody {
+            uri: Uri::try_from("error:").unwrap(),
+            status: Status::RequestError(RequestError::CreateRequestItem(
+                Box::new(raw),
+                ResolvedInputSource::String("input".into()),
+                Box::new(ErrorKind::EmptyUrl),
+            )),
+            redirects: None,
+            remap: None,
+            span: SPAN,
+            duration: DURATION,
+        };
+
+        let markdown = markdown_response(&response).unwrap();
+
+        assert_eq!(
+            markdown,
+            "* [ERROR] <https://example]org/malformed_two> (at 1:1) | Empty URL found but a URL must not be empty"
+        );
+        assert!(!markdown.contains("<error:>"));
     }
 
     #[test]
