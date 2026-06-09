@@ -20,7 +20,7 @@
 //! the [`WaitGroup`], the tasks would not terminate.
 //!
 //! ```rust
-//! # use lychee_lib::waiter::{WaitGuard, WaitGroup};
+//! # use lychee_lib::async_lib::waiter::{WaitGuard, WaitGroup};
 //! # use futures::StreamExt;
 //! # use tokio::sync::mpsc::{Receiver, Sender, channel};
 //! # use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
