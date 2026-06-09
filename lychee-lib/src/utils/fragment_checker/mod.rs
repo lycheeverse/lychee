@@ -2,20 +2,16 @@ mod parsed_fragment;
 mod text;
 
 use log::info;
-use std::{
-    borrow::Cow,
-    collections::{HashMap, HashSet, hash_map::Entry},
-    path::Path,
-    sync::Arc,
-};
+use std::{borrow::Cow, collections::HashSet, path::Path};
 
 use crate::{
     FragmentCheckerOptions, Result,
+    async_lib::cache::Cache,
     extract::{html::html5gum::extract_html_fragments, markdown::extract_markdown_fragments},
     types::{ErrorKind, FileType},
 };
 use percent_encoding::percent_decode_str;
-use tokio::{fs, sync::Mutex};
+use tokio::fs;
 use url::Url;
 
 use self::parsed_fragment::ParsedFragment;
@@ -107,15 +103,13 @@ impl FragmentBuilder {
 /// a `HashSet` of fragments as the value.
 #[derive(Default, Clone, Debug)]
 pub(crate) struct FragmentChecker {
-    cache: Arc<Mutex<HashMap<String, HashSet<String>>>>,
+    cache: Cache<String, HashSet<String>>,
 }
 
 impl FragmentChecker {
     /// Creates a new `FragmentChecker`.
     pub(crate) fn new() -> Self {
-        Self {
-            cache: Arc::default(),
-        }
+        Self::default()
     }
 
     /// Checks if the given [`FragmentInput`] contains the given fragment.
@@ -171,6 +165,7 @@ impl FragmentChecker {
             return Ok(true);
         }
 
+        // Removing then replacing the fragment lets us remove text fragments, if any.
         let url_without_frag = Self::remove_fragment(url.clone());
         let anchor_url = Self::with_element_fragment(url, anchor_fragment);
 
@@ -184,23 +179,16 @@ impl FragmentChecker {
         };
 
         let fragment_candidates = FragmentBuilder::new(fragment, &anchor_url, file_type)?;
-        match self.cache.lock().await.entry(url_without_frag) {
-            Entry::Vacant(entry) => {
-                let file_frags = extractor(content);
-                let contains_fragment = fragment_candidates.any_matches(&file_frags);
-                entry.insert(file_frags);
-                Ok(contains_fragment)
-            }
-            Entry::Occupied(entry) => {
-                let file_frags = entry.get();
-                Ok(fragment_candidates.any_matches(file_frags))
-            }
-        }
+        let file_frags = match self.cache.lock_entry(url_without_frag.as_str()) {
+            Ok(setter) => setter.set(extractor(content)),
+            Err(anchors) => anchors,
+        };
+        Ok(fragment_candidates.any_matches(&*file_frags.wait().await?))
     }
 
-    fn remove_fragment(mut url: Url) -> String {
+    fn remove_fragment(mut url: Url) -> Url {
         url.set_fragment(None);
-        url.into()
+        url
     }
 
     fn with_element_fragment(url: &Url, fragment: Option<&str>) -> Url {
