@@ -4,6 +4,7 @@ use crate::types::{
 };
 
 pub mod css;
+pub mod fragments;
 pub mod html;
 pub mod markdown;
 mod plaintext;
@@ -76,7 +77,7 @@ mod tests {
     use pretty_assertions::assert_eq;
     use reqwest::Url;
     use std::{collections::HashSet, path::Path};
-    use test_utils::{fixtures_path, load_fixture, mail, website};
+    use test_utils::{load_fixture, mail, website};
 
     use super::*;
     use crate::{
