@@ -26,17 +26,18 @@ static REGEX_TO_REMOVE: LazyLock<Regex> =
 /// Lowercase the given string while exactly matching Github's algorithm for
 /// lowercasing fragment identifiers.
 ///
-/// Github's lowercase algorithm does not handle special case rules (as
-/// described in <https://www.unicode.org/Public/3.2-Update/SpecialCasing-3.2.0.txt>),
+/// Github's lowercase algorithm does not handle [special case rules][],
 /// but Rust's `to_lowercase` *does* implement these rules. This function
 /// needs to compensate for this difference.
+///
+/// [special case rules]: https://www.unicode.org/Public/3.2-Update/SpecialCasing-3.2.0.txt
 fn github_lowercase(chars: impl Iterator<Item = char>) -> String {
     chars
         .map(|c| {
             // Manually lowercase certain characters to avoid Rust's handling
-            // of special case rules.
+            // of special case rules. We can ignore most of the other rules because
+            // they're locale-dependent or don't affect lowercasing.
             match c {
-                ' ' => '-',
                 '\u{0130}' => 'i', // U+0130 LATIN CAPITAL LETTER I WITH DOT ABOVE
                 'Σ' => 'σ',        // U+03A3 GREEK CAPITAL LETTER SIGMA
                 c => c,
@@ -51,7 +52,15 @@ fn github_lowercase(chars: impl Iterator<Item = char>) -> String {
 /// IDs are unique between calls. For most uses, [`GithubHeadingIdGenerator`]
 /// should be used instead.
 pub fn generate_without_disambiguation(text: &str) -> String {
-    github_lowercase(REGEX_TO_REMOVE.split(text).flat_map(str::chars))
+    github_lowercase(
+        REGEX_TO_REMOVE
+            .split(text)
+            .flat_map(str::chars)
+            .map(|c| match c {
+                ' ' => '-',
+                c => c,
+            }),
+    )
 }
 
 /// A stateful type for generating fragment identifiers in the style
