@@ -1,8 +1,22 @@
-use crate::{ErrorKind, Result};
+use crate::Result;
 use log::info;
 use reqwest_cookie_store::{CookieStore as ReqwestCookieStore, CookieStoreMutex};
 use std::io::ErrorKind as IoErrorKind;
 use std::{path::PathBuf, sync::Arc};
+use thiserror::Error;
+
+/// An error which occurs while loading or saving the cookie jar.
+#[derive(Error, Debug, PartialEq, Eq, Hash)]
+#[error("Cookie handling error: {0}")]
+pub struct CookieError(pub String);
+
+impl CookieError {
+    /// Return more details about this error, including remediation hints.
+    #[must_use]
+    pub fn details(&self) -> String {
+        format!("{self}. Check cookie file format")
+    }
+}
 
 /// A wrapper around `reqwest_cookie_store::CookieStore`
 ///
@@ -33,7 +47,7 @@ impl CookieJar {
             Ok(contents) => {
                 info!("Loading cookies from {}", path.display());
                 cookie_store::serde::json::load(contents.as_bytes())
-                    .map_err(|e| ErrorKind::Cookies(format!("Failed to load cookies: {e}")))?
+                    .map_err(|e| CookieError(format!("Failed to load cookies: {e}")))?
             }
             // Propagate other IO errors (like permission denied) to the caller
             Err(e) => return Err(e.into()),
@@ -65,9 +79,9 @@ impl CookieJar {
         let store = self
             .inner
             .lock()
-            .map_err(|e| ErrorKind::Cookies(format!("Failed to lock cookie store: {e}")))?;
+            .map_err(|e| CookieError(format!("Failed to lock cookie store: {e}")))?;
         cookie_store::serde::json::save(&store, &mut file)
-            .map_err(|e| ErrorKind::Cookies(format!("Failed to save cookies: {e}")))
+            .map_err(|e| CookieError(format!("Failed to save cookies: {e}")).into())
     }
 }
 

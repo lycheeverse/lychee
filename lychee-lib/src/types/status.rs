@@ -4,6 +4,7 @@ use super::CacheStatus;
 use crate::ErrorKind;
 use crate::RequestError;
 use crate::ratelimit::CacheableResponse;
+use crate::types::UriError;
 use http::StatusCode;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
@@ -279,7 +280,9 @@ impl Status {
 impl From<ErrorKind> for Status {
     fn from(e: ErrorKind) -> Self {
         match e {
-            ErrorKind::InvalidUrlHost => Status::Unsupported(ErrorKind::InvalidUrlHost),
+            ErrorKind::Uri(UriError::MissingHost) => {
+                Status::Unsupported(ErrorKind::Uri(UriError::MissingHost))
+            }
             ErrorKind::NetworkRequest(e)
             | ErrorKind::ReadResponseBody(e)
             | ErrorKind::BuildRequestClient(e) => {
@@ -300,7 +303,7 @@ impl From<ErrorKind> for Status {
 
 #[cfg(test)]
 mod tests {
-    use crate::{CacheStatus, ErrorKind, Status};
+    use crate::{CacheStatus, ErrorKind, Status, UriError};
     use http::StatusCode;
 
     #[test]
@@ -309,7 +312,7 @@ mod tests {
         let serialized_with_code = serde_json::to_string(&status_ok).unwrap();
         assert_eq!(r#"{"text":"200 OK","code":200}"#, serialized_with_code);
 
-        let status_error = Status::Error(ErrorKind::EmptyUrl);
+        let status_error = Status::Error(ErrorKind::Uri(UriError::Empty));
         let serialized_with_error = serde_json::to_string(&status_error).unwrap();
         assert_eq!(
             r#"{"text":"Empty URL found but a URL must not be empty","details":"Empty URL found but a URL must not be empty"}"#,

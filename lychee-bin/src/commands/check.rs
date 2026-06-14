@@ -15,7 +15,7 @@ use lychee_lib::RequestError;
 use lychee_lib::Status;
 use lychee_lib::archive::Archive;
 use lychee_lib::waiter::{WaitGroup, WaitGuard};
-use lychee_lib::{Client, ErrorKind, Request, Response};
+use lychee_lib::{Client, ErrorKind, Request, Response, UriError};
 
 use crate::formatters::stats::ResponseStats;
 use crate::formatters::suggestion::Suggestion;
@@ -262,7 +262,7 @@ async fn check_url(client: &Client, request: Request) -> Response {
         log::error!("Error checking URL {uri}: {e}");
         Response::new(
             uri.clone(),
-            Status::Error(ErrorKind::InvalidURI(uri)),
+            Status::Error(ErrorKind::Uri(UriError::Invalid(uri))),
             None,
             None,
             source.into(),

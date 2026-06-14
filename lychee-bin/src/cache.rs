@@ -195,7 +195,9 @@ mod tests {
     use std::collections::HashSet;
 
     use http::StatusCode;
-    use lychee_lib::{CacheStatus, ErrorKind, Status, StatusCodeSelector, StatusRange, Uri};
+    use lychee_lib::{
+        CacheStatus, ErrorKind, Status, StatusCodeSelector, StatusRange, Uri, UriError,
+    };
 
     use crate::{
         cache::{Cache, CacheValue, should_ignore},
@@ -279,7 +281,7 @@ mod tests {
     fn test_cache_ignore_unsupported_status() {
         assert!(should_ignore(
             &Uri::try_from("https://[::1]").unwrap(),
-            &Status::Unsupported(ErrorKind::EmptyUrl),
+            &Status::Unsupported(ErrorKind::Uri(UriError::Empty)),
             &HashSet::default()
         ));
     }

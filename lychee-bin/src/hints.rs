@@ -1,5 +1,5 @@
 use http::{Method, StatusCode};
-use lychee_lib::{ErrorKind, RequestError, Status, StatusCodeSelector, hint};
+use lychee_lib::{ErrorKind, RequestError, Status, StatusCodeSelector, UriError, hint};
 
 use crate::{config::Config, formatters::stats::ResponseStats};
 
@@ -130,7 +130,7 @@ fn fragment_checks_with_non_get_method(config: &Config) {
 fn root_relative_links(stats: &ResponseStats) {
     let any_root_relative_links = stats.error_map.values().flatten().any(|r| match &r.status {
         Status::RequestError(RequestError::CreateRequestItem(_, _, e)) => {
-            matches!(**e, ErrorKind::RootRelativeLinkWithoutRoot(_))
+            matches!(**e, ErrorKind::Uri(UriError::RootRelativeWithoutRoot(_)))
         }
         _ => false,
     });

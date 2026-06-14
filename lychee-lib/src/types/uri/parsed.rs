@@ -1,3 +1,4 @@
+use crate::types::UriError;
 use crate::types::uri::relative::RelativeUri;
 use crate::{ErrorKind, Uri};
 
@@ -25,7 +26,7 @@ impl<'a> ParsedUri<'a> {
 
         match Uri::try_from(text) {
             Ok(uri) => Ok(ParsedUri::Absolute(uri)),
-            Err(ErrorKind::ParseUrl(ParseError::RelativeUrlWithoutBase, _)) => {
+            Err(ErrorKind::Uri(UriError::Parse(ParseError::RelativeUrlWithoutBase, _))) => {
                 Ok(ParsedUri::Relative(RelativeUri::parse(text)))
             }
             Err(e) => Err(e),

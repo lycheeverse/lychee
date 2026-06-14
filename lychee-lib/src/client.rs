@@ -35,7 +35,10 @@ use crate::{
     filter::Filter,
     ratelimit::{ClientMap, HostConfigs, HostKey, HostPool, RateLimitConfig},
     remap::Remaps,
-    types::{DEFAULT_ACCEPTED_STATUS_CODES, Redirects, redirect_history::RedirectHistory},
+    types::{
+        DEFAULT_ACCEPTED_STATUS_CODES, Redirects, redirect_history::RedirectHistory,
+        uri::github::GithubError,
+    },
 };
 
 /// Default number of redirects that are followed.
@@ -386,7 +389,7 @@ impl ClientBuilder {
                     .build()
                     // this is essentially the same `reqwest::ClientBuilder::build` error
                     // see https://docs.rs/octocrab/0.18.1/src/octocrab/lib.rs.html#360-364
-                    .map_err(|e: octocrab::Error| ErrorKind::BuildGithubClient(Box::new(e)))?,
+                    .map_err(|e: octocrab::Error| GithubError::BuildClient(Box::new(e)))?,
             ),
             _ => None,
         };

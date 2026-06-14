@@ -3,7 +3,7 @@ use std::fmt;
 use url::Url;
 
 use crate::ErrorKind;
-use crate::types::Result;
+use crate::types::{Result, UriError};
 
 /// A type-safe representation of a hostname for rate limiting purposes.
 ///
@@ -41,7 +41,7 @@ impl TryFrom<&Url> for HostKey {
     type Error = ErrorKind;
 
     fn try_from(url: &Url) -> Result<Self> {
-        let host = url.host_str().ok_or_else(|| ErrorKind::InvalidUrlHost)?;
+        let host = url.host_str().ok_or(UriError::MissingHost)?;
 
         // Normalize to lowercase for consistent lookup
         Ok(HostKey(host.to_lowercase()))

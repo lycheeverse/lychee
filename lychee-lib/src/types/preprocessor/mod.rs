@@ -1,8 +1,19 @@
 use std::{path::PathBuf, process::Command};
 
 use serde::Deserialize;
+use thiserror::Error;
 
-use super::{ErrorKind, Result};
+use super::Result;
+
+/// An error which occurs while running a [`Preprocessor`] command.
+#[derive(Error, Debug, PartialEq, Eq, Hash)]
+#[error("Preprocessor command '{command}' failed with '{reason}'")]
+pub struct PreprocessorError {
+    /// The command which did not execute successfully
+    pub command: String,
+    /// The reason the command failed
+    pub reason: String,
+}
 
 /// Preprocess files with the specified command.
 /// So instead of reading the file contents directly,
@@ -30,7 +41,7 @@ impl Preprocessor {
         let output = Command::new(&self.command)
             .arg(path)
             .output()
-            .map_err(|e| ErrorKind::PreprocessorError {
+            .map_err(|e| PreprocessorError {
                 command: self.command.clone(),
                 reason: format!("could not start: {e}"),
             })?;
@@ -45,14 +56,15 @@ impl Preprocessor {
                 stderr = "<empty stderr>";
             }
 
-            Err(ErrorKind::PreprocessorError {
+            Err(PreprocessorError {
                 command: self.command.clone(),
                 reason: format!("exited with non-zero code: {stderr}"),
-            })
+            }
+            .into())
         }
     }
 }
 
 fn from_utf8(data: Vec<u8>) -> Result<String> {
-    String::from_utf8(data).map_err(|e| ErrorKind::Utf8(e.utf8_error()))
+    String::from_utf8(data).map_err(|e| e.utf8_error().into())
 }

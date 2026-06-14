@@ -22,7 +22,7 @@ impl ResponseFormatter for PlainFormatter {
 mod plain_tests {
     use super::*;
     use http::StatusCode;
-    use lychee_lib::{ErrorKind, Status, Uri};
+    use lychee_lib::{ErrorKind, Status, Uri, UriError};
     use lychee_lib::{Redirect, Redirects};
     use test_utils::mock_response_body;
 
@@ -40,7 +40,7 @@ mod plain_tests {
     fn test_format_response_with_error_status() {
         let formatter = PlainFormatter;
         let body = mock_response_body!(
-            Status::Error(ErrorKind::EmptyUrl),
+            Status::Error(ErrorKind::Uri(UriError::Empty)),
             "https://example.com/404",
         );
         assert_eq!(

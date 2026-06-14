@@ -9,8 +9,26 @@
 pub(crate) mod index;
 pub(crate) mod resolver;
 
-use crate::ErrorKind;
+use std::path::PathBuf;
+
 use pulldown_cmark::CowStr;
+use thiserror::Error;
+
+use crate::types::UriError;
+use crate::{ErrorKind, Uri};
+
+/// Errors that can occur while resolving wikilinks against a base directory.
+#[derive(Error, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum WikilinkError {
+    /// The extracted wikilink could not be found by searching the directory.
+    #[error("Wikilink {0} not found at {1}")]
+    NotFound(Uri, PathBuf),
+
+    /// The base URL for wikilink checking is missing or invalid.
+    #[error("Invalid base URL for WikiLink checking: {0}")]
+    InvalidBase(String),
+}
 
 /// In Markdown Links both '#' and '|' act as modifiers
 /// '#' links to a specific Header in a file
@@ -40,7 +58,7 @@ pub(crate) fn wikilink(input: &str, has_pothole: bool) -> Result<CowStr<'_>, Err
         );
     }
     if stripped_input.is_empty() {
-        return Err(ErrorKind::EmptyUrl);
+        return Err(UriError::Empty.into());
     }
     Ok(stripped_input)
 }

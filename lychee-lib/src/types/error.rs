@@ -7,11 +7,73 @@ use thiserror::Error;
 use tokio::task::JoinError;
 
 use super::InputContent;
+use crate::checker::mail::MailError;
+use crate::checker::wikilink::WikilinkError;
+use crate::remap::RemapError;
 use crate::types::StatusCodeSelectorError;
+use crate::types::cookies::CookieError;
+use crate::types::preprocessor::PreprocessorError;
+use crate::types::uri::error::UriError;
+use crate::types::uri::github::GithubError;
 use crate::{Uri, basic_auth::BasicAuthExtractorError, utils};
+
+/// Internal, low-level errors that originate deep in the stack and are not
+/// meaningful link-level diagnostics on their own (encoding, async runtime, and
+/// internal channels). They are surfaced for completeness, but a user can rarely
+/// act on them directly.
+///
+// TODO(#2097): Once `Status`/`Outcome` are split, these should be modelled as
+// fatal application errors rather than per-link check failures.
+#[derive(Error, Debug)]
+#[non_exhaustive]
+pub enum InternalError {
+    /// A byte sequence could not be interpreted as valid UTF-8.
+    #[error(
+        "Encountered invalid UTF-8 sequence, while trying to interpret bytes UTF-8 string: {0}"
+    )]
+    Utf8(#[source] std::str::Utf8Error),
+
+    /// A future failed to execute to completion on the Tokio runtime.
+    #[error("Task failed to execute to completion: {0}")]
+    RuntimeJoin(#[source] JoinError),
+
+    /// Sending or receiving a message over an internal channel failed.
+    #[error("Internal communication error, cannot send/receive message over channel: {0}")]
+    Channel(#[source] tokio::sync::mpsc::error::SendError<InputContent>),
+}
+
+impl PartialEq for InternalError {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Utf8(a), Self::Utf8(b)) => a == b,
+            (Self::RuntimeJoin(a), Self::RuntimeJoin(b)) => a.to_string() == b.to_string(),
+            (Self::Channel(_), Self::Channel(_)) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for InternalError {}
+
+impl Hash for InternalError {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Utf8(e) => e.to_string().hash(state),
+            Self::RuntimeJoin(e) => e.to_string().hash(state),
+            Self::Channel(e) => e.to_string().hash(state),
+        }
+    }
+}
 
 /// Kinds of status errors
 /// Note: The error messages can change over time, so don't match on the output
+///
+// TODO(#2097): This enum still owns request/response and status-code variants
+// (`NetworkRequest`, `ReadResponseBody`, `BuildRequestClient`, `InvalidStatusCode`,
+// `RejectedStatusCode`) plus a few config-parse leaves (`InvalidHeader`, `Regex`,
+// `InsecureURL`). These are intentionally left here until the `Status`/`Outcome`
+// split in https://github.com/lycheeverse/lychee/issues/2097, which restructures
+// how request outcomes and status-code interpretation are modelled.
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum ErrorKind {
@@ -26,13 +88,9 @@ pub enum ErrorKind {
     #[error("Failed to create HTTP request client: {0}")]
     BuildRequestClient(#[source] reqwest::Error),
 
-    /// Network error while using GitHub API
-    #[error("Network error while using GitHub client")]
-    GithubRequest(#[from] Box<octocrab::Error>),
-
-    /// Error while executing a future on the Tokio runtime
-    #[error("Task failed to execute to completion: {0}")]
-    RuntimeJoin(#[from] JoinError),
+    /// Error while checking a GitHub URL through the GitHub API
+    #[error(transparent)]
+    Github(#[from] GithubError),
 
     /// Error while converting a file to an input
     #[error("Cannot read input content from file '{1}'")]
@@ -47,33 +105,6 @@ pub enum ErrorKind {
     #[error("Cannot read content from stdin: {0}")]
     ReadStdinInput(#[from] std::io::Error),
 
-    /// Errors which can occur when attempting to interpret a sequence of u8 as a string
-    ///
-    #[error(
-        "Encountered invalid UTF-8 sequence, while trying to interpret bytes UTF-8 string: {0}"
-    )]
-    Utf8(#[from] std::str::Utf8Error),
-
-    /// The GitHub client required for making requests cannot be created
-    #[error("Failed to create GitHub client")]
-    BuildGithubClient(#[source] Box<octocrab::Error>),
-
-    /// Invalid GitHub URL
-    #[error("GitHub URL is invalid: {0}")]
-    InvalidGithubUrl(String),
-
-    /// The input is empty and not accepted as a valid URL
-    #[error("Empty URL found but a URL must not be empty")]
-    EmptyUrl,
-
-    /// The given string can not be parsed into a valid URL, e-mail address, or file path
-    #[error("Cannot parse '{1}' into a URL: {0}")]
-    ParseUrl(#[source] url::ParseError, String),
-
-    /// The given string is a root-relative link and cannot be parsed without a known root-dir
-    #[error("Cannot resolve root-relative link '{0}'")]
-    RootRelativeLinkWithoutRoot(String),
-
     /// The given URI cannot be converted to a file path
     #[error("File not found. Check if file exists and path is correct")]
     InvalidFilePath(Uri),
@@ -86,31 +117,11 @@ pub enum ErrorKind {
     #[error("Cannot find index file within directory")]
     InvalidIndexFile(Vec<String>),
 
-    /// The given path cannot be converted to a URI
-    #[error("Cannot convert path to URL: '{0}'")]
-    InvalidUrlFromPath(PathBuf),
-
-    /// The given mail address is unreachable
-    #[error("Unreachable mail address {0}")]
-    UnreachableEmailAddress(Uri, String),
-
     /// The given header could not be parsed.
     /// A possible error when converting a `HeaderValue` from a string or byte
     /// slice.
     #[error("Invalid HTTP header: {0}")]
     InvalidHeader(#[from] http::header::InvalidHeaderValue),
-
-    /// The given string can not be parsed into a valid base URL or base directory
-    #[error("Invalid base URL or directory: '{0}'. {1}")]
-    InvalidBase(String, String),
-
-    /// The given URI type is not supported
-    #[error("Unsupported URI type: '{0}'")]
-    UnsupportedUriType(String),
-
-    /// The given input can not be parsed into a valid URI remap
-    #[error("Invalid remap pattern: {0}")]
-    InvalidUrlRemap(String),
 
     /// The given input is neither a valid file path nor a valid URL
     #[error(
@@ -126,25 +137,9 @@ pub enum ErrorKind {
     #[error("Invalid glob pattern: {0}")]
     InvalidGlobPattern(#[from] glob::PatternError),
 
-    /// The GitHub API could not be called because of a missing GitHub token.
-    #[error("GitHub token required")]
-    MissingGitHubToken,
-
     /// Used an insecure URI where a secure variant was reachable
     #[error("Insecure HTTP URL used, where '{0}' can be used instead")]
     InsecureURL(Uri),
-
-    /// Error while sending/receiving messages from MPSC channel
-    #[error("Internal communication error, cannot send/receive message over channel: {0}")]
-    Channel(#[from] tokio::sync::mpsc::error::SendError<InputContent>),
-
-    /// A URL without a host was found
-    #[error("URL is missing a hostname")]
-    InvalidUrlHost,
-
-    /// Cannot parse the given URI
-    #[error("The given URI is invalid, check URI syntax: {0}")]
-    InvalidURI(Uri),
 
     /// The given status code is invalid (not in range 100-999)
     #[error("Invalid status code: {0}")]
@@ -166,30 +161,37 @@ pub enum ErrorKind {
     #[error("Basic authentication extraction error: {0}")]
     BasicAuthExtractorError(#[from] BasicAuthExtractorError),
 
-    /// Cannot handle cookies
-    #[error("Cookie handling error: {0}")]
-    Cookies(String),
-
     /// Status code selector parse error
     #[error("Unable to parse status code selector: {0}")]
     StatusCodeSelectorError(#[from] StatusCodeSelectorError),
 
-    /// Preprocessor command error
-    #[error("Preprocessor command '{command}' failed with '{reason}'")]
-    PreprocessorError {
-        /// The command which did not execute successfully
-        command: String,
-        /// The reason the command failed
-        reason: String,
-    },
+    /// Error while parsing, validating, or resolving a URI
+    #[error(transparent)]
+    Uri(#[from] UriError),
 
-    /// The extracted `WikiLink` could not be found by searching the directory
-    #[error("Wikilink {0} not found at {1}")]
-    WikilinkNotFound(Uri, PathBuf),
+    /// Error while resolving a wikilink against the base directory
+    #[error(transparent)]
+    Wikilink(#[from] WikilinkError),
 
-    /// Invalid base URL for `WikiLink` checking
-    #[error("Invalid base URL for WikiLink checking: {0}")]
-    WikilinkInvalidBase(String),
+    /// Error while running a preprocessor command
+    #[error(transparent)]
+    Preprocessor(#[from] PreprocessorError),
+
+    /// Error while loading or saving cookies
+    #[error(transparent)]
+    Cookie(#[from] CookieError),
+
+    /// Error while parsing or applying remap rules
+    #[error(transparent)]
+    Remap(#[from] RemapError),
+
+    /// Error while checking a mail address
+    #[error(transparent)]
+    Mail(#[from] MailError),
+
+    /// Internal, low-level error not meaningful as a link-level diagnostic
+    #[error(transparent)]
+    Internal(#[from] InternalError),
 }
 
 impl ErrorKind {
@@ -203,14 +205,7 @@ impl ErrorKind {
     pub fn details(&self) -> String {
         match self {
             ErrorKind::NetworkRequest(e) => utils::reqwest::analyze_error_chain(e),
-            ErrorKind::GithubRequest(e) => {
-                let detail = if let octocrab::Error::GitHub { source, .. } = &**e {
-                    source.message.clone()
-                } else {
-                    e.to_string()
-                };
-                format!("{self}: {detail}")
-            }
+            ErrorKind::Github(e) => e.details(),
             ErrorKind::ReadFileInput(e, path) => match e.kind() {
                 std::io::ErrorKind::NotFound => "Check if file path is correct".to_string(),
                 std::io::ErrorKind::PermissionDenied => format!(
@@ -232,46 +227,19 @@ impl ErrorKind {
             // TODO: In the future, we should return an Option<String> or separate
             // application errors from library errors.
             ErrorKind::ReadInputUrlStatusCode(_) => String::new(),
-            ErrorKind::ParseUrl(e, _url) => {
-                let detail = match e {
-                    url::ParseError::RelativeUrlWithoutBase => {
-                        ": This relative link was found inside an input source that has no base location"
-                    }
-                    _ => "",
-                };
-
-                format!("{self}{detail}")
-            }
+            ErrorKind::Uri(e) => e.details(),
             ErrorKind::BuildRequestClient(_) => {
                 format!("{self}: Check system configuration")
             }
-            ErrorKind::BuildGithubClient(error) => {
-                format!("{self}: {error}. Check token and network connectivity")
-            }
-            ErrorKind::InvalidGithubUrl(_) => {
-                format!("{self}. Check URL syntax")
-            }
-            ErrorKind::InvalidUrlFromPath(_) => {
-                format!("{self}. Check path format")
-            }
-            ErrorKind::UnreachableEmailAddress(_uri, reason) => reason.clone(),
             ErrorKind::InvalidHeader(_) => {
                 format!("{self}. Check header format")
             }
-            ErrorKind::UnsupportedUriType(_) => {
-                format!("{self}. Only http, https, file, and mailto are supported")
-            }
-            ErrorKind::InvalidUrlRemap(_) => {
-                format!("{self}. Check remap syntax")
-            }
+            ErrorKind::Remap(e) => e.details(),
             ErrorKind::DirTraversal(_) => {
                 format!("{self}. Check directory permissions")
             }
             ErrorKind::InvalidGlobPattern(_) => {
                 format!("{self}. Check pattern syntax")
-            }
-            ErrorKind::MissingGitHubToken => {
-                format!("{self}. Use --github-token flag or GITHUB_TOKEN environment variable")
             }
             ErrorKind::InvalidStatusCode(_) => {
                 format!("{self}. Must be in the range 100-999")
@@ -279,9 +247,8 @@ impl ErrorKind {
             ErrorKind::BasicAuthExtractorError(_) => {
                 format!("{self}. {}", "Check credentials format")
             }
-            ErrorKind::Cookies(_) => {
-                format!("{self}. Check cookie file format")
-            }
+            ErrorKind::Cookie(e) => e.details(),
+            ErrorKind::Mail(e) => e.details(),
             ErrorKind::StatusCodeSelectorError(_) => {
                 format!("{self}. Check 'accept' and 'cache_exclude_status' configuration")
             }
@@ -301,25 +268,14 @@ impl ErrorKind {
             ErrorKind::InvalidFragment(_)
             | ErrorKind::RejectedStatusCode(_)
             | ErrorKind::InvalidFilePath(_)
-            | ErrorKind::InvalidURI(_)
             | ErrorKind::InvalidInput(_)
             | ErrorKind::Regex(_)
-            | ErrorKind::Utf8(_)
             | ErrorKind::ReadResponseBody(_)
-            | ErrorKind::RuntimeJoin(_)
-            | ErrorKind::WikilinkInvalidBase(_)
-            | ErrorKind::Channel(_)
+            | ErrorKind::Wikilink(_)
+            | ErrorKind::Preprocessor(_)
+            | ErrorKind::Internal(_)
             | ErrorKind::InsecureURL(_)
-            | ErrorKind::ReadStdinInput(_)
-            | ErrorKind::InvalidBase(_, _)
-            | ErrorKind::WikilinkNotFound(_, _)
-            | ErrorKind::EmptyUrl
-            | ErrorKind::InvalidUrlHost
-            | ErrorKind::RootRelativeLinkWithoutRoot(_)
-            | ErrorKind::PreprocessorError {
-                command: _,
-                reason: _,
-            } => self.to_string(),
+            | ErrorKind::ReadStdinInput(_) => self.to_string(),
         }
     }
 
@@ -359,42 +315,34 @@ impl PartialEq for ErrorKind {
             (Self::BuildRequestClient(e1), Self::BuildRequestClient(e2)) => {
                 e1.to_string() == e2.to_string()
             }
-            (Self::RuntimeJoin(e1), Self::RuntimeJoin(e2)) => e1.to_string() == e2.to_string(),
             (Self::ReadFileInput(e1, s1), Self::ReadFileInput(e2, s2)) => {
                 e1.kind() == e2.kind() && s1 == s2
             }
             (Self::ReadInputUrlStatusCode(e1), Self::ReadInputUrlStatusCode(e2)) => e1 == e2,
             (Self::ReadStdinInput(e1), Self::ReadStdinInput(e2)) => e1.kind() == e2.kind(),
-            (Self::GithubRequest(e1), Self::GithubRequest(e2)) => e1.to_string() == e2.to_string(),
-            (Self::InvalidGithubUrl(s1), Self::InvalidGithubUrl(s2)) => s1 == s2,
-            (Self::ParseUrl(s1, e1), Self::ParseUrl(s2, e2)) => s1 == s2 && e1 == e2,
-            (Self::UnreachableEmailAddress(u1, ..), Self::UnreachableEmailAddress(u2, ..)) => {
-                u1 == u2
-            }
+            (Self::Github(e1), Self::Github(e2)) => e1 == e2,
+            (Self::Uri(e1), Self::Uri(e2)) => e1 == e2,
+            (Self::Internal(e1), Self::Internal(e2)) => e1 == e2,
             (Self::InsecureURL(u1), Self::InsecureURL(u2)) => u1 == u2,
             (Self::InvalidGlobPattern(e1), Self::InvalidGlobPattern(e2)) => {
                 e1.msg == e2.msg && e1.pos == e2.pos
             }
-            (Self::InvalidHeader(_), Self::InvalidHeader(_))
-            | (Self::MissingGitHubToken, Self::MissingGitHubToken) => true,
+            (Self::InvalidHeader(_), Self::InvalidHeader(_)) => true,
             (Self::InvalidStatusCode(c1), Self::InvalidStatusCode(c2)) => c1 == c2,
-            (Self::InvalidUrlHost, Self::InvalidUrlHost) => true,
-            (Self::InvalidURI(u1), Self::InvalidURI(u2)) => u1 == u2,
             (Self::Regex(e1), Self::Regex(e2)) => e1.to_string() == e2.to_string(),
             (Self::DirTraversal(e1), Self::DirTraversal(e2)) => e1.to_string() == e2.to_string(),
-            (Self::Channel(_), Self::Channel(_)) => true,
             (Self::BasicAuthExtractorError(e1), Self::BasicAuthExtractorError(e2)) => {
                 e1.to_string() == e2.to_string()
             }
-            (Self::Cookies(e1), Self::Cookies(e2)) => e1 == e2,
+            (Self::Cookie(e1), Self::Cookie(e2)) => e1 == e2,
+            (Self::Remap(e1), Self::Remap(e2)) => e1 == e2,
+            (Self::Mail(e1), Self::Mail(e2)) => e1 == e2,
+            (Self::Wikilink(e1), Self::Wikilink(e2)) => e1 == e2,
+            (Self::Preprocessor(e1), Self::Preprocessor(e2)) => e1 == e2,
             (Self::InvalidInput(s1), Self::InvalidInput(s2)) => s1 == s2,
             (Self::InvalidFilePath(u1), Self::InvalidFilePath(u2)) => u1 == u2,
             (Self::InvalidFragment(u1), Self::InvalidFragment(u2)) => u1 == u2,
             (Self::InvalidIndexFile(p1), Self::InvalidIndexFile(p2)) => p1 == p2,
-            (Self::InvalidUrlFromPath(p1), Self::InvalidUrlFromPath(p2)) => p1 == p2,
-            (Self::InvalidBase(b1, e1), Self::InvalidBase(b2, e2)) => b1 == b2 && e1 == e2,
-            (Self::InvalidUrlRemap(r1), Self::InvalidUrlRemap(r2)) => r1 == r2,
-            (Self::EmptyUrl, Self::EmptyUrl) => true,
             (Self::RejectedStatusCode(c1), Self::RejectedStatusCode(c2)) => c1 == c2,
 
             _ => false,
@@ -411,47 +359,33 @@ impl Hash for ErrorKind {
         H: std::hash::Hasher,
     {
         match self {
-            Self::RuntimeJoin(e) => e.to_string().hash(state),
             Self::ReadFileInput(e, s) => (e.kind(), s).hash(state),
             Self::ReadInputUrlStatusCode(c) => c.hash(state),
             Self::ReadStdinInput(e) => e.kind().hash(state),
             Self::NetworkRequest(e) => e.to_string().hash(state),
             Self::ReadResponseBody(e) => e.to_string().hash(state),
             Self::BuildRequestClient(e) => e.to_string().hash(state),
-            Self::BuildGithubClient(e) => e.to_string().hash(state),
-            Self::GithubRequest(e) => e.to_string().hash(state),
-            Self::InvalidGithubUrl(s) => s.hash(state),
+            Self::Github(e) => e.hash(state),
+            Self::Uri(e) => e.hash(state),
+            Self::Internal(e) => e.hash(state),
             Self::DirTraversal(e) => e.to_string().hash(state),
             Self::InvalidInput(s) => s.hash(state),
-            Self::EmptyUrl => "Empty URL".hash(state),
-            Self::ParseUrl(e, s) => (e.to_string(), s).hash(state),
-            Self::RootRelativeLinkWithoutRoot(s) => s.hash(state),
-            Self::InvalidURI(u) => u.hash(state),
-            Self::InvalidUrlFromPath(p) => p.hash(state),
-            Self::Utf8(e) => e.to_string().hash(state),
             Self::InvalidFilePath(u) => u.hash(state),
             Self::InvalidFragment(u) => u.hash(state),
             Self::InvalidIndexFile(p) => p.hash(state),
-            Self::UnreachableEmailAddress(u, ..) => u.hash(state),
             Self::InsecureURL(u, ..) => u.hash(state),
-            Self::InvalidBase(base, e) => (base, e).hash(state),
-            Self::UnsupportedUriType(s) => s.hash(state),
-            Self::InvalidUrlRemap(remap) => (remap).hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
             Self::InvalidGlobPattern(e) => e.to_string().hash(state),
             Self::InvalidStatusCode(c) => c.hash(state),
             Self::RejectedStatusCode(c) => c.hash(state),
-            Self::Channel(e) => e.to_string().hash(state),
-            Self::MissingGitHubToken | Self::InvalidUrlHost => {
-                std::mem::discriminant(self).hash(state);
-            }
             Self::Regex(e) => e.to_string().hash(state),
             Self::BasicAuthExtractorError(e) => e.to_string().hash(state),
-            Self::Cookies(e) => e.hash(state),
+            Self::Cookie(e) => e.hash(state),
+            Self::Remap(e) => e.hash(state),
+            Self::Mail(e) => e.hash(state),
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
-            Self::PreprocessorError { command, reason } => (command, reason).hash(state),
-            Self::WikilinkNotFound(uri, pathbuf) => (uri, pathbuf).hash(state),
-            Self::WikilinkInvalidBase(e) => e.hash(state),
+            Self::Preprocessor(e) => e.hash(state),
+            Self::Wikilink(e) => e.hash(state),
         }
     }
 }
@@ -469,6 +403,27 @@ impl From<Infallible> for ErrorKind {
     fn from(_: Infallible) -> Self {
         // tautological
         unreachable!()
+    }
+}
+
+// The following conversions route low-level leaf errors through
+// [`InternalError`] while preserving `?` ergonomics at call sites that produce
+// the underlying error directly.
+impl From<std::str::Utf8Error> for ErrorKind {
+    fn from(e: std::str::Utf8Error) -> Self {
+        ErrorKind::Internal(InternalError::Utf8(e))
+    }
+}
+
+impl From<JoinError> for ErrorKind {
+    fn from(e: JoinError) -> Self {
+        ErrorKind::Internal(InternalError::RuntimeJoin(e))
+    }
+}
+
+impl From<tokio::sync::mpsc::error::SendError<InputContent>> for ErrorKind {
+    fn from(e: tokio::sync::mpsc::error::SendError<InputContent>) -> Self {
+        ErrorKind::Internal(InternalError::Channel(e))
     }
 }
 

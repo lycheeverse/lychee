@@ -1,4 +1,7 @@
-use crate::{BaseInfo, ErrorKind, Uri, checker::wikilink::index::WikilinkIndex};
+use crate::{
+    BaseInfo, ErrorKind, Uri,
+    checker::wikilink::{WikilinkError, index::WikilinkIndex},
+};
 use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug)]
@@ -18,12 +21,12 @@ impl WikilinkResolver {
         fallback_extensions: Vec<String>,
     ) -> Result<Self, ErrorKind> {
         let base = match base {
-            BaseInfo::None => Err(ErrorKind::WikilinkInvalidBase(
+            BaseInfo::None => Err(WikilinkError::InvalidBase(
                 "Base must be specified for wikilink checking".into(),
             ))?,
             base => base,
         };
-        let base = base.to_file_path().ok_or(ErrorKind::WikilinkInvalidBase(
+        let base = base.to_file_path().ok_or(WikilinkError::InvalidBase(
             "Base cannot be remote".to_string(),
         ))?;
 
@@ -43,13 +46,16 @@ impl WikilinkResolver {
             }
         }
 
-        Err(ErrorKind::WikilinkNotFound(uri.clone(), path.to_path_buf()))
+        Err(WikilinkError::NotFound(uri.clone(), path.to_path_buf()).into())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{BaseInfo, ErrorKind, Uri, checker::wikilink::resolver::WikilinkResolver};
+    use crate::{
+        BaseInfo, ErrorKind, Uri,
+        checker::wikilink::{WikilinkError, resolver::WikilinkResolver},
+    };
     use test_utils::{fixture_uri, fixtures_path};
 
     #[test]
@@ -80,7 +86,7 @@ mod tests {
         let path = fixtures_path!().join("404");
         assert!(matches!(
             resolver.resolve(&path, &uri),
-            Err(ErrorKind::WikilinkNotFound(..))
+            Err(ErrorKind::Wikilink(WikilinkError::NotFound(..)))
         ));
     }
 }

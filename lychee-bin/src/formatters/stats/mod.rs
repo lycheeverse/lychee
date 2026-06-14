@@ -226,7 +226,7 @@ fn get_dummy_stats() -> OutputStats {
 mod tests {
     use super::*;
 
-    use lychee_lib::{ErrorKind, Response, Status, Uri};
+    use lychee_lib::{ErrorKind, Response, Status, Uri, UriError};
     use url::Url;
 
     fn make_test_url(url: &str) -> Url {
@@ -238,7 +238,7 @@ mod tests {
 
         Response::new(
             uri,
-            Status::Error(ErrorKind::EmptyUrl),
+            Status::Error(ErrorKind::Uri(UriError::Empty)),
             None,
             None,
             source,

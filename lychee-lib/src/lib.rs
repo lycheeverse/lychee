@@ -90,6 +90,7 @@ pub use crate::{
     basic_auth::BasicAuthExtractor,
     // Expose the `Handler` trait to allow defining external handlers (plugins)
     chain::{ChainResult, Handler},
+    checker::{mail::MailError, wikilink::WikilinkError},
     // Constants get exposed so that the CLI can use the same defaults as the library
     client::{
         Client, ClientBuilder, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
@@ -98,13 +99,13 @@ pub use crate::{
     },
     collector::Collector,
     filter::{Excludes, Filter, Includes},
-    remap::Remap,
+    remap::{Remap, RemapError},
     types::{
-        BaseInfo, BasicAuthCredentials, BasicAuthSelector, CacheStatus, CookieJar, ErrorKind,
-        FileExtensions, FileType, Input, InputContent, InputResolver, InputSource, LycheeResult,
-        Methods, MethodsError, Preprocessor, Redirect, Redirects, Request, RequestError,
-        ResolvedInputSource, Response, ResponseBody, Result, Status, StatusCodeSelector,
-        StatusRange, StatusRangeError, hints::*, uri::raw::RawUri, uri::raw::RawUriSpan,
-        uri::valid::Uri,
+        BaseInfo, BasicAuthCredentials, BasicAuthSelector, CacheStatus, CookieError, CookieJar,
+        ErrorKind, FileExtensions, FileType, GithubError, Input, InputContent, InputResolver,
+        InputSource, InternalError, LycheeResult, Methods, MethodsError, Preprocessor,
+        PreprocessorError, Redirect, Redirects, Request, RequestError, ResolvedInputSource,
+        Response, ResponseBody, Result, Status, StatusCodeSelector, StatusRange, StatusRangeError,
+        UriError, hints::*, uri::raw::RawUri, uri::raw::RawUriSpan, uri::valid::Uri,
     },
 };

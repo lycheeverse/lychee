@@ -1,8 +1,33 @@
 use crate::{Status, Uri};
 use std::time::Duration;
+use thiserror::Error;
 
 #[cfg(feature = "email-check")]
 use mailify_lib::{Client, Config};
+
+/// An error which occurs while checking a mail address.
+#[derive(Error, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum MailError {
+    /// The given mail address is unreachable.
+    #[error("Unreachable mail address {uri}")]
+    Unreachable {
+        /// The mail address which could not be reached
+        uri: Uri,
+        /// The reason the address is considered unreachable
+        reason: String,
+    },
+}
+
+impl MailError {
+    /// Return more details about this error.
+    #[must_use]
+    pub fn details(&self) -> String {
+        match self {
+            MailError::Unreachable { reason, .. } => reason.clone(),
+        }
+    }
+}
 
 /// A utility for checking the validity of email addresses.
 ///
@@ -64,9 +89,11 @@ impl MailChecker {
         match result {
             CheckResult::Success => Status::Ok(StatusCode::OK),
             CheckResult::Uncertain(reason) => Status::UnknownMailStatus(reason.to_string()),
-            CheckResult::Failure(reason) => {
-                ErrorKind::UnreachableEmailAddress(uri.clone(), reason.to_string()).into()
-            }
+            CheckResult::Failure(reason) => ErrorKind::Mail(MailError::Unreachable {
+                uri: uri.clone(),
+                reason: reason.to_string(),
+            })
+            .into(),
         }
     }
 }

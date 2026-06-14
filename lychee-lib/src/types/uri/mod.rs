@@ -1,3 +1,4 @@
+pub(crate) mod error;
 pub(crate) mod github;
 pub(crate) mod parsed;
 pub(crate) mod raw;

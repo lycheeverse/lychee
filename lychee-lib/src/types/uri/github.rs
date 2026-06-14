@@ -1,6 +1,80 @@
+use std::hash::{Hash, Hasher};
 use std::{collections::HashSet, sync::LazyLock};
 
-use crate::{ErrorKind, Result, Uri};
+use thiserror::Error;
+
+use crate::Uri;
+
+/// Errors that can occur while resolving and checking GitHub URLs through the
+/// GitHub API.
+#[derive(Error, Debug)]
+#[non_exhaustive]
+pub enum GithubError {
+    /// The GitHub API could not be called because of a missing GitHub token.
+    #[error("GitHub token required")]
+    MissingToken,
+
+    /// The GitHub client required for making requests cannot be created.
+    #[error("Failed to create GitHub client")]
+    BuildClient(#[source] Box<octocrab::Error>),
+
+    /// Network error while using the GitHub API.
+    #[error("Network error while using GitHub client")]
+    Request(#[source] Box<octocrab::Error>),
+
+    /// The URL could not be interpreted as a valid GitHub repository URL.
+    #[error("GitHub URL is invalid: {0}")]
+    InvalidUrl(String),
+}
+
+impl GithubError {
+    /// Return more details about this error, including remediation hints.
+    #[must_use]
+    pub fn details(&self) -> String {
+        match self {
+            GithubError::Request(e) => {
+                let detail = if let octocrab::Error::GitHub { source, .. } = &**e {
+                    source.message.clone()
+                } else {
+                    e.to_string()
+                };
+                format!("{self}: {detail}")
+            }
+            GithubError::BuildClient(error) => {
+                format!("{self}: {error}. Check token and network connectivity")
+            }
+            GithubError::InvalidUrl(_) => format!("{self}. Check URL syntax"),
+            GithubError::MissingToken => {
+                format!("{self}. Use --github-token flag or GITHUB_TOKEN environment variable")
+            }
+        }
+    }
+}
+
+impl PartialEq for GithubError {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Request(a), Self::Request(b)) | (Self::BuildClient(a), Self::BuildClient(b)) => {
+                a.to_string() == b.to_string()
+            }
+            (Self::InvalidUrl(a), Self::InvalidUrl(b)) => a == b,
+            (Self::MissingToken, Self::MissingToken) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for GithubError {}
+
+impl Hash for GithubError {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Request(e) | Self::BuildClient(e) => e.to_string().hash(state),
+            Self::InvalidUrl(s) => s.hash(state),
+            Self::MissingToken => std::mem::discriminant(self).hash(state),
+        }
+    }
+}
 
 static GITHUB_API_EXCLUDED_ENDPOINTS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     HashSet::from_iter([
@@ -53,7 +127,7 @@ impl GithubUri {
     }
 
     // TODO: Support GitLab etc.
-    fn gh_org_and_repo(uri: &Uri) -> Result<GithubUri> {
+    fn gh_org_and_repo(uri: &Uri) -> Result<GithubUri, GithubError> {
         fn remove_suffix<'a>(input: &'a str, suffix: &str) -> &'a str {
             if let Some(stripped) = input.strip_suffix(suffix) {
                 return stripped;
@@ -64,19 +138,19 @@ impl GithubUri {
         debug_assert!(!uri.is_mail(), "Should only be called on a Website type!");
 
         let Some(domain) = uri.domain() else {
-            return Err(ErrorKind::InvalidGithubUrl(uri.to_string()));
+            return Err(GithubError::InvalidUrl(uri.to_string()));
         };
 
         if !matches!(
             domain,
             "github.com" | "www.github.com" | "raw.githubusercontent.com"
         ) {
-            return Err(ErrorKind::InvalidGithubUrl(uri.to_string()));
+            return Err(GithubError::InvalidUrl(uri.to_string()));
         }
 
         let parts: Vec<_> = match uri.path_segments() {
             Some(parts) => parts.collect(),
-            None => return Err(ErrorKind::InvalidGithubUrl(uri.to_string())),
+            None => return Err(GithubError::InvalidUrl(uri.to_string())),
         };
 
         if parts.len() < 2 {
@@ -87,12 +161,12 @@ impl GithubUri {
             // permissive and only check for repo existence. This is the
             // only way to get a basic check for private repos. Public repos
             // are not affected and should work with a normal check.
-            return Err(ErrorKind::InvalidGithubUrl(uri.to_string()));
+            return Err(GithubError::InvalidUrl(uri.to_string()));
         }
 
         let owner = parts[0];
         if GITHUB_API_EXCLUDED_ENDPOINTS.contains(owner) {
-            return Err(ErrorKind::InvalidGithubUrl(uri.to_string()));
+            return Err(GithubError::InvalidUrl(uri.to_string()));
         }
 
         let repo = parts[1];
@@ -115,17 +189,17 @@ impl GithubUri {
 }
 
 impl TryFrom<Uri> for GithubUri {
-    type Error = ErrorKind;
+    type Error = GithubError;
 
-    fn try_from(uri: Uri) -> Result<Self> {
+    fn try_from(uri: Uri) -> Result<Self, GithubError> {
         GithubUri::gh_org_and_repo(&uri)
     }
 }
 
 impl TryFrom<&Uri> for GithubUri {
-    type Error = ErrorKind;
+    type Error = GithubError;
 
-    fn try_from(uri: &Uri) -> Result<Self> {
+    fn try_from(uri: &Uri) -> Result<Self, GithubError> {
         GithubUri::gh_org_and_repo(uri)
     }
 }

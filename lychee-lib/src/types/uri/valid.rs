@@ -5,6 +5,7 @@ use ip_network::Ipv6Network;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+use crate::types::UriError;
 use crate::{ErrorKind, Result};
 
 use super::raw::RawUri;
@@ -82,7 +83,7 @@ impl Uri {
         let mut https_uri = self.clone();
         https_uri
             .set_scheme("https")
-            .map_err(|()| ErrorKind::InvalidURI(self.clone()))?;
+            .map_err(|()| ErrorKind::Uri(UriError::Invalid(self.clone())))?;
         Ok(https_uri)
     }
 
@@ -233,7 +234,7 @@ impl TryFrom<&str> for Uri {
         // but we don't want to accept them because there is no clear definition
         // of "validity" in this case.
         if s.is_empty() {
-            return Err(ErrorKind::EmptyUrl);
+            return Err(ErrorKind::Uri(UriError::Empty));
         }
 
         match Url::parse(s) {
@@ -258,7 +259,7 @@ impl TryFrom<&str> for Uri {
                 }
 
                 // We do not handle relative URLs here, as we do not know the base URL.
-                Err(ErrorKind::ParseUrl(err, s.to_owned()))
+                Err(ErrorKind::Uri(UriError::Parse(err, s.to_owned())))
             }
         }
     }

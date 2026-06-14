@@ -63,7 +63,7 @@ impl ResponseFormatter for ColorFormatter {
 mod tests {
     use super::*;
     use http::StatusCode;
-    use lychee_lib::{ErrorKind, Status, Uri};
+    use lychee_lib::{ErrorKind, Status, Uri, UriError};
     use pretty_assertions::assert_eq;
     use test_utils::mock_response_body;
 
@@ -90,7 +90,7 @@ mod tests {
     fn test_format_response_with_error_status() {
         let formatter = ColorFormatter;
         let body = mock_response_body!(
-            Status::Error(ErrorKind::EmptyUrl),
+            Status::Error(ErrorKind::Uri(UriError::Empty)),
             "https://example.com/404",
         );
         let formatted_response = strip_ansi_codes(&formatter.format_response(&body));
@@ -114,7 +114,7 @@ mod tests {
     fn test_error_response_output() {
         let formatter = ColorFormatter;
         let body = mock_response_body!(
-            Status::Error(ErrorKind::EmptyUrl),
+            Status::Error(ErrorKind::Uri(UriError::Empty)),
             "https://example.com/404",
         );
 

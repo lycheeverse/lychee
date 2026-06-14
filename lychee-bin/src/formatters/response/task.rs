@@ -13,7 +13,7 @@ impl ResponseFormatter for TaskFormatter {
 mod task_tests {
     use super::*;
     use http::StatusCode;
-    use lychee_lib::{ErrorKind, Redirect, Redirects, Status, Uri};
+    use lychee_lib::{ErrorKind, Redirect, Redirects, Status, Uri, UriError};
     use test_utils::mock_response_body;
 
     #[test]
@@ -30,7 +30,7 @@ mod task_tests {
     fn test_format_response_with_error_status() {
         let formatter = TaskFormatter;
         let body = mock_response_body!(
-            Status::Error(ErrorKind::EmptyUrl),
+            Status::Error(ErrorKind::Uri(UriError::Empty)),
             "https://example.com/404",
         );
         assert_eq!(

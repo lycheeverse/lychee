@@ -6,7 +6,7 @@ use crate::{
     retry::RetryExt,
     types::{
         redirect_history::{RedirectHistory, Redirects},
-        uri::github::GithubUri,
+        uri::github::{GithubError, GithubUri},
     },
     utils::fragment_checker::{FragmentChecker, FragmentInput},
 };
@@ -350,17 +350,20 @@ impl WebsiteChecker {
     /// clone the repo, but we chose the pragmatic approach.
     async fn check_github(&self, uri: GithubUri) -> Status {
         let Some(client) = &self.github_client else {
-            return ErrorKind::MissingGitHubToken.into();
+            return ErrorKind::Github(GithubError::MissingToken).into();
         };
         let repo = match client.repos(&uri.owner, &uri.repo).get().await {
             Ok(repo) => repo,
-            Err(e) => return ErrorKind::GithubRequest(Box::new(e)).into(),
+            Err(e) => return ErrorKind::Github(GithubError::Request(Box::new(e))).into(),
         };
         if let Some(true) = repo.private {
             return Status::Ok(StatusCode::OK);
         } else if let Some(endpoint) = uri.endpoint {
-            return ErrorKind::InvalidGithubUrl(format!("{}/{}/{endpoint}", uri.owner, uri.repo))
-                .into();
+            return ErrorKind::Github(GithubError::InvalidUrl(format!(
+                "{}/{}/{endpoint}",
+                uri.owner, uri.repo
+            )))
+            .into();
         }
         Status::Ok(StatusCode::OK)
     }

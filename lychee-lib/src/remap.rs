@@ -23,9 +23,23 @@ use std::{fmt::Display, ops::Index};
 
 use regex::Regex;
 use serde::Serialize;
+use thiserror::Error;
 use url::Url;
 
 use crate::{ErrorKind, Result, Uri};
+
+/// An error which occurs while parsing or applying remap rules.
+#[derive(Error, Debug, PartialEq, Eq, Hash)]
+#[error("Invalid remap pattern: {0}")]
+pub struct RemapError(pub String);
+
+impl RemapError {
+    /// Return more details about this error, including remediation hints.
+    #[must_use]
+    pub fn details(&self) -> String {
+        format!("{self}. Check remap syntax")
+    }
+}
 
 /// Records a single [`Uri`] remapping
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
@@ -80,9 +94,8 @@ impl Remaps {
         for (pattern, replacement) in self {
             if pattern.is_match(original.as_str()) {
                 let new = pattern.replace_all(original.as_str(), replacement);
-                let new = Url::parse(&new).map_err(|_| {
-                    ErrorKind::InvalidUrlRemap(format!("the result `{new}` is not a valid URL"))
-                })?;
+                let new = Url::parse(&new)
+                    .map_err(|_| RemapError(format!("the result `{new}` is not a valid URL")))?;
 
                 let remap = Remap {
                     original: original.clone(),
@@ -136,9 +149,10 @@ impl TryFrom<&[String]> for Remaps {
         for remap in remaps {
             let params: Vec<_> = remap.split_whitespace().collect();
             if params.len() != 2 {
-                return Err(ErrorKind::InvalidUrlRemap(format!(
+                return Err(RemapError(format!(
                     "Cannot parse into URI remap rule, must be a Regex pattern and a URL separated by whitespaces: {remap}"
-                )));
+                ))
+                .into());
             }
 
             let pattern = Regex::new(params[0])?;

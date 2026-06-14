@@ -16,6 +16,7 @@
 
 use crate::BaseInfo;
 use crate::ErrorKind;
+use crate::types::UriError;
 use crate::utils;
 
 use glob::Pattern;
@@ -136,7 +137,7 @@ impl ResolvedInputSource {
                 .ok()
                 .and_then(|x| Url::from_file_path(x).ok())
                 .map(Cow::Owned)
-                .ok_or_else(|| ErrorKind::InvalidUrlFromPath(path.to_owned()))?,
+                .ok_or_else(|| UriError::FromPath(path.to_owned()))?,
             _ => return Ok(BaseInfo::none()),
         };
 

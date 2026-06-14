@@ -38,7 +38,7 @@ impl ResponseFormatter for EmojiFormatter {
 mod emoji_tests {
     use super::*;
     use http::StatusCode;
-    use lychee_lib::{ErrorKind, Redirects, ResponseBody, Status, Uri};
+    use lychee_lib::{ErrorKind, Redirects, ResponseBody, Status, Uri, UriError};
     use test_utils::mock_response_body;
 
     #[test]
@@ -52,7 +52,7 @@ mod emoji_tests {
     fn test_format_response_with_error_status() {
         let formatter = EmojiFormatter;
         let body = mock_response_body!(
-            Status::Error(ErrorKind::EmptyUrl),
+            Status::Error(ErrorKind::Uri(UriError::Empty)),
             "https://example.com/404",
         );
         assert_eq!(
@@ -106,7 +106,7 @@ mod emoji_tests {
     fn test_error_response_output() {
         let formatter = EmojiFormatter;
         let body = mock_response_body!(
-            Status::Error(ErrorKind::EmptyUrl),
+            Status::Error(ErrorKind::Uri(UriError::Empty)),
             "https://example.com/404",
         );
 

@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use url::ParseError;
 
 use crate::ErrorKind;
+use crate::types::UriError;
 use crate::types::uri::parsed::ParsedUri;
 use crate::types::uri::relative::RelativeUri;
 use crate::utils;
@@ -121,10 +122,11 @@ impl BaseInfo {
     /// Errors if the given URL cannot be a base.
     pub fn from_base_url(url: &Url) -> Result<BaseInfo, ErrorKind> {
         if url.cannot_be_a_base() {
-            return Err(ErrorKind::InvalidBase(
+            return Err(UriError::InvalidBase(
                 url.to_string(),
                 "The given URL cannot be used as a base URL".to_string(),
-            ));
+            )
+            .into());
         }
 
         Ok(Self::from_source_url(url))
@@ -141,11 +143,12 @@ impl BaseInfo {
     /// Errors if the given path is not an absolute path.
     pub fn from_path(path: &Path) -> Result<BaseInfo, ErrorKind> {
         let Ok(url) = Url::from_directory_path(path) else {
-            return Err(ErrorKind::InvalidBase(
+            return Err(UriError::InvalidBase(
                 path.to_string_lossy().to_string(),
                 "Base must either be a full URL (with scheme) or an absolute local path"
                     .to_string(),
-            ));
+            )
+            .into());
         };
 
         Self::from_base_url(&url).map(|x| x.use_fs_path_as_origin().into_owned())
@@ -286,16 +289,14 @@ impl BaseInfo {
     ///
     /// Returns an error if the text is an invalid URL, or if the current
     /// [`BaseInfo`] is not capable of resolving the given relative link.
-    /// Returned errors include [`ErrorKind::RootRelativeLinkWithoutRoot`]
-    /// and [`ParseError::RelativeUrlWithoutBase`] (within [`ErrorKind::ParseUrl`]).
+    /// Returned errors include [`UriError::RootRelativeWithoutRoot`]
+    /// and [`ParseError::RelativeUrlWithoutBase`] (within [`UriError::Parse`]).
     #[expect(clippy::unnested_or_patterns, reason = "more readable here")]
     #[expect(clippy::match_same_arms, reason = "we need to comment one of the arms")]
     pub fn resolve_relative_link(&self, rel: &RelativeUri<'_>) -> Result<Url, ErrorKind> {
         match (self, &rel) {
             (Self::None, RelativeUri::Root(_)) | (Self::NoRoot(_), RelativeUri::Root(_)) => {
-                return Err(ErrorKind::RootRelativeLinkWithoutRoot(
-                    rel.link_text().to_string(),
-                ));
+                return Err(UriError::RootRelativeWithoutRoot(rel.link_text().to_string()).into());
             }
 
             (Self::None, _) => Err(ParseError::RelativeUrlWithoutBase),
@@ -321,7 +322,7 @@ impl BaseInfo {
                 origin.join(path).and_then(|x| x.join(rel.link_text()))
             }
         }
-        .map_err(|e| ErrorKind::ParseUrl(e, rel.link_text().to_string()))
+        .map_err(|e| UriError::Parse(e, rel.link_text().to_string()).into())
     }
 
     /// Parses the given URL text into a fully-qualified URL, including
