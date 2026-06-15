@@ -50,9 +50,6 @@
 #[cfg(doctest)]
 doc_comment::doctest!("../../README.md");
 
-#[cfg(all(test, not(doctest)))]
-use tokio_stream as _;
-
 /// Check online archives to try and restore broken links
 pub mod archive;
 mod basic_auth;
@@ -79,7 +76,7 @@ pub mod ratelimit;
 /// local IPs or e-mail addresses
 pub mod filter;
 
-pub mod waiter;
+pub mod async_lib;
 
 #[cfg(test)]
 use doc_comment as _; // required for doctest
