@@ -1,0 +1,762 @@
+    Blocking waiting for file lock on artifact directory
+   Compiling cfg-if v1.0.4
+   Compiling zeroize v1.8.2
+   Compiling memchr v2.7.6
+   Compiling smallvec v1.15.1
+   Compiling scopeguard v1.2.0
+   Compiling libc v0.2.184
+   Compiling subtle v2.6.1
+   Compiling itoa v1.0.17
+   Compiling lock_api v0.4.14
+   Compiling portable-atomic v1.13.1
+   Compiling serde_core v1.0.228
+   Compiling bytes v1.11.1
+   Compiling pin-project-lite v0.2.16
+   Compiling futures-core v0.3.32
+   Compiling typenum v1.19.0
+   Compiling const-oid v0.9.6
+   Compiling critical-section v1.2.0
+   Compiling log v0.4.31
+   Compiling futures-sink v0.3.32
+   Compiling zerofrom v0.1.6
+   Compiling stable_deref_trait v1.2.1
+   Compiling slab v0.4.12
+   Compiling once_cell v1.21.4
+   Compiling futures-channel v0.3.32
+   Compiling futures-task v0.3.32
+   Compiling futures-io v0.3.32
+   Compiling parking_lot_core v0.9.12
+   Compiling getrandom v0.2.17
+   Compiling errno v0.3.14
+   Compiling yoke v0.8.1
+   Compiling signal-hook-registry v1.4.8
+   Compiling socket2 v0.6.3
+   Compiling mio v1.2.0
+   Compiling jobserver v0.1.34
+   Compiling parking_lot v0.12.5
+   Compiling generic-array v0.14.9
+   Compiling cc v1.2.55
+   Compiling zerovec v0.11.5
+   Compiling rand_core v0.6.4
+   Compiling tokio v1.52.3
+   Compiling core-foundation-sys v0.8.7
+   Compiling futures-util v0.3.32
+   Compiling block-buffer v0.10.4
+   Compiling crypto-common v0.1.6
+   Compiling base64ct v1.8.3
+   Compiling digest v0.10.7
+   Compiling http v1.4.1
+   Compiling writeable v0.6.2
+   Compiling pem-rfc7468 v0.7.0
+   Compiling litemap v0.8.1
+   Compiling tinystr v0.8.2
+   Compiling equivalent v1.0.2
+   Compiling der v0.7.10
+   Compiling potential_utf v0.1.4
+   Compiling cmake v0.1.57
+   Compiling zerotrie v0.2.3
+   Compiling tracing-core v0.1.36
+   Compiling icu_locale_core v2.1.1
+   Compiling percent-encoding v2.3.2
+   Compiling aws-lc-sys v0.37.0
+   Compiling zerocopy v0.8.37
+   Compiling serde v1.0.228
+   Compiling spki v0.7.3
+   Compiling icu_provider v2.1.1
+   Compiling tracing v0.1.44
+   Compiling icu_collections v2.1.1
+   Compiling crossbeam-utils v0.8.21
+   Compiling bitflags v2.11.1
+   Compiling thiserror v2.0.18
+   Compiling pkcs8 v0.10.2
+   Compiling icu_properties_data v2.1.2
+   Compiling icu_normalizer_data v2.1.1
+   Compiling base64 v0.22.1
+   Compiling foldhash v0.2.0
+   Compiling allocator-api2 v0.2.21
+   Compiling icu_properties v2.1.2
+   Compiling icu_normalizer v2.1.1
+   Compiling zmij v1.0.19
+   Compiling hashbrown v0.16.1
+   Compiling libm v0.2.16
+   Compiling siphasher v1.0.2
+   Compiling phf_shared v0.13.1
+   Compiling powerfmt v0.2.0
+   Compiling num-conv v0.2.0
+   Compiling utf8_iter v1.0.4
+   Compiling time-core v0.1.8
+   Compiling fnv v1.0.7
+   Compiling deranged v0.5.5
+   Compiling time-macros v0.2.27
+   Compiling indexmap v2.13.0
+   Compiling idna_adapter v1.2.1
+   Compiling num-traits v0.2.19
+   Compiling idna v1.1.0
+   Compiling form_urlencoded v1.2.2
+   Compiling http-body v1.0.1
+   Compiling hmac v0.12.1
+   Compiling cpufeatures v0.2.17
+   Compiling rustls-pki-types v1.14.0
+   Compiling untrusted v0.9.0
+   Compiling ipnet v2.11.0
+   Compiling strsim v0.11.1
+   Compiling time v0.3.47
+   Compiling signature v2.2.0
+   Compiling ff v0.13.1
+   Compiling base16ct v0.2.0
+   Compiling tower-service v0.3.3
+   Compiling simd-adler32 v0.3.8
+   Compiling adler2 v2.0.1
+   Compiling try-lock v0.2.5
+   Compiling atomic-waker v1.1.2
+   Compiling miniz_oxide v0.8.9
+   Compiling want v0.3.1
+   Compiling phf_generator v0.13.1
+   Compiling sec1 v0.7.3
+   Compiling group v0.13.0
+   Compiling num-integer v0.1.46
+   Compiling getrandom v0.3.4
+   Compiling httparse v1.10.1
+   Compiling tokio-util v0.7.18
+   Compiling system-configuration-sys v0.6.0
+   Compiling crc32fast v1.5.0
+   Compiling url v2.5.8
+   Compiling hkdf v0.12.4
+   Compiling crossbeam-epoch v0.9.18
+   Compiling security-framework-sys v2.15.0
+   Compiling ppv-lite86 v0.2.21
+   Compiling core-foundation v0.10.1
+   Compiling h2 v0.4.14
+   Compiling core-foundation v0.9.4
+   Compiling crypto-bigint v0.5.5
+   Compiling spin v0.9.8
+   Compiling unicode-width v0.2.2
+   Compiling system-configuration v0.7.0
+   Compiling security-framework v3.5.1
+   Compiling flate2 v1.1.9
+   Compiling rand_core v0.9.5
+   Compiling serde_json v1.0.150
+   Compiling getrandom v0.4.1
+   Compiling aho-corasick v1.1.4
+   Compiling utf8parse v0.2.2
+   Compiling elliptic-curve v0.13.8
+   Compiling compression-core v0.4.31
+   Compiling regex-syntax v0.8.9
+   Compiling compression-codecs v0.4.36
+   Compiling anstyle-parse v1.0.0
+   Compiling pin-project v1.1.10
+   Compiling uuid v1.23.2
+   Compiling rand_chacha v0.9.0
+   Compiling rand_chacha v0.3.1
+   Compiling string_cache_codegen v0.6.1
+   Compiling phf_codegen v0.13.1
+   Compiling sha2 v0.10.9
+   Compiling rfc6979 v0.4.0
+   Compiling futures-executor v0.3.32
+   Compiling crossbeam-channel v0.5.15
+   Compiling sync_wrapper v1.0.2
+   Compiling tower-layer v0.3.3
+   Compiling anstyle v1.0.13
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling new_debug_unreachable v1.0.6
+   Compiling anstyle-query v1.1.5
+   Compiling colorchoice v1.0.4
+   Compiling anstream v1.0.0
+   Compiling tower v0.5.3
+   Compiling darling_core v0.23.0
+   Compiling futures v0.3.32
+   Compiling ecdsa v0.16.9
+   Compiling web_atoms v0.2.3
+   Compiling regex-automata v0.4.14
+   Compiling rand v0.8.5
+   Compiling rand v0.9.2
+   Compiling async-compression v0.4.37
+   Compiling hyper v1.10.1
+   Compiling primeorder v0.13.6
+   Compiling rustls-native-certs v0.8.3
+   Compiling lazy_static v1.5.0
+   Compiling num-iter v0.1.45
+   Compiling http-body-util v0.1.3
+   Compiling iri-string v0.7.10
+   Compiling mime v0.3.17
+   Compiling hashbrown v0.14.5
+   Compiling psl-types v2.0.11
+   Compiling precomputed-hash v0.1.1
+   Compiling tinyvec_macros v0.1.1
+   Compiling tinyvec v1.10.0
+   Compiling string_cache v0.9.0
+   Compiling hyper-util v0.1.20
+   Compiling publicsuffix v2.3.0
+   Compiling darling_macro v0.23.0
+   Compiling cargo_metadata v0.23.1
+   Compiling num-bigint-dig v0.8.6
+   Compiling curve25519-dalek v4.1.3
+   Compiling tower-http v0.6.8
+   Compiling cookie v0.18.1
+   Compiling crossbeam-deque v0.8.6
+   Compiling num-bigint v0.4.6
+   Compiling ed25519 v2.2.3
+   Compiling phf v0.13.1
+   Compiling pkcs1 v0.7.5
+   Compiling ring v0.17.14
+   Compiling iana-time-zone v0.1.65
+   Compiling clap_lex v1.0.0
+   Compiling ryu v1.0.22
+   Compiling tagptr v0.2.0
+   Compiling data-encoding v2.10.0
+   Compiling utf-8 v0.7.6
+   Compiling option-ext v0.2.0
+   Compiling moka v0.12.13
+   Compiling dirs-sys v0.5.0
+   Compiling tendril v0.5.0
+   Compiling clap_builder v4.6.0
+   Compiling hickory-proto v0.25.2
+   Compiling rsa v0.9.10
+   Compiling simple_asn1 v0.6.3
+   Compiling chrono v0.4.44
+   Compiling ed25519-dalek v2.2.0
+   Compiling cookie_store v0.22.1
+   Compiling octocrab v0.51.0
+   Compiling darling v0.23.0
+   Compiling regex v1.12.3
+   Compiling anyhow v1.0.102
+   Compiling p256 v0.13.2
+   Compiling p384 v0.13.1
+   Compiling sha1 v0.10.6
+   Compiling pem v3.0.6
+   Compiling crossbeam-queue v0.3.12
+   Compiling headers-core v0.3.0
+   Compiling nanorand v0.7.0
+   Compiling nom v8.0.0
+   Compiling bstr v1.12.1
+   Compiling encoding_rs v0.8.35
+   Compiling winnow v1.0.0
+   Compiling resolv-conf v0.7.6
+   Compiling httpdate v1.0.3
+   Compiling web-time v1.1.0
+   Compiling same-file v1.0.6
+   Compiling walkdir v2.5.0
+   Compiling hickory-resolver v0.25.2
+   Compiling headers v0.4.1
+   Compiling toml_parser v1.1.2+spec-1.1.0
+   Compiling globset v0.4.18
+   Compiling flume v0.10.14
+   Compiling jsonwebtoken v10.3.0
+   Compiling snafu v0.8.9
+   Compiling clap v4.6.1
+   Compiling crossbeam v0.8.4
+   Compiling arc-swap v1.8.1
+   Compiling serde_with_macros v3.20.0
+   Compiling markup5ever v0.39.0
+   Compiling async-smtp v0.10.2
+   Compiling dirs v6.0.0
+   Compiling jetscii v0.5.3
+   Compiling serde_urlencoded v0.7.1
+   Compiling hyper-timeout v0.5.2
+   Compiling dashmap v5.5.3
+   Compiling dashmap v6.2.1
+   Compiling getopts v0.2.24
+   Compiling quanta v0.12.6
+   Compiling secrecy v0.10.3
+   Compiling serde_spanned v1.1.1
+   Compiling toml_datetime v1.1.1+spec-1.1.0
+   Compiling serde_path_to_error v0.1.20
+   Compiling num_cpus v1.17.0
+   Compiling vte v0.14.1
+   Compiling spinning_top v0.3.0
+   Compiling pulldown-cmark-escape v0.11.0
+   Compiling humantime v2.3.0
+   Compiling futures-timer v3.0.3
+   Compiling toml_writer v1.1.1+spec-1.1.0
+   Compiling nonzero_ext v0.3.0
+   Compiling bytecount v0.6.9
+   Compiling by_address v1.2.1
+   Compiling konst_macro_rules v0.2.19
+   Compiling unicase v2.9.0
+   Compiling par-stream v0.10.2
+   Compiling governor v0.10.4
+   Compiling papergrid v0.18.0
+   Compiling pulldown-cmark v0.13.4
+   Compiling konst v0.2.20
+   Compiling toml v1.1.2+spec-1.1.0
+   Compiling humantime-serde v1.1.1
+   Compiling strip-ansi-escapes v0.2.1
+   Compiling async-stream v0.3.6
+   Compiling typed-builder v0.23.2
+   Compiling strum v0.28.0
+   Compiling serde_with v3.20.0
+   Compiling mailify-lib v0.2.0
+   Compiling html5gum v0.8.3
+   Compiling shellexpand v3.1.2
+   Compiling html5ever v0.39.0
+   Compiling ignore v0.4.25
+   Compiling rate-limits v0.7.0
+   Compiling env_filter v1.0.0
+   Compiling newtype-uuid v1.3.2
+   Compiling testing_table v0.3.0
+   Compiling console v0.16.3
+   Compiling email_address v0.2.9
+   Compiling linkify v0.11.0
+   Compiling quick-xml v0.38.4
+   Compiling quick-xml v0.40.1
+   Compiling csv-core v0.1.13
+   Compiling jiff v0.2.23
+   Compiling unit-prefix v0.5.2
+   Compiling glob v0.3.3
+   Compiling is_ci v1.2.0
+   Compiling roff v1.1.0
+   Compiling ip_network v0.4.1
+   Compiling clap_mangen v0.3.0
+   Compiling supports-color v3.0.2
+   Compiling lychee v0.24.2 (/Users/shibatakatsuie/lychee/lychee-bin)
+   Compiling quick-junit v0.6.0
+   Compiling indicatif v0.18.4
+   Compiling csv v1.4.0
+   Compiling tabled v0.21.0
+   Compiling const_format v0.2.36
+   Compiling rlimit v0.11.0
+   Compiling clap_complete v4.6.5
+   Compiling assert-json-diff v2.0.2
+   Compiling tokio-stream v0.1.18
+   Compiling http-serde v2.1.1
+   Compiling numeric-sort v0.1.5
+   Compiling test-utils v0.24.2 (/Users/shibatakatsuie/lychee/test-utils)
+   Compiling env_logger v0.11.10
+   Compiling aws-lc-rs v1.15.4
+   Compiling rustls v0.23.36
+   Compiling rustls-webpki v0.103.9
+   Compiling tokio-rustls v0.26.4
+   Compiling rustls-platform-verifier v0.6.2
+   Compiling hyper-rustls v0.27.7
+   Compiling reqwest v0.13.4
+   Compiling reqwest_cookie_store v0.10.0
+   Compiling lychee-lib v0.24.2 (/Users/shibatakatsuie/lychee/lychee-lib)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1m 13s
+     Running `target/debug/lychee --help`
+lychee is a fast, asynchronous link checker which detects broken URLs and mail addresses in local files and websites. It supports Markdown and HTML and works with other file formats.
+
+lychee is powered by lychee-lib, the Rust library for link checking.
+
+Usage: lychee [OPTIONS] [inputs]...
+
+Arguments:
+  [inputs]...
+          Inputs for link checking (where to get links to check from).
+          These can be: files (e.g. `README.md`), file globs (e.g. `'~/git/*/README.md'`),
+          remote URLs (e.g. `https://example.com/README.md`), or standard input (`-`).
+          Alternatively, use `--files-from` to read inputs from a file.
+          
+          NOTE: Use `--` to separate inputs from options that allow multiple arguments.
+
+Options:
+  -a, --accept <ACCEPT>
+          A List of accepted status codes for valid links
+          
+          The following accept range syntax is supported: `[start]..[[=]end]|code`.
+          Some valid examples are:
+          
+          - 200 (accepts the 200 status code only)
+          - ..204 (accepts any status code < 204)
+          - ..=204 (accepts any status code <= 204)
+          - 200..=204 (accepts any status code from 200 to 204 inclusive)
+          - 200..205 (accepts any status code from 200 to 205 excluding 205, same as 200..=204)
+          
+          Use `lychee --accept '200..=204, 429, 500' <inputs>...` to provide a comma-
+          separated list of accepted status codes. This example will accept 200, 201,
+          202, 203, 204, 429, and 500 as valid status codes.
+          
+          [default: 100..=103,200..=299]
+
+      --accept-timeouts[=<false|true>]
+          Accept timed out requests and return exit code 0 when encountering timeouts but not any other errors
+
+      --archive <ARCHIVE>
+          Web archive to use to provide suggestions for `--suggest`.
+          
+          [default: wayback]
+          
+          [possible values: wayback]
+
+  -b, --base-url <BASE_URL>
+          Base URL to use when resolving relative URLs in local files. If specified,
+          relative links in local files are interpreted as being relative to the given
+          base URL.
+          
+          For example, given a base URL of `https://example.com/dir/page`, the link `a`
+          would resolve to `https://example.com/dir/a` and the link `/b` would resolve
+          to `https://example.com/b`. This behavior is not affected by the filesystem
+          path of the file containing these links.
+          
+          Note that relative URLs without a leading slash become siblings of the base
+          URL. If, instead, the base URL ended in a slash, the link would become a child
+          of the base URL. For example, a base URL of `https://example.com/dir/page/` and
+          a link of `a` would resolve to `https://example.com/dir/page/a`.
+          
+          Basically, the base URL option resolves links as if the local files were hosted
+          at the given base URL address.
+          
+          The provided base URL value must either be a URL (with scheme) or an absolute path.
+          Note that certain URL schemes cannot be used as a base, e.g., `data` and `mailto`.
+
+      --basic-auth <BASIC_AUTH>
+          Basic authentication support. E.g. `http://example.com username:password`
+
+  -c, --config <FILE_PATH>
+          Configuration file to use. Can be specified multiple times.
+          
+          If given multiple times, the configs are merged and later
+          occurrences take precedence over previous occurrences.
+          
+          [default: lychee.toml]
+
+      --cache[=<false|true>]
+          Use request cache stored on disk at `.lycheecache`
+
+      --cache-exclude-status <CACHE_EXCLUDE_STATUS>
+          A list of status codes that will be ignored from the cache
+          
+          The following exclude range syntax is supported: `[start]..[[=]end]|code`. Some valid
+          examples are:
+          
+          - 429 (excludes the 429 status code only)
+          - 500.. (excludes any status code >= 500)
+          - ..100 (excludes any status code < 100)
+          - 500..=599 (excludes any status code from 500 to 599 inclusive)
+          - 500..600 (excludes any status code from 500 to 600 excluding 600, same as 500..=599)
+          
+          Use `lychee --cache-exclude-status '429, 500..502' <inputs>...` to provide a
+          comma-separated list of excluded status codes. This example will not cache results
+          with a status code of 429, 500 and 501.
+
+      --cookie-jar <COOKIE_JAR>
+          Read and write cookies using the given file. Cookies will be stored in the
+          cookie jar and sent with requests. New cookies will be stored in the cookie jar
+          and existing cookies will be updated.
+
+      --default-extension <EXTENSION>
+          This is the default file extension that is applied to files without an extension.
+          
+          This is useful for files without extensions or with unknown extensions.
+          The extension will be used to determine the file type for processing.
+          
+          Examples:
+            --default-extension md
+            --default-extension html
+
+      --dump[=<false|true>]
+          Don't perform any link checking. Instead, dump all the links extracted from inputs that would be checked
+
+      --dump-inputs[=<false|true>]
+          Don't perform any link extraction and checking. Instead, dump all input sources from which links would be collected
+
+  -E, --exclude-all-private[=<false|true>]
+          Exclude all private IPs from checking.
+          Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
+
+      --exclude <EXCLUDE>
+          Exclude URLs and mail addresses from checking. The values are treated as regular expressions
+
+      --exclude-link-local[=<false|true>]
+          Exclude link-local IP address range from checking
+
+      --exclude-loopback[=<false|true>]
+          Exclude loopback IP address range and localhost from checking
+
+      --exclude-path <EXCLUDE_PATH>
+          Exclude paths from getting checked. The values are treated as regular expressions
+
+      --exclude-private[=<false|true>]
+          Exclude private IP address ranges from checking
+
+      --extensions <EXTENSIONS>
+          A list of file extensions. Files not matching the specified extensions are skipped.
+          
+          Multiple extensions can be separated by commas. Note that if you want to check filetypes,
+          which have multiple extensions, e.g. HTML files with both .html and .htm extensions, you need to
+          specify both extensions explicitly.
+          An example is: `--extensions html,htm,php,asp,aspx,jsp,cgi`.
+          
+          This is useful when the default extensions are not enough and you don't
+          want to provide a long list of inputs (e.g. file1.html, file2.md, etc.)
+          
+          [default: md,markdown,mdx,qmd,rmd,mkd,mkdn,mdwn,mdown,mkdown,html,htm,css,txt,xml]
+
+  -f, --format <FORMAT>
+          Output format of final status report
+          
+          [default: compact]
+          
+          [possible values: compact, detailed, json, junit, markdown]
+
+      --fallback-extensions <FALLBACK_EXTENSIONS>
+          When checking locally, attempts to locate missing files by trying the given
+          fallback extensions. Multiple extensions can be separated by commas. Extensions
+          will be checked in order of appearance.
+          
+          Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi
+          
+          Note: This option takes effect on `file://` URIs which do not exist and on
+                `file://` URIs pointing to directories which resolve to themself (by the
+                --index-files logic).
+
+      --files-from <PATH>
+          Read input filenames from the given file or stdin (if path is '-').
+          
+          This is useful when you have a large number of inputs that would be
+          cumbersome to specify on the command line directly.
+          
+          Examples:
+          
+          ```text
+          lychee --files-from list.txt
+          find . -name '*.md' | lychee --files-from -
+          echo 'README.md' | lychee --files-from -
+          ```
+          
+          File Format:
+          - Each line should contain one input (file path, URL, or glob pattern).
+          - Lines starting with '#' are treated as comments and ignored.
+          - Empty lines are also ignored.
+
+      --generate <GENERATE>
+          Generate special output (e.g. the man page) instead of performing link checking
+          
+          [possible values: man, complete-bash, complete-elvish, complete-fish, complete-powershell, complete-zsh]
+
+      --github-token <GITHUB_TOKEN>
+          GitHub API token to use when checking github.com links, to avoid rate limiting
+          
+          [env: GITHUB_TOKEN]
+
+      --glob-ignore-case[=<false|true>]
+          Ignore case when expanding filesystem path glob inputs
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -H, --header <HEADER:VALUE>
+          Set custom header for requests.
+          
+          Some websites require custom headers to be passed in order to return valid responses.
+          You can specify custom headers in the format 'Name: Value'. For example, 'Accept: text/html'.
+          This is the same format that other tools like curl or wget use.
+          Multiple headers can be specified by using the flag multiple times.
+          The specified headers are used for ALL requests.
+          Use the `hosts` option to configure headers on a per-host basis.
+
+      --hidden[=<false|true>]
+          Do not skip hidden directories and files
+
+      --host-concurrency <HOST_CONCURRENCY>
+          Default maximum concurrent requests per host (default: 10)
+          
+          This limits the maximum amount of requests that are sent simultaneously
+          to the same host. This helps to prevent overwhelming servers and
+          running into rate-limits. Use the `hosts` option to configure this
+          on a per-host basis.
+          
+          Examples:
+            --host-concurrency 2   # Conservative for slow APIs
+            --host-concurrency 20  # Aggressive for fast APIs
+
+      --host-request-interval <HOST_REQUEST_INTERVAL>
+          Minimum interval between requests to the same host (default: 50ms)
+          
+          Sets a baseline delay between consecutive requests to prevent
+          overloading servers. The adaptive algorithm may increase this based
+          on server responses (rate limits, errors). Use the `hosts` option
+          to configure this on a per-host basis.
+          
+          Examples:
+            --host-request-interval 50ms   # Fast for robust APIs
+            --host-request-interval 1s     # Conservative for rate-limited APIs
+
+      --host-stats[=<false|true>]
+          Show per-host statistics at the end of the run
+
+  -i, --insecure[=<false|true>]
+          Proceed for server connections considered insecure (invalid TLS)
+
+      --include <INCLUDE>
+          URLs to check (supports regex). Has preference over all excludes
+
+      --include-fragments[=<none|anchor-only|text-only|full>]
+          Enable the checking of fragments in links.
+          
+          Use `none` to disable fragment checks, `anchor-only` for anchor fragments
+          like `#section`, `text-only` for text fragments like `#:~:text=example`,
+          or `full` to check both.
+          
+          If provided without a value, defaults to `anchor-only`.
+
+      --include-mail[=<false|true>]
+          Also check email addresses
+
+      --include-verbatim[=<false|true>]
+          Find links in verbatim sections like `pre`- and `code` blocks
+
+      --include-wikilinks[=<false|true>]
+          Check WikiLinks in Markdown files, this requires specifying --base-url
+
+      --index-files <INDEX_FILES>
+          When checking locally, resolves directory links to a separate index file.
+          The argument is a comma-separated list of index file names to search for. Index
+          names are relative to the link's directory and attempted in the order given.
+          
+          If `--index-files` is specified, then at least one index file must exist in
+          order for a directory link to be considered valid. Additionally, the special
+          name `.` can be used in the list to refer to the directory itself.
+          
+          If unspecified (the default behavior), index files are disabled and directory
+          links are considered valid as long as the directory exists on disk.
+          
+          Example 1: `--index-files index.html,readme.md` looks for index.html or readme.md
+                     and requires that at least one exists.
+          
+          Example 2: `--index-files index.html,.` will use index.html if it exists, but
+                     still accept the directory link regardless.
+          
+          Example 3: `--index-files ''` will reject all directory links because there are
+                     no valid index files. This will require every link to explicitly name
+                     a file.
+          
+          Note: This option only takes effect on `file://` URIs which exist and point to a directory.
+
+  -m, --max-redirects <MAX_REDIRECTS>
+          Maximum number of allowed redirects
+          
+          [default: 10]
+
+      --max-cache-age <MAX_CACHE_AGE>
+          Discard all cached requests older than this duration
+          
+          [default: 1d]
+
+      --max-concurrency <MAX_CONCURRENCY>
+          Maximum number of concurrent network requests
+          
+          [default: 128]
+
+      --max-retries <MAX_RETRIES>
+          Maximum number of retries per request
+          
+          [default: 3]
+
+      --min-tls <MIN_TLS>
+          Minimum accepted TLS Version
+          
+          [possible values: TLSv1_0, TLSv1_1, TLSv1_2, TLSv1_3]
+
+      --mode <MODE>
+          Set the output display mode. Determines how results are presented in the terminal
+          
+          [default: color]
+          
+          [possible values: plain, color, emoji, task]
+
+  -n, --no-progress[=<false|true>]
+          Do not show progress bar.
+          This is recommended for non-interactive shells (e.g. for continuous integration)
+
+      --no-ignore[=<false|true>]
+          Do not skip files that would otherwise be ignored by '.gitignore', '.ignore', or the global ignore file
+
+  -o, --output <OUTPUT>
+          Output file of status report
+
+      --offline[=<false|true>]
+          Only check local files and block network requests
+
+  -p, --preprocess <COMMAND>
+          Preprocess input files with the given command.
+          
+          For each file input, this flag causes lychee to execute `COMMAND PATH` and process
+          its standard output instead of the original contents of PATH. This allows you to
+          convert files that would otherwise not be understood by lychee. The preprocessor
+          COMMAND is only run on input files, not on standard input or URLs.
+          
+          To invoke programs with custom arguments or to use multiple preprocessors, use a
+          wrapper program such as a shell script. An example script looks like this:
+          
+          ```bash
+          #!/usr/bin/env bash
+          case "$1" in
+          *.pdf)
+              exec pdftohtml -i -s -stdout "$1"
+              ;;
+          *.odt|*.docx|*.epub|*.ipynb)
+              exec pandoc "$1" --to=html --wrap=none
+              ;;
+          *)
+              # identity function, output input without changes
+              exec cat
+              ;;
+          esac
+          ```
+
+  -q, --quiet...
+          Less output per occurrence (e.g. `-q` or `-qq`)
+
+  -r, --retry-wait-time <RETRY_WAIT_TIME>
+          Minimum wait time in seconds between retries of failed requests
+          
+          [default: 1]
+
+      --remap <REMAP>
+          Remap URI matching pattern to different URI
+
+      --require-https[=<false|true>]
+          When HTTPS is available, treat HTTP links as errors
+
+      --root-dir <ROOT_DIR>
+          Root directory to use when checking absolute links in local files. This option is
+          required if absolute links appear in local files, otherwise those links will be
+          flagged as errors. This must be an absolute path (i.e., one beginning with `/`).
+          
+          If specified, absolute links in local files are resolved by prefixing the given
+          root directory to the requested absolute link. For example, with a root-dir of
+          `/root/dir`, a link to `/page.html` would be resolved to `/root/dir/page.html`.
+          
+          This option can be specified alongside `--base-url`. If both are given, an
+          absolute link is resolved by constructing a URL from three parts: the domain
+          name specified in `--base-url`, followed by the `--root-dir` directory path,
+          followed by the absolute link's own path.
+
+  -s, --scheme <SCHEME>
+          Only test links with the given schemes (e.g. https).
+          Omit to check links with any other scheme.
+          At the moment, we support http, https, file, and mailto.
+
+      --skip-missing[=<false|true>]
+          Skip missing input files (default is to error if they don't exist)
+
+      --suggest[=<false|true>]
+          Suggest link replacements for broken links, using a web archive. The web archive can be specified with `--archive`
+
+  -t, --timeout <TIMEOUT>
+          Website timeout in seconds from connect to response finished
+          
+          [default: 20]
+
+  -T, --threads <THREADS>
+          Number of threads to utilize. Defaults to number of cores available to the system
+
+  -u, --user-agent <USER_AGENT>
+          User agent
+          
+          [default: lychee/x.y.z]
+
+  -v, --verbose...
+          Set verbosity level; more output per occurrence (e.g. `-v` or `-vv`)
+
+  -V, --version
+          Print version
+
+  -X, --method <METHOD>
+          Request method(s)
+          
+          Accepts a single method or a comma-separated list. When multiple methods are given, lychee tries each one in order and returns the first success. This is useful for servers that reject `HEAD` requests: `--method head,get` falls back to `GET` when `HEAD` fails.
+          
+          Note: checking URL fragments requires the response body, which is only fetched for `GET` requests. When a link succeeds with a non-`GET` method (e.g. `HEAD`), its fragment is not checked.
+          
+          [default: get]
