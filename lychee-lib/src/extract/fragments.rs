@@ -26,13 +26,13 @@ static REGEX_TO_REMOVE: LazyLock<Regex> =
 /// Lowercase the given string while exactly matching Github's algorithm for
 /// lowercasing fragment identifiers.
 ///
-/// Github's lowercase algorithm does not handle [special case rules][],
-/// but Rust's `to_lowercase` *does* implement these rules. This function
-/// needs to compensate for this difference.
+/// Github's lowercase algorithm does not handle multi-character
+/// [special case rules][], but Rust's `to_lowercase` *does* implement
+/// these rules. This function needs to compensate for this difference.
 ///
 /// [special case rules]: https://www.unicode.org/Public/3.2-Update/SpecialCasing-3.2.0.txt
 fn github_lowercase(chars: impl Iterator<Item = char>) -> impl Iterator<Item = char> {
-    chars.flat_map(|c| c.to_lowercase().into_iter())
+    chars.flat_map(char::to_lowercase)
 }
 
 /// Converts the given header text into a hyphen-separated fragment ID, mimicking
