@@ -98,7 +98,7 @@ impl<K: Hash + Eq, V> Cache<K, V> {
     }
 
     /// Returns an iterator yielding borrowed key-value pairs for each
-    /// completed entry within the cache. See also [`Cache::into_iter`].
+    /// completed entry within the cache. See also [`Cache::into_iter_completed`].
     pub fn iter(&self) -> <&Cache<K, V> as IntoIterator>::IntoIter {
         self.into_iter()
     }
