@@ -178,14 +178,14 @@ impl FileChecker {
         let mut path_buf = path.to_path_buf();
 
         // If existing "extension" has spaces, we assume it is not a real extension
-        // and we want to append fallbacks _after_ the (full) original filename.
+        // and we want to append fallbacks _after_ the full original filename.
         if let Some(ext) = path.extension().map(OsStr::as_encoded_bytes)
             && ext.iter().any(u8::is_ascii_whitespace)
         {
             path_buf.add_extension("temporary-ext");
         }
 
-        // Try fallback extensions.
+        // Try fallback extensions, replacing any current extension in the path.
         for ext in &self.fallback_extensions {
             path_buf.set_extension(ext);
             if path_buf.is_file() {
