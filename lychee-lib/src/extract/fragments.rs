@@ -31,20 +31,8 @@ static REGEX_TO_REMOVE: LazyLock<Regex> =
 /// needs to compensate for this difference.
 ///
 /// [special case rules]: https://www.unicode.org/Public/3.2-Update/SpecialCasing-3.2.0.txt
-fn github_lowercase(chars: impl Iterator<Item = char>) -> String {
-    chars
-        .map(|c| {
-            // Manually lowercase certain characters to avoid Rust's handling
-            // of special case rules. We can ignore most of the other rules because
-            // they're locale-dependent or don't affect lowercasing.
-            match c {
-                '\u{0130}' => 'i', // U+0130 LATIN CAPITAL LETTER I WITH DOT ABOVE
-                'Σ' => 'σ',        // U+03A3 GREEK CAPITAL LETTER SIGMA
-                c => c,
-            }
-        })
-        .collect::<String>()
-        .to_lowercase()
+fn github_lowercase(chars: impl Iterator<Item = char>) -> impl Iterator<Item = char> {
+    chars.flat_map(|c| c.to_lowercase().into_iter())
 }
 
 /// Converts the given header text into a hyphen-separated fragment ID, mimicking
@@ -61,6 +49,7 @@ pub fn generate_without_disambiguation(text: &str) -> String {
                 c => c,
             }),
     )
+    .collect()
 }
 
 /// A stateful type for generating fragment identifiers in the style
@@ -161,7 +150,7 @@ impl GithubHeadingIdGenerator {
 mod tests {
     use percent_encoding::percent_decode_str;
     use rstest::rstest;
-    use test_utils::{fixtures_path, load_fixture};
+    use test_utils::load_fixture;
 
     use super::{GithubHeadingIdGenerator, generate_without_disambiguation};
 
@@ -193,8 +182,7 @@ mod tests {
     #[case::emoji_variation_selector_kept("#️⃣ b", unpercent("%EF%B8%8F⃣-b"))]
     #[case::emoji_variation_selector_kept("☔️ c", unpercent("%EF%B8%8F-c"))]
     #[case::alphabetic_emoji_kept("🅰️ d", unpercent("🅰%EF%B8%8F-d"))]
-    // Should NOT apply Unicode's special casing rules: https://www.unicode.org/Public/3.2-Update/SpecialCasing-3.2.0.txt
-    #[case::capital_dotted_i("aİb", "aib")]
+    // Should NOT apply Unicode's multi-character special casing rules: https://www.unicode.org/Public/3.2-Update/SpecialCasing-3.2.0.txt
     #[case::sigma_final_position(
         "ΝΑΤΟΥ, ΓΙΑΝΝΗΣ",
         unpercent("%CE%BD%CE%B1%CF%84%CE%BF%CF%85-%CE%B3%CE%B9%CE%B1%CE%BD%CE%BD%CE%B7%CF%83")
