@@ -662,7 +662,14 @@ mod tests {
             Ok("fallback-extensions/file. hi.md")
         );
 
-        // fallback extensions should *not* be applied when there is
+        // fallback extensions replace pre-existing extensions.
+        assert_resolves!(
+            &checker,
+            "fallback-extensions/b.non-existing",
+            Ok("fallback-extensions/b.gz")
+        );
+
+        // fallback extensions should *not* double up when there is
         // already a file extension, to avoid doubling up and getting the
         // wrong file.
         assert_resolves!(
