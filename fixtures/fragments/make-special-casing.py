@@ -28,6 +28,7 @@ a = re.sub(r'^[^`#\n]', lambda x: '# ' + x[0], a, flags=re.MULTILINE)
 # codepoints adjacent to trigger special casing.
 a = re.sub(r'[0-9A-F]{4}', lambda x: '&#x' + x[0] + ';', a)
 a = re.sub(r'; &', ';&', a)
+a = a.replace(';;', ';-')
 
 print('```')
 print(a)

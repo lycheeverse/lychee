@@ -161,6 +161,7 @@ impl GithubHeadingIdGenerator {
 mod tests {
     use percent_encoding::percent_decode_str;
     use rstest::rstest;
+    use test_utils::{fixtures_path, load_fixture};
 
     use super::{GithubHeadingIdGenerator, generate_without_disambiguation};
 
@@ -259,9 +260,21 @@ mod tests {
     }
 
     #[rstest]
-    #[case(str::from_utf8(b"i;i;\xc4\xb0;\xc4\xb0; az; # LATIN SMALL LETTER I").unwrap(), str::from_utf8(b"iii\xcc\x87i\xcc\x87-az--latin-small-letter-i").unwrap())]
-    fn test_special_casing(#[case] input: &str, #[case] expected: &str) {
-        let actual = generate_without_disambiguation(&input);
-        assert_eq!(expected, actual);
+    fn test_special_casing() {
+        let a = load_fixture!("fragments/special-casing.html");
+        for l in a.lines() {
+            if l.contains("class=\"markdown-heading\"") {
+                let title = l.split_once("</h1>").unwrap().0.rsplit_once('>').unwrap().1;
+                let expected = l
+                    .split_once("id=\"user-content-")
+                    .unwrap()
+                    .1
+                    .split_once('"')
+                    .unwrap()
+                    .0;
+                let actual = generate_without_disambiguation(title);
+                assert_eq!(expected, actual);
+            }
+        }
     }
 }
