@@ -628,4 +628,37 @@ mod tests {
             Ok("filechecker/same_name.html")
         );
     }
+
+    #[tokio::test]
+    async fn test_fallback_extensions_with_embedded_dots() {
+        let checker = FileChecker::new(
+            &BaseInfo::none(),
+            vec!["md".to_string(), "gz".to_string()],
+            None,
+            FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
+            false,
+        )
+        .unwrap();
+
+        // fallback extensions *should* be applied when a file name
+        // has dots but also has a space after the last dot. we assume
+        // file extensions cannot have spaces in them
+        assert_resolves!(
+            &checker,
+            "fallback-extensions/file. hi",
+            Ok("fallback-extensions/file. hi.md")
+        );
+
+        // fallback extensions should *not* be applied when there is
+        // already a file extension, to avoid doubling up and getting the
+        // wrong file.
+        assert_resolves!(
+            &checker,
+            "fallback-extensions/a.tar",
+            Err(InvalidFilePath(_))
+        );
+    }
 }
