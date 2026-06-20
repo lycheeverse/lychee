@@ -1,7 +1,6 @@
 use http::StatusCode;
 use log::warn;
 use std::borrow::Cow;
-use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 use crate::checker::wikilink::resolver::WikilinkResolver;
@@ -177,12 +176,14 @@ impl FileChecker {
 
         let mut path_buf = path.to_path_buf();
 
-        // If existing "extension" has spaces, we assume it is not a real extension
-        // and we want to append fallbacks _after_ the full original filename.
-        if let Some(ext) = path.extension().map(OsStr::as_encoded_bytes)
-            && ext.iter().any(u8::is_ascii_whitespace)
+        // If existing "extension" has spaces, we assume it is not a real extension.
+        // In this case, we want to append fallbacks _after_ the full original filename.
+        if let Some(ext) = path.extension()
+            && ext.as_encoded_bytes().iter().any(u8::is_ascii_whitespace)
         {
-            path_buf.add_extension("temporary-ext");
+            let mut ext = ext.to_os_string();
+            ext.push(".extra-extension");
+            path_buf.set_extension(ext);
         }
 
         // Try fallback extensions, replacing any current extension in the path.
