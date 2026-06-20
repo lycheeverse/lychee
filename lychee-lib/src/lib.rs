@@ -50,9 +50,6 @@
 #[cfg(doctest)]
 doc_comment::doctest!("../../README.md");
 
-#[cfg(all(test, not(doctest)))]
-use tokio_stream as _;
-
 /// Check online archives to try and restore broken links
 pub mod archive;
 mod basic_auth;
@@ -79,7 +76,7 @@ pub mod ratelimit;
 /// local IPs or e-mail addresses
 pub mod filter;
 
-pub mod waiter;
+pub mod async_lib;
 
 pub mod async_lib;
 
@@ -104,8 +101,9 @@ pub use crate::{
     types::{
         BaseInfo, BasicAuthCredentials, BasicAuthSelector, CacheStatus, CookieJar, ErrorKind,
         FileExtensions, FileType, Input, InputContent, InputResolver, InputSource, LycheeResult,
-        Preprocessor, Redirect, Redirects, Request, RequestError, ResolvedInputSource, Response,
-        ResponseBody, Result, Status, StatusCodeSelector, StatusRange, StatusRangeError, hints::*,
-        uri::raw::RawUri, uri::raw::RawUriSpan, uri::valid::Uri,
+        Methods, MethodsError, Preprocessor, Redirect, Redirects, Request, RequestError,
+        ResolvedInputSource, Response, ResponseBody, Result, Status, StatusCodeSelector,
+        StatusRange, StatusRangeError, hints::*, uri::raw::RawUri, uri::raw::RawUriSpan,
+        uri::valid::Uri,
     },
 };

@@ -98,7 +98,15 @@ scheme = ["https"]
 # When links are available using HTTPS, treat HTTP links as errors.
 require_https = false
 
-# Request method
+# Request method(s).
+#
+# Accepts a single method or a list. When multiple methods are given, lychee
+# tries each one in order and returns the first success. This is useful for
+# servers that reject `HEAD` requests:
+#
+#   method = ["head", "get"]
+#
+# It falls back to GET when HEAD fails.
 method = "get"
 
 # Custom request headers

@@ -110,11 +110,11 @@ impl Cache {
     pub(crate) async fn handle<F: Future<Output = Response>>(
         &self,
         client: &Client,
-        cache_exclude_status: HashSet<StatusCode>,
+        cache_exclude_status: &HashSet<StatusCode>,
         accept: &HashSet<StatusCode>,
         request: Request,
         check: impl Fn(Request) -> F,
-    ) -> lychee_lib::Result<Response> {
+    ) -> Response {
         // The cache key should be the actual URL which gets requested, i.e. after remaps.
         // If using the original URL then the cache is at risk of being incorrect if remaps
         // change between runs. The cached status code comes from the actual URL anyway.
@@ -126,19 +126,19 @@ impl Cache {
         if let Some(cache_key) = &cache_key
             && let Some(r) = self.get(cache_key)
         {
-            return Ok(cache_hit(client, accept, request, cache_key, r.value()));
+            return cache_hit(client, accept, request, cache_key, r.value());
         }
 
         let response = check(request).await;
         let status = response.status();
 
         if let Some(cache_key) = cache_key
-            && !should_ignore(&cache_key, status, &cache_exclude_status)
+            && !should_ignore(&cache_key, status, cache_exclude_status)
         {
             self.insert(cache_key, status.into());
         }
 
-        Ok(response)
+        response
     }
 }
 

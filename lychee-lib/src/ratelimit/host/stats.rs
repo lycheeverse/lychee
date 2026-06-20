@@ -38,6 +38,8 @@ pub struct HostStats {
     pub server_errors: u64,
     /// Number of client error responses (4xx, excluding 429)
     pub client_errors: u64,
+    /// Number of network errors (DNS, TCP, TLS, connection reset, no HTTP response received)
+    pub network_errors: u64,
     /// Timestamp of the last successful request
     pub last_success: Option<Instant>,
     /// Timestamp of the last rate limit response
@@ -53,6 +55,13 @@ pub struct HostStats {
 }
 
 impl HostStats {
+    /// Record a network error (DNS, TCP, TLS, connection reset, no HTTP response received)
+    pub fn record_network_error(&mut self, request_time: Duration) {
+        self.total_requests += 1;
+        self.network_errors += 1;
+        self.request_times.push(request_time);
+    }
+
     /// Record a response with status code and request duration
     pub fn record_response(&mut self, status_code: u16, request_time: Duration) {
         self.total_requests += 1;
@@ -107,7 +116,8 @@ impl HostStats {
         if self.total_requests == 0 {
             return 0.0;
         }
-        let errors = self.rate_limited + self.client_errors + self.server_errors;
+        let errors =
+            self.rate_limited + self.client_errors + self.server_errors + self.network_errors;
         #[allow(clippy::cast_precision_loss)]
         let error_rate = errors as f64 / self.total_requests as f64;
         error_rate * 100.0
@@ -209,13 +219,14 @@ impl Serialize for HostStats {
     {
         let median_request_time_ms = self.median_request_time().map(|d| d.as_millis());
 
-        let mut s = serializer.serialize_struct("HostStats", 11)?;
+        let mut s = serializer.serialize_struct("HostStats", 12)?;
         s.serialize_field("total_requests", &self.total_requests)?;
         s.serialize_field("successful_requests", &self.successful_requests)?;
         s.serialize_field("success_rate", &self.success_rate())?;
         s.serialize_field("rate_limited", &self.rate_limited)?;
         s.serialize_field("client_errors", &self.client_errors)?;
         s.serialize_field("server_errors", &self.server_errors)?;
+        s.serialize_field("network_errors", &self.network_errors)?;
         s.serialize_field("median_request_time_ms", &median_request_time_ms)?;
         s.serialize_field("cache_hits", &self.cache_hits)?;
         s.serialize_field("cache_misses", &self.cache_misses)?;
@@ -283,6 +294,30 @@ mod tests {
             stats.median_request_time(),
             Some(Duration::from_millis(150))
         );
+    }
+
+    #[test]
+    fn test_record_network_error_affects_totals_and_success_rate() {
+        let mut stats = HostStats::default();
+
+        // Two successful requests
+        stats.record_response(200, Duration::from_millis(100));
+        stats.record_response(200, Duration::from_millis(150));
+
+        // One network error (no HTTP status available)
+        stats.record_network_error(Duration::from_secs(30));
+
+        assert_eq!(stats.total_requests, 3);
+        assert_eq!(stats.successful_requests, 2);
+        assert_eq!(stats.network_errors, 1);
+        // Other error buckets must be untouched
+        assert_eq!(stats.client_errors, 0);
+        assert_eq!(stats.server_errors, 0);
+        assert_eq!(stats.rate_limited, 0);
+        // 2 successes out of 3 total -> success rate is 2/3
+        assert!((stats.success_rate() - (2.0 / 3.0)).abs() < 0.001);
+        // error_rate counts the network error too
+        assert!((stats.error_rate() - (1.0 / 3.0 * 100.0)).abs() < 0.001);
     }
 
     #[test]

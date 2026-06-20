@@ -13,7 +13,7 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
-use crate::remap::Remap;
+use crate::{BasicAuthExtractor, remap::Remap};
 use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use http::{
@@ -29,7 +29,7 @@ use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
 use crate::{
-    BaseInfo, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
+    BaseInfo, ErrorKind, Methods, Request, Response, Result, Status, Uri,
     chain::RequestChain,
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::Filter,
@@ -269,9 +269,12 @@ pub struct ClientBuilder {
     /// [here]: https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.default_headers
     custom_headers: HeaderMap,
 
-    /// HTTP method used for requests, e.g. `GET` or `HEAD`.
-    #[builder(default = reqwest::Method::GET)]
-    method: reqwest::Method,
+    /// HTTP methods used for requests, in order of preference.
+    ///
+    /// Lychee tries each method in order and returns the first success. This
+    /// allows falling back to e.g. `GET` when a server rejects `HEAD` requests.
+    #[builder(default = Methods::from(reqwest::Method::GET))]
+    method: Methods,
 
     /// Set of accepted return codes / status codes.
     ///
@@ -333,6 +336,9 @@ pub struct ClientBuilder {
 
     /// Per-host configuration overrides
     hosts: HostConfigs,
+
+    /// Basic auth credentials extractor.
+    basic_auth: BasicAuthExtractor,
 }
 
 impl Default for ClientBuilder {
@@ -408,6 +414,7 @@ impl ClientBuilder {
             self.plugin_request_chain,
             self.fragment_checker_options,
             Arc::new(host_pool),
+            self.basic_auth,
         );
 
         Ok(Client {
@@ -551,7 +558,6 @@ impl Client {
     {
         let Request {
             mut uri,
-            credentials,
             source,
             span,
             ..
@@ -565,7 +571,7 @@ impl Client {
             _ if uri.is_tel() => (Status::Excluded, None), // We don't check tel: URIs
             _ if uri.is_file() => (self.check_file(&uri).await, None),
             _ if uri.is_mail() => (self.check_mail(&uri).await, None),
-            _ => self.check_website(&uri, credentials).await,
+            _ => self.check_website(&uri).await,
         };
 
         Ok(Response::new(
@@ -619,12 +625,8 @@ impl Client {
     /// - The request failed.
     /// - The response status code is not accepted.
     /// - The URI cannot be converted to HTTPS.
-    pub async fn check_website(
-        &self,
-        uri: &Uri,
-        credentials: Option<BasicAuthCredentials>,
-    ) -> (Status, Option<Redirects>) {
-        self.website_checker.check_website(uri, credentials).await
+    pub async fn check_website(&self, uri: &Uri) -> (Status, Option<Redirects>) {
+        self.website_checker.check_website(uri).await
     }
 
     /// Checks a `mailto` URI.
@@ -658,6 +660,7 @@ where
 mod tests {
     use std::{
         fs::File,
+        str::FromStr,
         time::{Duration, Instant},
     };
 
@@ -675,7 +678,7 @@ mod tests {
 
     use super::ClientBuilder;
     use crate::{
-        ErrorKind, Redirect, Redirects, Request, Status, Uri,
+        BasicAuthExtractor, ErrorKind, Redirect, Redirects, Request, Status, Uri,
         chain::{ChainResult, Handler, RequestChain},
         remap::{Remap, Remaps},
     };
@@ -727,19 +730,25 @@ mod tests {
 
     #[tokio::test]
     async fn test_basic_auth() {
-        let mut r: Request = "https://authenticationtest.com/HTTPAuth/"
+        let r: Request = "https://authenticationtest.com/HTTPAuth/"
             .try_into()
             .unwrap();
 
         let res = get_mock_client_response!(r.clone()).await;
         assert_eq!(res.status().code(), Some(401.try_into().unwrap()));
 
-        r.credentials = Some(crate::BasicAuthCredentials {
-            username: "user".into(),
-            password: "pass".into(),
-        });
+        let basic_auth =
+            BasicAuthExtractor::new(&[crate::BasicAuthSelector::from_str(".* user:pass").unwrap()]);
 
-        let res = get_mock_client_response!(r).await;
+        let res = ClientBuilder::builder()
+            .basic_auth(basic_auth.unwrap())
+            .build()
+            .client()
+            .unwrap()
+            .check(r)
+            .await
+            .unwrap();
+
         assert!(res.status().is_success());
     }
 
@@ -837,6 +846,18 @@ mod tests {
         assert!(client.is_excluded(&Uri {
             url: "tel:1234567890".try_into().unwrap()
         }));
+    }
+
+    #[tokio::test]
+    async fn test_builder_with_multiple_methods() {
+        // The builder accepts a `Methods` with multiple HTTP methods (used for
+        // method fallback) and successfully creates a client.
+        let methods =
+            crate::Methods::try_from(vec![reqwest::Method::HEAD, reqwest::Method::GET]).unwrap();
+
+        let client = ClientBuilder::builder().method(methods).build().client();
+
+        assert!(client.is_ok());
     }
 
     #[tokio::test]

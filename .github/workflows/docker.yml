@@ -26,10 +26,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      # Docker tagging policy
+      # ----------------------
+      # - `latest`           -> most recent stable release (release tag push only)
+      # - `X.Y.Z` / `X.Y`    -> a specific release
+      # - `nightly`/`master` -> bleeding-edge build from the default branch
+      # - `sha-<sha>`        -> a specific commit
+      # Each also gets an `-alpine` variant via the second metadata step.
+      #
+      # We intentionally set `flavor: latest=false` and add `latest` explicitly
+      # instead of relying on the default `latest=auto`. `auto` decides whether
+      # to apply `latest` by detecting a semver *git tag*, but our release tags
+      # are prefixed (`lychee-v1.2.3`) and the version is only recovered via the
+      # `match=` regex, so `auto`'s detection is unreliable here. Gating `latest`
+      # on the release-tag ref ourselves is the documented, predictable approach:
+      # https://github.com/docker/metadata-action#latest-tag
+      # Note: this gate assumes all `lychee-v*` tags are stable. If pre-release
+      # tags are ever introduced, also exclude them here (e.g. `!contains(github.ref, '-')`).
       - name: Docker meta (debian)
         id: meta
         uses: docker/metadata-action@v6
         with:
+          # See the tagging-policy note above for why latest=false.
+          flavor: |
+            latest=false
           # list of Docker images to use as base name for tags
           images: |
             ${{ env.IMAGE_NAME }}
@@ -41,15 +61,19 @@ jobs:
             type=semver,pattern={{version}},value=${{ github.ref_name }},match=lychee-v(\d+.\d+.\d+)$
             type=semver,pattern={{major}}.{{minor}},value=${{ github.ref_name }},match=lychee-v(\d+.\d+.\d+)$
             type=sha
-            # set latest tag for default branch
-            type=raw,value=latest,enable={{is_default_branch}}
+            # `latest` points to the most recent stable release (tag push only)
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/lychee-v') }}
+            # `nightly` tracks the bleeding-edge build from the default branch
+            type=raw,value=nightly,enable={{is_default_branch}}
 
       - name: Docker meta (alpine)
         id: meta-alpine
         uses: docker/metadata-action@v6
         with:
-          # A global suffix for each generated tag
+          # A global suffix for each generated tag.
+          # See the tagging-policy note above for why latest=false.
           flavor: |
+            latest=false
             suffix=-alpine
           # list of Docker images to use as base name for tags
           images: |
@@ -62,8 +86,10 @@ jobs:
             type=semver,pattern={{version}},value=${{ github.ref_name }},match=lychee-v(\d+.\d+.\d+)$
             type=semver,pattern={{major}}.{{minor}},value=${{ github.ref_name }},match=lychee-v(\d+.\d+.\d+)$
             type=sha
-            # set latest tag for default branch
-            type=raw,value=latest,enable={{is_default_branch}}
+            # `latest` points to the most recent stable release (tag push only)
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/lychee-v') }}
+            # `nightly` tracks the bleeding-edge build from the default branch
+            type=raw,value=nightly,enable={{is_default_branch}}
 
       # Debug step to see generated tags
       - name: Show tags
@@ -95,7 +121,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            "LYCHEE_VERSION=${{ github.ref == 'refs/heads/master' && 'nightly' || 'latest' }}"
+            "LYCHEE_VERSION=${{ github.ref == 'refs/heads/master' && 'nightly' || (startsWith(github.ref, 'refs/tags/lychee-v') && github.ref_name || 'latest') }}"
 
       - name: Push Image (alpine)
         uses: docker/build-push-action@v7
@@ -109,7 +135,7 @@ jobs:
           tags: ${{ steps.meta-alpine.outputs.tags }}
           labels: ${{ steps.meta-alpine.outputs.labels }}
           build-args: |
-            "LYCHEE_VERSION=${{ github.ref == 'refs/heads/master' && 'nightly' || 'latest' }}"
+            "LYCHEE_VERSION=${{ github.ref == 'refs/heads/master' && 'nightly' || (startsWith(github.ref, 'refs/tags/lychee-v') && github.ref_name || 'latest') }}"
 
       - name: Update DockerHub description
         uses: peter-evans/dockerhub-description@v5

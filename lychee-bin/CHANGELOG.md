@@ -51,7 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Prevent 0 value for max-concurrency and threads ([#2145](https://github.com/lycheeverse/lychee/pull/2145))
-- Use the remapped URI for the cache key ([#1818](https://github.com/lycheeverse/lychee/pull/1818)) ([#2109](https://github.com/lycheeverse/lychee/pull/2109))
+- Use the remapped URI for the cache key ([#1818](https://github.com/lycheeverse/lychee/issues/1818)) ([#2109](https://github.com/lycheeverse/lychee/pull/2109))
 - *(cli)* bump open files limit on macOS and Linux ([#2106](https://github.com/lycheeverse/lychee/pull/2106))
 - Fix matching logic for glob hidden files ([#2130](https://github.com/lycheeverse/lychee/pull/2130))
 - Fix output path not validated before the run ([#2148](https://github.com/lycheeverse/lychee/pull/2148))
@@ -282,7 +282,7 @@ Most notably with this release the deprecated `--exclude-mail` flag was removed 
 
 ### Other
 
-- Fix Porgressbar rendering Checkbox (Fixes [#1626](https://github.com/lycheeverse/lychee/pull/1626)) ([#1627](https://github.com/lycheeverse/lychee/pull/1627))
+- Fix Porgressbar rendering Checkbox (Fixes [#1626](https://github.com/lycheeverse/lychee/issues/1626)) ([#1627](https://github.com/lycheeverse/lychee/pull/1627))
 - Add Checkbox Formatting Option for Markdown Reports ([#1623](https://github.com/lycheeverse/lychee/pull/1623))
 - Fix new clippy lints ([#1625](https://github.com/lycheeverse/lychee/pull/1625))
 - Bump the dependencies group with 3 updates ([#1604](https://github.com/lycheeverse/lychee/pull/1604))

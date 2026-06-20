@@ -281,17 +281,11 @@ impl Collector {
             .par_then_unordered(None, move |content| {
                 let global_base = global_base.clone();
                 let root_dir = self.root_dir.clone();
-                let basic_auth_extractor = self.basic_auth_extractor.clone();
                 async move {
                     let content = content?;
                     let uris: Vec<RawUri> = extractor.extract(&content);
-                    let requests = request::create(
-                        uris,
-                        &content.source,
-                        root_dir.as_deref(),
-                        &global_base,
-                        basic_auth_extractor.as_ref(),
-                    );
+                    let requests =
+                        request::create(uris, &content.source, root_dir.as_deref(), &global_base);
                     Result::Ok(stream::iter(requests))
                 }
             })

@@ -37,7 +37,7 @@ You have two options:
 
 Some websites don't respond with a `200` (OK) status code. \
 Instead they might send `204` (No Content), `206` (Partial Content), or
-[something else entirely](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/418).
+[something else entirely](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/418).
 
 If you run into such issues you can work around that by providing a custom \
 list of accepted status codes, such as `--accept 200,204,206`.
@@ -53,7 +53,7 @@ You can use that argument multiple times to add more headers. \
 Or, you can accept all content/MIME types: `--header "Accept: */*"`.
 
 See more info about the Accept header
-[over at MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept).
+[over at MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Accept).
 
 ## Unreachable Mail Address
 

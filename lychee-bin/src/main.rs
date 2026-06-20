@@ -197,26 +197,6 @@ fn load_config() -> Result<LycheeOptions> {
         opts.config.exclude.append(&mut read_lines(&lycheeignore)?);
     }
 
-    // TODO: Remove this warning and the parameter with 1.0
-    if !&opts.config.exclude_file.is_empty() {
-        warn!(
-            "WARNING: `--exclude-file` is deprecated and will soon be removed; use the `{LYCHEE_IGNORE_FILE}` file to ignore URL patterns instead. To exclude paths of files and directories, use `--exclude-path`."
-        );
-    }
-
-    // TODO: Remove this warning and the parameter with 1.0
-    if opts.config.base.is_some() {
-        warn!(
-            "WARNING: `--base` is deprecated and will soon be removed; use `--base-url` instead."
-        );
-    }
-
-    // Load excludes from file
-    for path in &opts.config.exclude_file {
-        let file = File::open(path)?;
-        opts.config.exclude.append(&mut read_lines(&file)?);
-    }
-
     handle_fd_limits(&mut opts);
 
     Ok(opts)
@@ -372,17 +352,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
             .any(|input| matches!(input.source, lychee_lib::InputSource::Stdin))
         && stdin().is_terminal();
 
-    // TODO: Remove this section after `--base` got removed with 1.0
-    let base = match (opts.config.base.clone(), opts.config.base_url.clone()) {
-        (None, base_url) => base_url,
-        (base, None) => base,
-        (_base, base_url) => {
-            warn!(
-                "WARNING: Both, `--base` and `--base-url` are set. Using `base-url` and ignoring `--base` (as it's deprecated)."
-            );
-            base_url
-        }
-    };
+    let base = opts.config.base_url.clone();
 
     if opts.config.dump_inputs() {
         let exit_code = commands::dump_inputs(

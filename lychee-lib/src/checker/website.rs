@@ -1,5 +1,5 @@
 use crate::{
-    BasicAuthCredentials, ErrorKind, FileType, FragmentCheckerOptions, Status, Uri,
+    BasicAuthExtractor, ErrorKind, FileType, FragmentCheckerOptions, Methods, Status, Uri,
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
     quirks::Quirks,
     ratelimit::HostPool,
@@ -19,8 +19,12 @@ use url::Url;
 
 #[derive(Debug, Clone)]
 pub(crate) struct WebsiteChecker {
-    /// Request method used for making requests.
-    method: reqwest::Method,
+    /// Request methods used for making requests, in order of preference.
+    ///
+    /// Some servers don't handle certain methods properly (e.g. `HEAD`
+    /// requests), so lychee can be configured to try multiple methods in order
+    /// and return the first successful one.
+    methods: Methods,
 
     /// GitHub client used for requests.
     github_client: Option<Octocrab>,
@@ -61,6 +65,9 @@ pub(crate) struct WebsiteChecker {
     /// When present, HTTP requests will be routed through this pool for
     /// rate limiting. When None, requests go directly through `reqwest_client`.
     host_pool: Arc<HostPool>,
+
+    /// Basic auth extractor to obtain credentials from.
+    basic_auth: BasicAuthExtractor,
 }
 
 impl WebsiteChecker {
@@ -72,7 +79,7 @@ impl WebsiteChecker {
 
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        method: reqwest::Method,
+        methods: Methods,
         retry_wait_time: Duration,
         redirect_history: RedirectHistory,
         max_retries: u64,
@@ -82,9 +89,10 @@ impl WebsiteChecker {
         plugin_request_chain: RequestChain,
         fragment_checker_options: FragmentCheckerOptions,
         host_pool: Arc<HostPool>,
+        basic_auth: BasicAuthExtractor,
     ) -> Self {
         Self {
-            method,
+            methods,
             github_client,
             plugin_request_chain,
             redirect_history,
@@ -95,6 +103,7 @@ impl WebsiteChecker {
             fragment_checker_options,
             fragment_checker: FragmentChecker::new(),
             host_pool,
+            basic_auth,
         }
     }
 
@@ -206,11 +215,9 @@ impl WebsiteChecker {
     /// - The request failed.
     /// - The response status code is not accepted.
     /// - The URI cannot be converted to HTTPS.
-    pub(crate) async fn check_website(
-        &self,
-        uri: &Uri,
-        credentials: Option<BasicAuthCredentials>,
-    ) -> (Status, Option<Redirects>) {
+    pub(crate) async fn check_website(&self, uri: &Uri) -> (Status, Option<Redirects>) {
+        let credentials = self.basic_auth.matches(uri);
+
         let default_chain: RequestChain = Chain::new(vec![
             Box::<Quirks>::default(),
             Box::new(credentials),
@@ -263,10 +270,46 @@ impl WebsiteChecker {
     /// - The request failed.
     /// - The response status code is not accepted.
     async fn check_website_inner(&self, uri: &Uri, default_chain: &RequestChain) -> Status {
-        let request = self.host_pool.build_request(self.method.clone(), uri);
+        let mut last_status = None;
 
-        let request = match request {
-            Ok(r) => r,
+        // Try each configured method in order and return the first success.
+        //
+        // Servers that don't accept a given method signal this in many different
+        // ways (404, 403, 405, ...), so we deliberately fall back on any error
+        // response without inspecting the reason. We also fall back on connection
+        // errors, since some servers reject a method by resetting the connection
+        // rather than returning a status code.
+        //
+        // The one exception is timeouts: a timeout is unlikely to be resolved by
+        // switching methods (a heavier method such as `GET` would, if anything,
+        // take longer than a lighter one such as `HEAD`), and retrying would
+        // incur a second, equally long timeout, so we stop early instead.
+        for method in self.methods.iter() {
+            let status = self
+                .check_with_method(method.clone(), uri, default_chain)
+                .await;
+
+            if status.is_success() || status.is_timeout() {
+                return status;
+            }
+
+            last_status = Some(status);
+        }
+
+        // `methods` is guaranteed to be non-empty (see `Methods`), so the loop
+        // always runs at least once and `last_status` is always `Some` here.
+        last_status.expect("Methods is guaranteed to be non-empty")
+    }
+
+    /// Build and check a single request for `uri` using the given `method`.
+    async fn check_with_method(
+        &self,
+        method: Method,
+        uri: &Uri,
+        default_chain: &RequestChain,
+    ) -> Status {
+        let request = match self.host_pool.build_request(method, uri) {
+            Ok(request) => request,
             Err(e) => return e.into(),
         };
 
@@ -345,21 +388,47 @@ impl Handler<Request, Status> for WebsiteChecker {
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, time::Duration};
+    use std::{str::FromStr, sync::Arc, time::Duration};
 
-    use http::Method;
+    use http::{Method, StatusCode};
     use octocrab::Octocrab;
+    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method as method_matcher};
 
     use crate::{
-        FragmentCheckerOptions, Uri,
+        BasicAuthExtractor, FragmentCheckerOptions, Uri,
         chain::RequestChain,
         checker::website::WebsiteChecker,
-        ratelimit::HostPool,
+        ratelimit::{HostConfigs, HostPool, RateLimitConfig},
         types::{
-            DEFAULT_ACCEPTED_STATUS_CODES, redirect_history::RedirectHistory,
+            DEFAULT_ACCEPTED_STATUS_CODES, Methods, redirect_history::RedirectHistory,
             uri::github::GithubUri,
         },
     };
+
+    /// Build a checker for the given methods, routing requests through a
+    /// `HostPool` that uses the supplied `reqwest::Client` (so tests can control
+    /// e.g. the request timeout).
+    fn checker_with(methods: Methods, client: reqwest::Client) -> WebsiteChecker {
+        let host_pool = HostPool::new(
+            RateLimitConfig::default(),
+            HostConfigs::default(),
+            client,
+            std::collections::HashMap::new(),
+        );
+        WebsiteChecker::new(
+            methods,
+            Duration::ZERO,
+            RedirectHistory::new(),
+            0,
+            DEFAULT_ACCEPTED_STATUS_CODES.clone(),
+            None,
+            false,
+            RequestChain::default(),
+            FragmentCheckerOptions::default(),
+            Arc::new(host_pool),
+            BasicAuthExtractor::empty(),
+        )
+    }
 
     /// Test GitHub client integration.
     /// This prevents a regression of <https://github.com/lycheeverse/lychee/issues/2024>
@@ -377,10 +446,70 @@ mod tests {
         assert!(status.is_error());
     }
 
+    /// When every configured method fails, the status of the *last* method
+    /// attempted is returned (not the first).
+    #[tokio::test]
+    async fn test_fallback_returns_last_status_when_all_fail() {
+        let server = MockServer::start().await;
+        Mock::given(method_matcher("HEAD"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        Mock::given(method_matcher("GET"))
+            .respond_with(ResponseTemplate::new(403))
+            .mount(&server)
+            .await;
+
+        let methods = Methods::from_str("head,get").unwrap();
+        let checker = checker_with(methods, reqwest::Client::new());
+        let uri = Uri::try_from(server.uri().as_str()).unwrap();
+
+        let (status, _) = checker.check_website(&uri).await;
+
+        assert!(status.is_error());
+        // 403 is GET's response: the loop fell back from HEAD and kept GET's
+        // status as the final result.
+        assert_eq!(status.code(), Some(StatusCode::FORBIDDEN));
+    }
+
+    /// A timeout is method-independent, so the fallback loop stops immediately
+    /// instead of retrying with the next method (which would incur a second,
+    /// equally long timeout).
+    #[tokio::test]
+    async fn test_timeout_short_circuits_fallback() {
+        let server = MockServer::start().await;
+        // HEAD hangs long enough to trip the client timeout below.
+        Mock::given(method_matcher("HEAD"))
+            .respond_with(ResponseTemplate::new(200).set_delay(Duration::from_secs(30)))
+            .mount(&server)
+            .await;
+        // GET would succeed immediately, so if the loop fell through we'd see
+        // success rather than a timeout.
+        Mock::given(method_matcher("GET"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_millis(100))
+            .build()
+            .unwrap();
+        let methods = Methods::from_str("head,get").unwrap();
+        let checker = checker_with(methods, client);
+        let uri = Uri::try_from(server.uri().as_str()).unwrap();
+
+        let (status, _) = checker.check_website(&uri).await;
+
+        assert!(
+            status.is_timeout(),
+            "expected timeout to short-circuit fallback, got {status:?}"
+        );
+    }
+
     fn get_checker(client: Octocrab) -> WebsiteChecker {
         let host_pool = HostPool::default();
         WebsiteChecker::new(
-            Method::GET,
+            Method::GET.into(),
             Duration::ZERO,
             RedirectHistory::new(),
             0,
@@ -390,6 +519,7 @@ mod tests {
             RequestChain::default(),
             FragmentCheckerOptions::default(),
             Arc::new(host_pool),
+            BasicAuthExtractor::empty(),
         )
     }
 }

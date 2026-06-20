@@ -20,7 +20,7 @@ mod cli {
         io::{BufRead, Write},
         ops::Not,
         path::Path,
-        time::{Duration, Instant},
+        time::Duration,
     };
     use tempfile::{NamedTempFile, tempdir};
     use test_utils::{fixtures_path, mock_server, redirecting_mock_server, root_path};
@@ -28,7 +28,7 @@ mod cli {
 
     use uuid::Uuid;
     use wiremock::{
-        Mock, Request, ResponseTemplate,
+        Mock, ResponseTemplate,
         matchers::{basic_auth, method, path},
     };
 
@@ -1211,12 +1211,10 @@ mod cli {
 
         let regex = test_utils::arg_regex_help!()?;
         let excluded = [
-            "base",         // deprecated
-            "exclude_file", // deprecated
-            "config",       // not part of config
-            "quiet",        // not part of config
-            "help",         // special clap argument
-            "version",      // special clap argument
+            "config",  // not part of config
+            "quiet",   // not part of config
+            "help",    // special clap argument
+            "version", // special clap argument
         ];
 
         let arguments: Vec<String> = help_text
@@ -1302,25 +1300,6 @@ The config file should contain every possible key for documentation purposes."
         let output = cmd.get_output();
         let output = std::str::from_utf8(&output.stdout).unwrap();
         assert_eq!(output.lines().count(), 3);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_lycheeignore_and_exclude_file() -> Result<()> {
-        let test_path = fixtures_path!().join("lycheeignore");
-        let excludes_path = test_path.join("normal-exclude-file");
-
-        cargo_bin_cmd!()
-            .current_dir(test_path)
-            .arg("--insecure")
-            .arg("TEST.md")
-            .arg("--exclude-file")
-            .arg(excludes_path)
-            .assert()
-            .success()
-            .stdout(contains("8 Total"))
-            .stdout(contains("6 Excluded"));
 
         Ok(())
     }
@@ -1785,6 +1764,35 @@ The config file should contain every possible key for documentation purposes."
             .stdout(contains("http://127.0.0.1/inline"))
             .stdout(contains("http://127.0.0.1/bash"));
     }
+
+    #[test]
+    fn test_quarto_treated_as_markdown() {
+        let input = fixtures_path!().join("TEST_QUARTO.qmd");
+
+        cargo_bin_cmd!()
+            .arg(input)
+            .arg("--dump")
+            .assert()
+            .success()
+            .stdout(contains("https://example.com"))
+            .stdout(contains("cdn.posit.co").not())
+            .stdout(contains("inline.example.com").not());
+    }
+
+    #[test]
+    fn test_rmarkdown_treated_as_markdown() {
+        let input = fixtures_path!().join("TEST_RMARKDOWN.Rmd");
+
+        cargo_bin_cmd!()
+            .arg(input)
+            .arg("--dump")
+            .assert()
+            .success()
+            .stdout(contains("https://example.com"))
+            .stdout(contains("cdn.posit.co").not())
+            .stdout(contains("inline.example.com").not());
+    }
+
     #[tokio::test]
     async fn test_verbatim_skipped_by_default_via_file() {
         let file = fixtures_path!().join("TEST_VERBATIM.html");
@@ -2788,48 +2796,6 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[tokio::test]
-    async fn test_retry_rate_limit_headers() {
-        const RETRY_DELAY: Duration = Duration::from_secs(1);
-        const TOLERANCE: Duration = Duration::from_millis(500);
-        let server = wiremock::MockServer::start().await;
-
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .respond_with(
-                ResponseTemplate::new(429)
-                    .append_header("Retry-After", RETRY_DELAY.as_secs().to_string()),
-            )
-            .expect(1)
-            .up_to_n_times(1)
-            .mount(&server)
-            .await;
-
-        let start = Instant::now();
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .respond_with(move |_: &Request| {
-                let delta = Instant::now().duration_since(start);
-                assert!(delta > RETRY_DELAY);
-                assert!(delta < RETRY_DELAY + TOLERANCE);
-                ResponseTemplate::new(200)
-            })
-            .expect(1)
-            .mount(&server)
-            .await;
-
-        cargo_bin_cmd!()
-            // Direct args are not using the host pool, they are resolved earlier via Collector
-            .arg("-")
-            // Retry wait times are added on top of host-specific backoff timeout
-            .arg("--retry-wait-time")
-            .arg("0")
-            .write_stdin(server.uri())
-            .assert()
-            .success();
-
-        // Check that the server received the request with the header
-        server.verify().await;
-    }
-
-    #[tokio::test]
     async fn test_no_header_set_on_input() {
         let server = wiremock::MockServer::start().await;
         server
@@ -2937,6 +2903,46 @@ The config file should contain every possible key for documentation purposes."
 
         // Check that the server received the request with the header
         server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn test_method_fallback() {
+        // A server that rejects HEAD (405) but accepts GET (200).
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("HEAD"))
+                    .respond_with(wiremock::ResponseTemplate::new(405)),
+            )
+            .await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .respond_with(wiremock::ResponseTemplate::new(200)),
+            )
+            .await;
+
+        // With a fallback list, lychee tries HEAD first, then falls back to GET
+        // and succeeds. The URL is passed via stdin so it is checked as a link
+        // (rather than fetched as an input, which always uses GET).
+        cargo_bin_cmd!()
+            .arg("--method")
+            .arg("head,get")
+            .arg("-")
+            .write_stdin(server.uri())
+            .assert()
+            .success();
+
+        // With only a single method and no fallback, the check against the same
+        // server fails because HEAD is rejected and there is nothing to fall
+        // back to.
+        cargo_bin_cmd!()
+            .arg("--method")
+            .arg("head")
+            .arg("-")
+            .write_stdin(server.uri())
+            .assert()
+            .failure();
     }
 
     #[tokio::test]
@@ -4030,7 +4036,11 @@ file:///TMP/a/b/c/ROOT/server/1/up-one.html
             .write_stdin("[a](/a)")
             .assert()
             .failure()
-            .stdout(contains("Cannot resolve root-relative link '/a': To resolve root-relative links in local files, provide a root dir"));
+            .stdout(contains("Cannot resolve root-relative link '/a'"))
+            .stderr(contains(
+                "To resolve these links to a local directory, provide a root dir with `--root-dir`. \
+                Alternatively, if the site should be relocatable, consider using directory-relative links instead."
+            ));
 
         // with root-dir, locally-relative links can still fail because
         // there is no current base URL
@@ -4584,6 +4594,50 @@ exclude_path = ["exclude_package.txt"]
             .arg("-q") // hide user hints
             .assert()
             .stderr(contains("Hint").not());
+    }
+
+    #[tokio::test]
+    async fn test_fragment_check_non_get_method_hint() {
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("HEAD"))
+                    .respond_with(wiremock::ResponseTemplate::new(200)),
+            )
+            .await;
+
+        // Fragment checking + a non-GET primary method emits a hint, because
+        // links that succeed via HEAD never fetch the body needed for fragments.
+        // The hint must spell out the exact fix.
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--include-fragments")
+            .arg("--method")
+            .arg("head")
+            .write_stdin(server.uri())
+            .assert()
+            .stderr(contains(
+                "Hint: Fragments aren't checked for `HEAD` requests. Use `--method get`.",
+            ));
+
+        // With GET as the (only) method, no such hint is printed.
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--include-fragments")
+            .arg("--method")
+            .arg("get")
+            .write_stdin(server.uri())
+            .assert()
+            .stderr(contains("Fragments aren't checked").not());
+
+        // Without fragment checking, no hint either (even with HEAD).
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--method")
+            .arg("head")
+            .write_stdin(server.uri())
+            .assert()
+            .stderr(contains("Fragments aren't checked").not());
     }
 }
 

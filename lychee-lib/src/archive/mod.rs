@@ -1,6 +1,7 @@
+use std::time::Duration;
+
 use reqwest::{Error, Url};
 use serde::Deserialize;
-use std::time::Duration;
 use strum::{Display, EnumIter, EnumString, VariantNames};
 
 mod wayback;
@@ -22,10 +23,12 @@ impl Archive {
     /// Query the `Archive` to try and find the latest snapshot of the specified `url`.
     /// Returns `None` if the specified `url` hasn't been archived in the past.
     ///
+    /// The timeout guarantees that the function doesn't wait indefinitely for a
+    /// response from the archive.
+    ///
     /// # Errors
     ///
-    /// Returns an error if the `reqwest` client cannot be built, the request itself fails
-    /// or the API response cannot be parsed.
+    /// Returns an error if the underlying HTTP request fails.
     pub async fn get_archive_snapshot(
         &self,
         url: &Url,

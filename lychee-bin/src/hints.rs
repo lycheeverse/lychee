@@ -1,5 +1,5 @@
-use http::StatusCode;
-use lychee_lib::{ErrorKind, Status, StatusCodeSelector, hint};
+use http::{Method, StatusCode};
+use lychee_lib::{ErrorKind, RequestError, Status, StatusCodeSelector, hint};
 
 use crate::{config::Config, formatters::stats::ResponseStats};
 
@@ -10,6 +10,8 @@ pub(crate) fn handle_stats(stats: &ResponseStats, config: &Config) {
     any_redirects(stats, config);
     rejected_status_codes(stats, config);
     unfollowed_redirects(stats, config);
+    root_relative_links(stats);
+    fragment_checks_with_non_get_method(config);
 }
 
 fn rate_limit(stats: &ResponseStats, config: &Config) {
@@ -106,6 +108,38 @@ fn unfollowed_redirects(stats: &ResponseStats, config: &Config) {
             "Rejected redirectional status codes. \
              This means some redirects were not followed. \
              You might want to increase the limit for `-m`/`--max-redirects`."
+        );
+    }
+}
+
+/// Fragment checks need the response body, which lychee only fetches for `GET`
+/// requests. If the primary (first) request method is not `GET`, links that
+/// succeed with that method skip fragment checking, which is easy to miss.
+fn fragment_checks_with_non_get_method(config: &Config) {
+    let fragments = config.fragment_checker_options();
+    let checks_fragments = fragments.check_anchor_fragments || fragments.check_text_fragments;
+
+    let methods = config.methods();
+    let primary_method = methods.first();
+
+    if checks_fragments && *primary_method != Method::GET {
+        hint!("Fragments aren't checked for `{primary_method}` requests. Use `--method get`.");
+    }
+}
+
+fn root_relative_links(stats: &ResponseStats) {
+    let any_root_relative_links = stats.error_map.values().flatten().any(|r| match &r.status {
+        Status::RequestError(RequestError::CreateRequestItem(_, _, e)) => {
+            matches!(**e, ErrorKind::RootRelativeLinkWithoutRoot(_))
+        }
+        _ => false,
+    });
+
+    if any_root_relative_links {
+        hint!(
+            "Unresolved root-relative links in local files. \
+            To resolve these links to a local directory, provide a root dir with `--root-dir`. \
+            Alternatively, if the site should be relocatable, consider using directory-relative links instead."
         );
     }
 }

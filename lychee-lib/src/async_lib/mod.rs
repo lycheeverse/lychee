@@ -2,3 +2,5 @@
 //! should only be functions which are missing from other libraries.
 
 pub mod cache;
+pub mod stream;
+pub mod waiter;

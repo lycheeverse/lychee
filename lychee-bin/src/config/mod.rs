@@ -27,7 +27,7 @@ use lychee_lib::ratelimit::HostConfigs;
 use lychee_lib::{
     BaseInfo, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, FileExtensions, FileType,
-    FragmentCheckerOptions, Input, StatusCodeSelector, archive::Archive,
+    FragmentCheckerOptions, Input, Methods, StatusCodeSelector, archive::Archive,
 };
 use lychee_lib::{DEFAULT_USER_AGENT, Preprocessor};
 use secrecy::SecretString;
@@ -188,9 +188,11 @@ pub(crate) struct Config {
     ///
     /// Examples:
     ///
-    ///     lychee --files-from list.txt
-    ///     find . -name '*.md' | lychee --files-from -
-    ///     echo 'README.md' | lychee --files-from -
+    /// ```text
+    /// lychee --files-from list.txt
+    /// find . -name '*.md' | lychee --files-from -
+    /// echo 'README.md' | lychee --files-from -
+    /// ```
     ///
     /// File Format:
     /// - Each line should contain one input (file path, URL, or glob pattern).
@@ -224,7 +226,7 @@ pub(crate) struct Config {
     /// This is useful when the default extensions are not enough and you don't
     /// want to provide a long list of inputs (e.g. file1.html, file2.md, etc.)
     ///
-    /// [default: md,mkd,mdx,mdown,mdwn,mkdn,mkdown,markdown,html,htm,css,txt,xml]
+    /// [default: md,markdown,mdx,qmd,rmd,mkd,mkdn,mdwn,mdown,mkdown,html,htm,css,txt,xml]
     #[arg(long, verbatim_doc_comment)]
     extensions: Option<FileExtensions>,
 
@@ -253,7 +255,7 @@ pub(crate) struct Config {
 
     /// A list of status codes that will be ignored from the cache
     ///
-    /// The following exclude range syntax is supported: [start]..[[=]end]|code. Some valid
+    /// The following exclude range syntax is supported: `[start]..[[=]end]|code`. Some valid
     /// examples are:
     ///
     /// - 429 (excludes the 429 status code only)
@@ -262,7 +264,7 @@ pub(crate) struct Config {
     /// - 500..=599 (excludes any status code from 500 to 599 inclusive)
     /// - 500..600 (excludes any status code from 500 to 600 excluding 600, same as 500..=599)
     ///
-    /// Use "lychee --cache-exclude-status '429, 500..502' <inputs>..." to provide a
+    /// Use `lychee --cache-exclude-status '429, 500..502' <inputs>...` to provide a
     /// comma-separated list of excluded status codes. This example will not cache results
     /// with a status code of 429, 500 and 501.
     #[arg(long, verbatim_doc_comment)]
@@ -380,11 +382,6 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) exclude: Vec<String>,
 
-    /// Deprecated; use `--exclude-path` instead
-    #[arg(long)]
-    #[serde(default)]
-    pub(crate) exclude_file: Vec<String>,
-
     /// Exclude paths from getting checked.
     /// The values are treated as regular expressions.
     #[arg(long)]
@@ -486,7 +483,7 @@ pub(crate) struct Config {
 
     /// A List of accepted status codes for valid links
     ///
-    /// The following accept range syntax is supported: [start]..[[=]end]|code.
+    /// The following accept range syntax is supported: `[start]..[[=]end]|code`.
     /// Some valid examples are:
     ///
     /// - 200 (accepts the 200 status code only)
@@ -495,7 +492,7 @@ pub(crate) struct Config {
     /// - 200..=204 (accepts any status code from 200 to 204 inclusive)
     /// - 200..205 (accepts any status code from 200 to 205 excluding 205, same as 200..=204)
     ///
-    /// Use "lychee --accept '200..=204, 429, 500' <inputs>..." to provide a comma-
+    /// Use `lychee --accept '200..=204, 429, 500' <inputs>...` to provide a comma-
     /// separated list of accepted status codes. This example will accept 200, 201,
     /// 202, 203, 204, 429, and 500 as valid status codes.
     ///
@@ -539,17 +536,21 @@ pub(crate) struct Config {
     #[arg(short, long)]
     retry_wait_time: Option<u64>,
 
-    /// Request method
+    /// Request method(s)
+    ///
+    /// Accepts a single method or a comma-separated list. When multiple methods
+    /// are given, lychee tries each one in order and returns the first success.
+    /// This is useful for servers that reject `HEAD` requests: `--method head,get`
+    /// falls back to `GET` when `HEAD` fails.
+    ///
+    /// Note: checking URL fragments requires the response body, which is only
+    /// fetched for `GET` requests. When a link succeeds with a non-`GET` method
+    /// (e.g. `HEAD`), its fragment is not checked.
     ///
     /// [default: get]
     // Using `-X` as a short param similar to curl
     #[arg(short = 'X', long)]
-    method: Option<String>,
-
-    /// Deprecated; use `--base-url` instead
-    #[arg(long, value_parser = parse_base_info)]
-    #[serde(skip)]
-    pub(crate) base: Option<BaseInfo>,
+    method: Option<Methods>,
 
     /// Base URL to use when resolving relative URLs in local files. If specified,
     /// relative links in local files are interpreted as being relative to the given
@@ -675,7 +676,7 @@ pub(crate) struct Config {
     /// To invoke programs with custom arguments or to use multiple preprocessors, use a
     /// wrapper program such as a shell script. An example script looks like this:
     ///
-    /// ```
+    /// ```bash
     /// #!/usr/bin/env bash
     /// case "$1" in
     /// *.pdf)
@@ -729,10 +730,15 @@ impl Config {
         Duration::from_secs(seconds)
     }
 
-    /// HTTP method used for requests
-    pub(crate) fn method(&self) -> String {
-        let default_method: String = "get".into();
-        self.method.clone().unwrap_or(default_method)
+    /// HTTP method(s) used for requests, in order of preference
+    ///
+    /// If no method is specified, defaults to `GET`. Note that `HEAD` is not
+    /// used by default because some servers reject `HEAD` requests, which would
+    /// lead to false positives.
+    pub(crate) fn methods(&self) -> Methods {
+        self.method
+            .clone()
+            .unwrap_or_else(|| http::Method::GET.into())
     }
 
     /// Maximum age of cache entries
@@ -926,7 +932,6 @@ impl Config {
                 accept,
                 accept_timeouts,
                 archive,
-                base,
                 base_url,
                 basic_auth,
                 cache,
@@ -979,7 +984,6 @@ impl Config {
             },
             chain {
                 exclude,
-                exclude_file,
                 exclude_path,
                 include,
                 fallback_extensions,
