@@ -4,6 +4,7 @@
 use std::borrow::Borrow;
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
@@ -11,10 +12,9 @@ use dashmap::DashMap;
 use dashmap::mapref::entry::Entry;
 
 mod entry;
-mod iter;
 
+use dashmap::mapref::multiple::RefMulti;
 pub use entry::{CacheGetter, CacheSetter};
-pub use iter::{Iter, KeyRef, OwningIter};
 
 /// Cache for asynchronous operations. Each operation is associated with a key,
 /// and operations are cached, deduplicated and mutually exclusive with other
@@ -99,8 +99,28 @@ impl<K: Hash + Eq, V> Cache<K, V> {
 
     /// Returns an iterator yielding borrowed key-value pairs for each
     /// completed entry within the cache. See also [`Cache::into_iter`].
-    pub fn iter(&self) -> Iter<'_, K, V> {
+    pub fn iter(&self) -> <&Cache<K, V> as IntoIterator>::IntoIter {
         self.into_iter()
+    }
+
+    /// Consumes the [`Cache`] and returns an iterator over (completed
+    /// and non-shared) key-value pairs within the cache.
+    ///
+    /// Completed means entries which have been resolved (using the [`CacheSetter`]),
+    /// and non-shared means there are no outstanding [`CacheGetter`] or
+    /// [`Arc`] references which point to the entry's `V` result.
+    pub fn into_iter_completed(self) -> Box<dyn Iterator<Item = (K, V)>>
+    where
+        K: 'static,
+        V: 'static,
+    {
+        let make_owned_pair = |(k, getter): (K, CacheGetter<V>)| {
+            let arc = getter.into_inner()?;
+            let v = Arc::into_inner(arc)?;
+            Some((k, v))
+        };
+
+        Box::new(self.data.into_iter().filter_map(make_owned_pair))
     }
 
     /// Inserts the given key-value pair, overwriting any existing values.
@@ -156,19 +176,11 @@ impl<K: Hash + Eq, V> FromIterator<(K, V)> for Cache<K, V> {
     }
 }
 
-impl<K: Hash + Eq, V> IntoIterator for Cache<K, V> {
-    type Item = <OwningIter<K, V> as Iterator>::Item;
-    type IntoIter = OwningIter<K, V>;
-    fn into_iter(self) -> OwningIter<K, V> {
-        OwningIter::new(self.data)
-    }
-}
-
-impl<'a, K: Hash + Eq, V> IntoIterator for &'a Cache<K, V> {
-    type Item = <Iter<'a, K, V> as Iterator>::Item;
-    type IntoIter = Iter<'a, K, V>;
-    fn into_iter(self) -> Iter<'a, K, V> {
-        Iter::new(&self.data)
+impl<'a, K: Hash + Eq, V: 'a> IntoIterator for &'a Cache<K, V> {
+    type Item = RefMulti<'a, K, CacheGetter<V>>;
+    type IntoIter = Box<dyn Iterator<Item = Self::Item> + 'a>;
+    fn into_iter(self) -> Self::IntoIter {
+        Box::new(self.data.iter())
     }
 }
 
@@ -207,23 +219,27 @@ mod tests {
         let _shared = cache.lock_entry(&"completed but shared").unwrap_err();
 
         assert_eq!(
-            cache.iter().map(|x| *x.0).collect::<BTreeSet<_>>(),
-            ["completed", "completed but shared"].into_iter().collect(),
-            "borrow iter includes all completed values"
+            cache.iter().map(|x| *x.key()).collect::<BTreeSet<_>>(),
+            ["completed", "completed but shared", "slow"]
+                .into_iter()
+                .collect(),
+            "borrow iter includes even non-completed values"
         );
 
         slow.set(2);
 
         assert_eq!(
-            cache.iter().map(|x| *x.0).collect::<BTreeSet<_>>(),
+            cache.iter().map(|x| *x.key()).collect::<BTreeSet<_>>(),
             ["completed", "completed but shared", "slow"]
                 .into_iter()
                 .collect(),
-            "borrow iter sees updates"
         );
 
         assert_eq!(
-            cache.into_iter().map(|x| x.0).collect::<BTreeSet<_>>(),
+            cache
+                .into_iter_completed()
+                .map(|x| x.0)
+                .collect::<BTreeSet<_>>(),
             ["completed", "slow"].into_iter().collect(),
             "owning iter excludes shared values (those with outstanding getters/setters)"
         );
