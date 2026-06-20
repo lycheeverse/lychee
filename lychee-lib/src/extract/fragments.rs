@@ -257,4 +257,11 @@ mod tests {
                 .collect::<Vec<_>>()
         );
     }
+
+    #[rstest]
+    #[case(str::from_utf8(b"i;i;\xc4\xb0;\xc4\xb0; az; # LATIN SMALL LETTER I").unwrap(), str::from_utf8(b"iii\xcc\x87i\xcc\x87-az--latin-small-letter-i").unwrap())]
+    fn test_special_casing(#[case] input: &str, #[case] expected: &str) {
+        let actual = generate_without_disambiguation(&input);
+        assert_eq!(expected, actual);
+    }
 }
