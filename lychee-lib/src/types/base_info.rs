@@ -289,7 +289,6 @@ impl BaseInfo {
     /// Returned errors include [`ErrorKind::RootRelativeLinkWithoutRoot`]
     /// and [`ParseError::RelativeUrlWithoutBase`] (within [`ErrorKind::ParseUrl`]).
     #[expect(clippy::unnested_or_patterns, reason = "more readable here")]
-    #[expect(clippy::match_same_arms, reason = "we need to comment one of the arms")]
     pub fn resolve_relative_link(&self, rel: &RelativeUri<'_>) -> Result<Url, ErrorKind> {
         match (self, &rel) {
             (Self::None, RelativeUri::Root(_)) | (Self::NoRoot(_), RelativeUri::Root(_)) => {
@@ -300,7 +299,9 @@ impl BaseInfo {
 
             (Self::None, _) => Err(ParseError::RelativeUrlWithoutBase),
 
-            (Self::NoRoot(base), RelativeUri::Local(text)) => base.join(text),
+            (Self::NoRoot(base), RelativeUri::Local(text)) => {
+                base.join(&expand_tilde_for_file_base(base, text))
+            }
 
             // `(Self::NoRoot, RelativeUri::Scheme)` happens when a link like `///a` occurs
             // within a local file without root-dir. note the triple slash because file
@@ -318,7 +319,10 @@ impl BaseInfo {
             }
 
             (Self::Full { origin, path }, rel) => {
-                origin.join(path).and_then(|x| x.join(rel.link_text()))
+                let text = rel.link_text();
+                origin
+                    .join(path)
+                    .and_then(|x| x.join(&expand_tilde_for_file_base(origin, text)))
             }
         }
         .map_err(|e| ErrorKind::ParseUrl(e, rel.link_text().to_string()))
@@ -361,6 +365,14 @@ impl BaseInfo {
         } else {
             self.resolve_relative_link(&rel)
         }
+    }
+}
+
+fn expand_tilde_for_file_base<'a>(base: &Url, text: &'a str) -> Cow<'a, str> {
+    if base.scheme() == "file" && (text == "~" || text.starts_with("~/")) {
+        shellexpand::tilde(text)
+    } else {
+        Cow::Borrowed(text)
     }
 }
 
@@ -480,6 +492,32 @@ mod tests {
             let url = Url::parse(url_str).unwrap();
             assert_eq!(BaseInfo::try_from(url_str).unwrap().url(), Some(url));
         }
+    }
+
+    #[test]
+    fn test_file_base_expands_tilde_links() {
+        let base = BaseInfo::try_from("file:///home/me/docs/page.md").unwrap();
+
+        let url = base
+            .parse_url_text("~/Downloads/not checked because of space")
+            .unwrap();
+
+        assert_eq!(
+            url,
+            Url::from_file_path(PathBuf::from(
+                shellexpand::tilde("~/Downloads/not checked because of space").as_ref()
+            ))
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn test_http_base_does_not_expand_tilde_links() {
+        let base = BaseInfo::try_from("https://example.com/docs/page.html").unwrap();
+
+        let url = base.parse_url_text("~/profile").unwrap();
+
+        assert_eq!(url.as_str(), "https://example.com/docs/~/profile");
     }
 
     #[test]
