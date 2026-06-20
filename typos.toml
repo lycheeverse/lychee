@@ -3,6 +3,8 @@ extend-exclude = [
     "assets/screencast.svg",
     "fixtures/bench",
     "fixtures/text_fragments/index.html",
+    "fixtures/fragments/special-casing.md",
+    "fixtures/fragments/special-casing.html",
 ]
 
 [default.extend-words]
