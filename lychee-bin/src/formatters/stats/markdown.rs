@@ -120,6 +120,10 @@ impl Display for MarkdownResponseStats {
             markdown_response(response).map_err(|_| fmt::Error)
         })?;
 
+        write_stats_per_input(f, "Ignored", &stats.unsupported_map, |response| {
+            markdown_response(response).map_err(|_| fmt::Error)
+        })?;
+
         write_stats_per_input(f, "Redirects", &stats.redirect_map, |redirects| {
             Ok(format!("* {redirects}"))
         })?;
@@ -300,6 +304,56 @@ mod tests {
 ### Suggestions in https://example.com/
 
 * https://original.dev/ --> https://suggestion.dev/
+";
+        assert_eq!(summary.to_string(), expected.to_string());
+    }
+
+    #[test]
+    fn test_render_summary_with_ignored() {
+        use lychee_lib::ErrorKind;
+        use url::Url;
+
+        let source = InputSource::RemoteUrl(Box::new(Url::parse("https://example.com").unwrap()));
+        let unsupported_map = HashMap::from([(
+            source,
+            HashSet::from([ResponseBody {
+                uri: Uri::try_from("https://example.com/ignored").unwrap(),
+                status: Status::Unsupported(ErrorKind::InvalidUrlHost),
+                redirects: None,
+                remap: None,
+                span: SPAN,
+                duration: DURATION,
+            }]),
+        )]);
+
+        let stats = ResponseStats {
+            total: 1,
+            unique: 1,
+            unsupported: 1,
+            unsupported_map,
+            ..Default::default()
+        };
+
+        let summary = MarkdownResponseStats(stats);
+        let expected = "# Summary
+
+| Status         | Count |
+|----------------|-------|
+| 🔍 Total       | 1     |
+| 🔗 Unique      | 1     |
+| ✅ Successful  | 0     |
+| ⏳ Timeouts    | 0     |
+| 🔀 Redirected  | 0     |
+| 👻 Excluded    | 0     |
+| ❓ Unknown     | 0     |
+| 🚫 Errors      | 0     |
+| ⛔ Unsupported | 1     |
+
+## Ignored per input
+
+### Ignored in https://example.com/
+
+* [IGNORED] <https://example.com/ignored> (at 1:1) | Unsupported: URL is missing a hostname
 ";
         assert_eq!(summary.to_string(), expected.to_string());
     }
