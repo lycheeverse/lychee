@@ -29,6 +29,9 @@ pub(crate) struct WebsiteChecker {
     /// GitHub client used for requests.
     github_client: Option<Octocrab>,
 
+    /// Raw GitHub token for injecting Authorization headers on API requests.
+    github_token: Option<String>,
+
     /// The chain of plugins to be executed on each request.
     plugin_request_chain: RequestChain,
 
@@ -85,6 +88,7 @@ impl WebsiteChecker {
         max_retries: u64,
         accepted: HashSet<StatusCode>,
         github_client: Option<Octocrab>,
+        github_token: Option<String>,
         require_https: bool,
         plugin_request_chain: RequestChain,
         fragment_checker_options: FragmentCheckerOptions,
@@ -94,6 +98,7 @@ impl WebsiteChecker {
         Self {
             methods,
             github_client,
+            github_token,
             plugin_request_chain,
             redirect_history,
             max_retries,
@@ -218,8 +223,12 @@ impl WebsiteChecker {
     pub(crate) async fn check_website(&self, uri: &Uri) -> (Status, Option<Redirects>) {
         let credentials = self.basic_auth.matches(uri);
 
+        let quirks = match &self.github_token {
+            Some(token) => Quirks::with_github_token(token.clone()),
+            None => Quirks::default(),
+        };
         let default_chain: RequestChain = Chain::new(vec![
-            Box::<Quirks>::default(),
+            Box::new(quirks),
             Box::new(credentials),
             Box::new(self.clone()),
         ]);

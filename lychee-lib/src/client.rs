@@ -379,6 +379,13 @@ impl ClientBuilder {
             client_map,
         );
 
+        let github_token_str = self
+            .github_token
+            .as_ref()
+            .map(ExposeSecret::expose_secret)
+            .filter(|t| !t.is_empty())
+            .map(ToOwned::to_owned);
+
         let github_client = match self.github_token.as_ref().map(ExposeSecret::expose_secret) {
             Some(token) if !token.is_empty() => Some(
                 Octocrab::builder()
@@ -410,6 +417,7 @@ impl ClientBuilder {
             self.max_retries,
             self.accepted,
             github_client,
+            github_token_str,
             self.require_https,
             self.plugin_request_chain,
             self.fragment_checker_options,
