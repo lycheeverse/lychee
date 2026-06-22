@@ -122,9 +122,12 @@ impl Default for Quirks {
                 rewrite: |mut request, captures| {
                     let owner = captures.name("owner").unwrap().as_str();
                     let repo = captures.name("repo").unwrap().as_str();
-                    *request.url_mut() = Url::parse(
-                        &format!("https://api.github.com/repos/{owner}/{repo}/readme")
-                    ).unwrap();
+                    let api_url = if let Some(branch) = captures.name("branch") {
+                        format!("https://api.github.com/repos/{owner}/{repo}/readme?ref={}", branch.as_str())
+                    } else {
+                        format!("https://api.github.com/repos/{owner}/{repo}/readme")
+                    };
+                    *request.url_mut() = Url::parse(&api_url).unwrap();
                     request
                         .headers_mut()
                         .insert(header::ACCEPT, HeaderValue::from_static("application/vnd.github.v3+json"));
@@ -380,7 +383,7 @@ mod tests {
         let request = Request::new(Method::GET, url);
         let modified = Quirks::default().apply(request);
         let expected_url =
-            Url::parse("https://api.github.com/repos/lycheeverse/lychee/readme").unwrap();
+            Url::parse("https://api.github.com/repos/lycheeverse/lychee/readme?ref=main").unwrap();
         assert_eq!(
             MockRequest(modified),
             MockRequest::new(Method::GET, expected_url)
