@@ -46,21 +46,10 @@ pub(crate) struct Quirk {
 #[derive(Debug, Clone)]
 pub(crate) struct Quirks {
     quirks: Vec<Quirk>,
-    github_token: Option<String>,
-}
-
-impl Quirks {
-    pub(crate) fn with_github_token(token: String) -> Self {
-        Self {
-            github_token: Some(token),
-            ..Self::default()
-        }
-    }
 }
 
 impl Default for Quirks {
     fn default() -> Self {
-        let github_token = None;
         let quirks = vec![
             Quirk {
                 name: "add accept header for crates.io",
@@ -152,10 +141,7 @@ impl Default for Quirks {
                 },
             },
         ];
-        Self {
-            quirks,
-            github_token,
-        }
+        Self { quirks }
     }
 }
 
@@ -169,13 +155,6 @@ impl Quirks {
             if let Some(captures) = quirk.pattern.captures(request.url().clone().as_str()) {
                 debug!("Applied quirk '{}' to {}", quirk.name, request.url());
                 request = (quirk.rewrite)(request, captures);
-            }
-        }
-        if let Some(token) = &self.github_token {
-            if request.url().host_str() == Some("api.github.com") {
-                if let Ok(value) = HeaderValue::from_str(&format!("Bearer {token}")) {
-                    request.headers_mut().insert(header::AUTHORIZATION, value);
-                }
             }
         }
         request
