@@ -25,8 +25,10 @@ static GITHUB_BLOB_LINE_FRAGMENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
         .unwrap()
 });
 static GITHUB_README_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^https://github\.com/(?<owner>[^/]+)/(?<repo>[^/]+)(?:/tree/(?<branch>[^/]+))?#readme$")
-        .unwrap()
+    Regex::new(
+        r"^https://github\.com/(?<owner>[^/]+)/(?<repo>[^/]+)(?:/tree/(?<branch>[^/]+))?#readme$",
+    )
+    .unwrap()
 });
 
 // Retrieve a map of query params for the given request
@@ -134,14 +136,18 @@ impl Default for Quirks {
                     let owner = captures.name("owner").unwrap().as_str();
                     let repo = captures.name("repo").unwrap().as_str();
                     let api_url = if let Some(branch) = captures.name("branch") {
-                        format!("https://api.github.com/repos/{owner}/{repo}/readme?ref={}", branch.as_str())
+                        format!(
+                            "https://api.github.com/repos/{owner}/{repo}/readme?ref={}",
+                            branch.as_str()
+                        )
                     } else {
                         format!("https://api.github.com/repos/{owner}/{repo}/readme")
                     };
                     *request.url_mut() = Url::parse(&api_url).unwrap();
-                    request
-                        .headers_mut()
-                        .insert(header::ACCEPT, HeaderValue::from_static("application/vnd.github.v3+json"));
+                    request.headers_mut().insert(
+                        header::ACCEPT,
+                        HeaderValue::from_static("application/vnd.github.v3+json"),
+                    );
                     request
                 },
             },
@@ -399,8 +405,7 @@ mod tests {
 
     #[test]
     fn test_github_readme_tree_branch_request() {
-        let url =
-            Url::parse("https://github.com/lycheeverse/lychee/tree/main#readme").unwrap();
+        let url = Url::parse("https://github.com/lycheeverse/lychee/tree/main#readme").unwrap();
         let request = Request::new(Method::GET, url);
         let modified = Quirks::default().apply(request);
         let expected_url =
