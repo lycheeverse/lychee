@@ -72,6 +72,17 @@ impl Display for DetailedResponseStats {
             write_stats(f, "Redirects", source, stats.redirect_map.get(source))?;
         }
 
+        // Ignored (unsupported) links get their own section so they are not
+        // mislabeled as errors, and so inputs whose only finding is an ignored
+        // link are still listed.
+        for (source, responses) in super::sort_stats_iter(stats.unsupported_map.iter()) {
+            write!(f, "\n\nIgnored in {source}")?;
+
+            for response in responses {
+                write!(f, "\n{}", response_formatter.format_response(response))?;
+            }
+        }
+
         Ok(())
     }
 }
@@ -169,6 +180,61 @@ Host: example.com
   Cache hit rate: 20.0%
   Cache hits: 1, misses: 4
 "
+        );
+    }
+
+    #[test]
+    fn test_detailed_formatter_lists_ignored_only_input() {
+        use std::collections::{HashMap, HashSet};
+        use std::time::Duration;
+
+        use lychee_lib::{ErrorKind, InputSource, ResponseBody, Status, Uri};
+        use url::Url;
+
+        // An input whose only problem is an ignored link should get its own
+        // "Ignored in <source>" section, not be mislabeled under "Errors".
+        let source = InputSource::RemoteUrl(Box::new(Url::parse("https://example.com").unwrap()));
+        let unsupported_map = HashMap::from([(
+            source,
+            HashSet::from([ResponseBody {
+                uri: Uri::try_from("https://example.com/ignored").unwrap(),
+                status: Status::Unsupported(ErrorKind::InvalidUrlHost),
+                redirects: None,
+                remap: None,
+                span: None,
+                duration: Some(Duration::from_secs(1)),
+            }]),
+        )]);
+
+        let stats = ResponseStats {
+            total: 1,
+            unique: 1,
+            unsupported: 1,
+            unsupported_map,
+            ..Default::default()
+        };
+
+        let response_stats = DetailedResponseStats {
+            stats,
+            mode: OutputMode::Plain,
+        };
+
+        assert_eq!(
+            response_stats.to_string(),
+            "📝 Summary
+---------------------
+🔍 Total............1
+🔗 Unique...........1
+✅ Successful.......0
+⏳ Timeouts.........0
+🔀 Redirected.......0
+👻 Excluded.........0
+❓ Unknown..........0
+🚫 Errors...........0
+⛔ Unsupported......0
+
+Ignored in https://example.com/
+[IGNORED] https://example.com/ignored | Unsupported: URL is missing a hostname"
         );
     }
 }
