@@ -13,7 +13,10 @@ use crate::{
 use async_trait::async_trait;
 use http::{Method, StatusCode};
 use octocrab::Octocrab;
-use reqwest::{Request, header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue}};
+use reqwest::{
+    Request,
+    header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue},
+};
 use std::{borrow::Cow, collections::HashSet, path::Path, sync::Arc, time::Duration};
 use url::Url;
 
@@ -563,8 +566,7 @@ mod tests {
         let mut handler = GitHubTokenHandler {
             token: "test_token_abc".to_string(),
         };
-        let url =
-            Url::parse("https://api.github.com/repos/lycheeverse/lychee/readme").unwrap();
+        let url = Url::parse("https://api.github.com/repos/lycheeverse/lychee/readme").unwrap();
         let request = Request::new(Method::GET, url);
 
         let ChainResult::Next(req) = handler.handle(request).await else {

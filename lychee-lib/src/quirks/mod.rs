@@ -348,7 +348,10 @@ mod tests {
     #[rstest]
     #[case("https://github.com/lycheeverse/lychee#readme", true)]
     #[case("https://github.com/lycheeverse/lychee/tree/main#readme", true)]
-    #[case("https://github.com/lycheeverse/lychee/blob/main/README.md#readme", false)]
+    #[case(
+        "https://github.com/lycheeverse/lychee/blob/main/README.md#readme",
+        false
+    )]
     #[case("https://github.com/lycheeverse/lychee#installation", false)]
     fn test_github_readme_pattern(#[case] url: &str, #[case] expected: bool) {
         assert_eq!(
