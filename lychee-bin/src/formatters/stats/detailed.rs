@@ -53,7 +53,7 @@ impl Display for DetailedResponseStats {
         write_stat(f, "👻 Excluded", stats.excludes, true)?;
         write_stat(f, "❓ Unknown", stats.unknown, true)?;
         write_stat(f, "🚫 Errors", stats.errors, true)?;
-        write_stat(f, "⛔ Unsupported", stats.errors, false)?;
+        write_stat(f, "⛔ Unsupported", stats.unsupported, false)?;
 
         let response_formatter = get_response_formatter(&self.mode);
 
@@ -155,7 +155,7 @@ mod tests {
 👻 Excluded.........0
 ❓ Unknown..........0
 🚫 Errors...........1
-⛔ Unsupported......1
+⛔ Unsupported......0
 
 Errors in https://example.com/
 [404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found
@@ -231,7 +231,7 @@ Host: example.com
 👻 Excluded.........0
 ❓ Unknown..........0
 🚫 Errors...........0
-⛔ Unsupported......0
+⛔ Unsupported......1
 
 Ignored in https://example.com/
 [IGNORED] https://example.com/ignored | Unsupported: URL is missing a hostname"
