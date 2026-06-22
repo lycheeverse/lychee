@@ -28,10 +28,10 @@ struct GitHubTokenHandler {
 #[async_trait]
 impl Handler<Request, Status> for GitHubTokenHandler {
     async fn handle(&mut self, mut request: Request) -> ChainResult<Request, Status> {
-        if request.url().host_str() == Some("api.github.com") {
-            if let Ok(value) = HeaderValue::from_str(&format!("Bearer {}", self.token)) {
-                request.headers_mut().insert(AUTHORIZATION, value);
-            }
+        if request.url().host_str() == Some("api.github.com")
+            && let Ok(value) = HeaderValue::from_str(&format!("Bearer {}", self.token))
+        {
+            request.headers_mut().insert(AUTHORIZATION, value);
         }
         ChainResult::Next(request)
     }
