@@ -182,8 +182,10 @@ impl FileChecker {
             && ext.as_encoded_bytes().iter().any(u8::is_ascii_whitespace)
             && let Some(first_fallback) = &self.fallback_extensions[..].first()
         {
-            path_buf.push(".");
-            path_buf.push(first_fallback);
+            let mut ext = ext.to_os_string();
+            ext.push(".");
+            ext.push(first_fallback);
+            path_buf.set_extension(ext);
         }
 
         // Try fallback extensions, replacing any current extension in the path.
