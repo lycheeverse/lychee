@@ -180,10 +180,10 @@ impl FileChecker {
         // In this case, we want to append fallbacks _after_ the full original filename.
         if let Some(ext) = path.extension()
             && ext.as_encoded_bytes().iter().any(u8::is_ascii_whitespace)
+            && let Some(first_fallback) = &self.fallback_extensions[..].first()
         {
-            let mut ext = ext.to_os_string();
-            ext.push(".extra-extension");
-            path_buf.set_extension(ext);
+            path_buf.push(".");
+            path_buf.push(first_fallback);
         }
 
         // Try fallback extensions, replacing any current extension in the path.
