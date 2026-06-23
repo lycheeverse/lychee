@@ -49,7 +49,9 @@ struct RemapChainHandler {
 impl Handler<Request, Status> for RemapChainHandler {
     async fn handle(&mut self, mut request: Request) -> ChainResult<Request, Status> {
         if let Some(remaps) = &self.remaps {
-            let uri = Uri { url: request.url().clone() };
+            let uri = Uri {
+                url: request.url().clone(),
+            };
             if let Ok(Some(remap)) = remaps.remap(&uri) {
                 *request.url_mut() = remap.new.url;
             }
@@ -584,5 +586,4 @@ mod tests {
             BasicAuthExtractor::empty(),
         )
     }
-
 }

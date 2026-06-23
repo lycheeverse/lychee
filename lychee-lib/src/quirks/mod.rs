@@ -347,22 +347,22 @@ mod tests {
     // Basic repo URL → API readme endpoint
     #[case(
         "https://github.com/lycheeverse/lychee#readme",
-        "https://api.github.com/repos/lycheeverse/lychee/readme",
+        "https://api.github.com/repos/lycheeverse/lychee/readme"
     )]
     // Tree URL with simple branch name → ref query param
     #[case(
         "https://github.com/lycheeverse/lychee/tree/main#readme",
-        "https://api.github.com/repos/lycheeverse/lychee/readme?ref=main",
+        "https://api.github.com/repos/lycheeverse/lychee/readme?ref=main"
     )]
     // Tree URL with branch name containing '/' → encoded ref query param
     #[case(
         "https://github.com/lycheeverse/lychee/tree/feat/per-host-rate-limiting/lychee-lib#readme",
-        "https://api.github.com/repos/lycheeverse/lychee/readme?ref=feat%2Fper-host-rate-limiting%2Flychee-lib",
+        "https://api.github.com/repos/lycheeverse/lychee/readme?ref=feat%2Fper-host-rate-limiting%2Flychee-lib"
     )]
     // Non-readme fragment → URL unchanged
     #[case(
         "https://github.com/lycheeverse/lychee#installation",
-        "https://github.com/lycheeverse/lychee#installation",
+        "https://github.com/lycheeverse/lychee#installation"
     )]
     fn test_github_readme_quirk(#[case] input: &str, #[case] expected: &str) {
         let url = Url::parse(input).unwrap();
