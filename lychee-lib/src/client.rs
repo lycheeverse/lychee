@@ -418,6 +418,7 @@ impl ClientBuilder {
             self.accepted,
             github_client,
             github_token_str,
+            self.remaps.clone(),
             self.require_https,
             self.plugin_request_chain,
             self.fragment_checker_options,

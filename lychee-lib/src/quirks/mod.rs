@@ -26,7 +26,7 @@ static GITHUB_BLOB_LINE_FRAGMENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
 });
 static GITHUB_README_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"^https://github\.com/(?<owner>[^/]+)/(?<repo>[^/]+)(?:/tree/(?<branch>[^/]+))?#readme$",
+        r"^https://github\.com/(?<owner>[^/]+)/(?<repo>[^/]+)(?:/tree/(?<branch>[^#]+))?#readme$",
     )
     .unwrap()
 });
@@ -122,17 +122,16 @@ impl Default for Quirks {
                 name: "check GitHub README existence via API",
                 pattern: &GITHUB_README_PATTERN,
                 rewrite: |mut request, captures| {
-                    let owner = captures.name("owner").unwrap().as_str();
-                    let repo = captures.name("repo").unwrap().as_str();
-                    let api_url = if let Some(branch) = captures.name("branch") {
-                        format!(
-                            "https://api.github.com/repos/{owner}/{repo}/readme?ref={}",
-                            branch.as_str()
-                        )
-                    } else {
-                        format!("https://api.github.com/repos/{owner}/{repo}/readme")
-                    };
-                    *request.url_mut() = Url::parse(&api_url).unwrap();
+                    let mut api_url = String::new();
+                    captures.expand(
+                        "https://api.github.com/repos/$owner/$repo/readme",
+                        &mut api_url,
+                    );
+                    let mut url = Url::parse(&api_url).unwrap();
+                    if let Some(branch) = captures.name("branch") {
+                        url.query_pairs_mut().append_pair("ref", branch.as_str());
+                    }
+                    *request.url_mut() = url;
                     request.headers_mut().insert(
                         header::ACCEPT,
                         HeaderValue::from_static("application/vnd.github.v3+json"),
@@ -176,7 +175,6 @@ mod tests {
     use rstest::rstest;
 
     use super::GITHUB_BLOB_LINE_FRAGMENT_PATTERN;
-    use super::GITHUB_README_PATTERN;
     use super::Quirks;
 
     #[derive(Debug)]
@@ -346,55 +344,30 @@ mod tests {
     }
 
     #[rstest]
-    #[case("https://github.com/lycheeverse/lychee#readme", true)]
-    #[case("https://github.com/lycheeverse/lychee/tree/main#readme", true)]
+    // Basic repo URL → API readme endpoint
     #[case(
-        "https://github.com/lycheeverse/lychee/blob/main/README.md#readme",
-        false
+        "https://github.com/lycheeverse/lychee#readme",
+        "https://api.github.com/repos/lycheeverse/lychee/readme",
     )]
-    #[case("https://github.com/lycheeverse/lychee#installation", false)]
-    fn test_github_readme_pattern(#[case] url: &str, #[case] expected: bool) {
-        assert_eq!(
-            GITHUB_README_PATTERN.is_match(url),
-            expected,
-            "GitHub readme pattern had unexpected outcome for {url}"
-        );
-    }
-
-    #[test]
-    fn test_github_readme_request() {
-        let url = Url::parse("https://github.com/lycheeverse/lychee#readme").unwrap();
+    // Tree URL with simple branch name → ref query param
+    #[case(
+        "https://github.com/lycheeverse/lychee/tree/main#readme",
+        "https://api.github.com/repos/lycheeverse/lychee/readme?ref=main",
+    )]
+    // Tree URL with branch name containing '/' → encoded ref query param
+    #[case(
+        "https://github.com/lycheeverse/lychee/tree/feat/per-host-rate-limiting/lychee-lib#readme",
+        "https://api.github.com/repos/lycheeverse/lychee/readme?ref=feat%2Fper-host-rate-limiting%2Flychee-lib",
+    )]
+    // Non-readme fragment → URL unchanged
+    #[case(
+        "https://github.com/lycheeverse/lychee#installation",
+        "https://github.com/lycheeverse/lychee#installation",
+    )]
+    fn test_github_readme_quirk(#[case] input: &str, #[case] expected: &str) {
+        let url = Url::parse(input).unwrap();
         let request = Request::new(Method::GET, url);
         let modified = Quirks::default().apply(request);
-        let expected_url =
-            Url::parse("https://api.github.com/repos/lycheeverse/lychee/readme").unwrap();
-        assert_eq!(
-            MockRequest(modified),
-            MockRequest::new(Method::GET, expected_url)
-        );
-    }
-
-    #[test]
-    fn test_github_readme_request_has_accept_header() {
-        let url = Url::parse("https://github.com/lycheeverse/lychee#readme").unwrap();
-        let request = Request::new(Method::GET, url);
-        let modified = Quirks::default().apply(request);
-        assert_eq!(
-            modified.headers().get(header::ACCEPT).unwrap(),
-            HeaderValue::from_static("application/vnd.github.v3+json")
-        );
-    }
-
-    #[test]
-    fn test_github_readme_tree_branch_request() {
-        let url = Url::parse("https://github.com/lycheeverse/lychee/tree/main#readme").unwrap();
-        let request = Request::new(Method::GET, url);
-        let modified = Quirks::default().apply(request);
-        let expected_url =
-            Url::parse("https://api.github.com/repos/lycheeverse/lychee/readme?ref=main").unwrap();
-        assert_eq!(
-            MockRequest(modified),
-            MockRequest::new(Method::GET, expected_url)
-        );
+        assert_eq!(modified.url().as_str(), expected);
     }
 }

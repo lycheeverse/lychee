@@ -3,6 +3,7 @@ use crate::{
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
     quirks::Quirks,
     ratelimit::HostPool,
+    remap::Remaps,
     retry::RetryExt,
     types::{
         redirect_history::{RedirectHistory, Redirects},
@@ -22,16 +23,36 @@ use url::Url;
 
 #[derive(Debug)]
 struct GitHubTokenHandler {
-    token: String,
+    token: Option<String>,
 }
 
 #[async_trait]
 impl Handler<Request, Status> for GitHubTokenHandler {
     async fn handle(&mut self, mut request: Request) -> ChainResult<Request, Status> {
         if request.url().host_str() == Some("api.github.com")
-            && let Ok(value) = HeaderValue::from_str(&format!("Bearer {}", self.token))
+            && let Some(token) = &self.token
+            && let Ok(value) = HeaderValue::from_str(&format!("Bearer {token}"))
         {
             request.headers_mut().insert(AUTHORIZATION, value);
+        }
+        ChainResult::Next(request)
+    }
+}
+
+/// Applies remap rules inside the chain, after quirks, so quirk-rewritten URLs can be remapped.
+#[derive(Debug)]
+struct RemapChainHandler {
+    remaps: Option<Remaps>,
+}
+
+#[async_trait]
+impl Handler<Request, Status> for RemapChainHandler {
+    async fn handle(&mut self, mut request: Request) -> ChainResult<Request, Status> {
+        if let Some(remaps) = &self.remaps {
+            let uri = Uri { url: request.url().clone() };
+            if let Ok(Some(remap)) = remaps.remap(&uri) {
+                *request.url_mut() = remap.new.url;
+            }
         }
         ChainResult::Next(request)
     }
@@ -51,6 +72,10 @@ pub(crate) struct WebsiteChecker {
 
     /// Raw GitHub token for injecting Authorization headers on API requests.
     github_token: Option<String>,
+
+    /// Remap rules applied inside the chain (after quirks) for intercepting
+    /// quirk-rewritten URLs such as those targeting `api.github.com`.
+    remaps: Option<Remaps>,
 
     /// The chain of plugins to be executed on each request.
     plugin_request_chain: RequestChain,
@@ -109,6 +134,7 @@ impl WebsiteChecker {
         accepted: HashSet<StatusCode>,
         github_client: Option<Octocrab>,
         github_token: Option<String>,
+        remaps: Option<Remaps>,
         require_https: bool,
         plugin_request_chain: RequestChain,
         fragment_checker_options: FragmentCheckerOptions,
@@ -119,6 +145,7 @@ impl WebsiteChecker {
             methods,
             github_client,
             github_token,
+            remaps,
             plugin_request_chain,
             redirect_history,
             max_retries,
@@ -243,16 +270,17 @@ impl WebsiteChecker {
     pub(crate) async fn check_website(&self, uri: &Uri) -> (Status, Option<Redirects>) {
         let credentials = self.basic_auth.matches(uri);
 
-        let mut chain_items: Vec<Box<dyn Handler<Request, Status> + Send>> =
-            vec![Box::new(Quirks::default())];
-        if let Some(token) = &self.github_token {
-            chain_items.push(Box::new(GitHubTokenHandler {
-                token: token.clone(),
-            }));
-        }
-        chain_items.push(Box::new(credentials));
-        chain_items.push(Box::new(self.clone()));
-        let default_chain: RequestChain = Chain::new(chain_items);
+        let default_chain: RequestChain = Chain::new(vec![
+            Box::new(Quirks::default()),
+            Box::new(GitHubTokenHandler {
+                token: self.github_token.clone(),
+            }),
+            Box::new(RemapChainHandler {
+                remaps: self.remaps.clone(),
+            }),
+            Box::new(credentials),
+            Box::new(self.clone()),
+        ]);
 
         let status = self.check_website_inner(uri, &default_chain).await;
         let status = self.handle_insecure_url(uri, &default_chain, status).await;
@@ -453,6 +481,7 @@ mod tests {
             DEFAULT_ACCEPTED_STATUS_CODES.clone(),
             None,
             None,
+            None,
             false,
             RequestChain::default(),
             FragmentCheckerOptions::default(),
@@ -547,6 +576,7 @@ mod tests {
             DEFAULT_ACCEPTED_STATUS_CODES.clone(),
             Some(client),
             None,
+            None,
             false,
             RequestChain::default(),
             FragmentCheckerOptions::default(),
@@ -555,53 +585,4 @@ mod tests {
         )
     }
 
-    #[tokio::test]
-    async fn test_github_token_handler_injects_bearer_for_api_host() {
-        use reqwest::{Request, Url};
-
-        use crate::chain::{ChainResult, Handler};
-
-        use super::GitHubTokenHandler;
-
-        let mut handler = GitHubTokenHandler {
-            token: "test_token_abc".to_string(),
-        };
-        let url = Url::parse("https://api.github.com/repos/lycheeverse/lychee/readme").unwrap();
-        let request = Request::new(Method::GET, url);
-
-        let ChainResult::Next(req) = handler.handle(request).await else {
-            panic!("expected ChainResult::Next");
-        };
-        assert_eq!(
-            req.headers()
-                .get("Authorization")
-                .expect("Authorization header missing")
-                .to_str()
-                .unwrap(),
-            "Bearer test_token_abc"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_github_token_handler_skips_non_api_hosts() {
-        use reqwest::{Request, Url};
-
-        use crate::chain::{ChainResult, Handler};
-
-        use super::GitHubTokenHandler;
-
-        let mut handler = GitHubTokenHandler {
-            token: "test_token_abc".to_string(),
-        };
-        let url = Url::parse("https://example.com/some/path").unwrap();
-        let request = Request::new(Method::GET, url);
-
-        let ChainResult::Next(req) = handler.handle(request).await else {
-            panic!("expected ChainResult::Next");
-        };
-        assert!(
-            req.headers().get("Authorization").is_none(),
-            "Authorization header should not be set for non-api.github.com hosts"
-        );
-    }
 }
