@@ -16,7 +16,14 @@ impl Display for MarkdownHostStats {
             return Ok(());
         };
 
-        writeln!(f, "\n## Per-host Statistics")?;
+        let sorted = host_stats.sorted();
+        let domain_count = sorted.len();
+        let total_links: u64 = sorted.iter().map(|(_, s)| s.total_requests).sum();
+
+        writeln!(
+            f,
+            "\n## Per-host Statistics ({domain_count} domains, {total_links} links checked)"
+        )?;
         writeln!(f)?;
         writeln!(f, "{}", host_stats_table(host_stats))?;
 

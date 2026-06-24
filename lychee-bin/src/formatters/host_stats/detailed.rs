@@ -12,10 +12,17 @@ impl Display for DetailedHostStats {
             return Ok(());
         };
 
-        writeln!(f, "\n📊 Per-host Statistics")?;
+        let sorted = host_stats.sorted();
+        let domain_count = sorted.len();
+        let total_links: u64 = sorted.iter().map(|(_, s)| s.total_requests).sum();
+
+        writeln!(
+            f,
+            "\n📊 Per-host Statistics ({domain_count} domains, {total_links} links checked)"
+        )?;
         writeln!(f, "---------------------")?;
 
-        for (hostname, stats) in host_stats.sorted() {
+        for (hostname, stats) in sorted {
             writeln!(f, "\nHost: {hostname}")?;
             writeln!(f, "  Total requests: {}", stats.total_requests)?;
             writeln!(
