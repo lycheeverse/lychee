@@ -240,6 +240,8 @@ pub(crate) struct Config {
     /// Examples:
     ///   --default-extension md
     ///   --default-extension html
+    ///
+    /// See also: `--fallback-extensions`.
     #[arg(long, value_name = "EXTENSION", verbatim_doc_comment)]
     default_extension: Option<String>,
 
