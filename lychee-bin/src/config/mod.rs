@@ -230,10 +230,12 @@ pub(crate) struct Config {
     #[arg(long, verbatim_doc_comment)]
     extensions: Option<FileExtensions>,
 
-    /// This is the default file extension that is applied to files without an extension.
+    /// Treat input sources without a recognised extension (or Content-Type
+    /// header) as if they had the given extension.
     ///
-    /// This is useful for files without extensions or with unknown extensions.
-    /// The extension will be used to determine the file type for processing.
+    /// The extension will be used to determine the file format for link
+    /// extraction. This is useful for stdin inputs, files without extensions,
+    /// and files with unknown extensions.
     ///
     /// Examples:
     ///   --default-extension md
