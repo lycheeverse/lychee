@@ -165,7 +165,7 @@ impl Input {
                     Ok(source) => {
                         let content_result = match source {
                             ResolvedInputSource::FsPath(path) => {
-                                Self::path_content(&path, preprocessor.as_ref()).await
+                                Self::path_content(&path, preprocessor.as_ref(), self.file_type_hint).await
                             },
                             ResolvedInputSource::RemoteUrl(url) => {
                                 resolver.url_contents(*url).await
@@ -252,12 +252,18 @@ impl Input {
     pub async fn path_content<P: Into<PathBuf> + AsRef<Path> + Clone>(
         path: P,
         preprocessor: Option<&Preprocessor>,
+        file_type_hint: Option<FileType>,
     ) -> LycheeResult<InputContent> {
         let path = path.into();
         let content = Self::get_content(&path, preprocessor).await?;
 
+        let file_type = match (FileType::from(&path), file_type_hint) {
+            (FileType::Plaintext, Some(default)) => default,
+            (file_type, _) => file_type,
+        };
+
         Ok(InputContent {
-            file_type: FileType::from(&path),
+            file_type,
             source: ResolvedInputSource::FsPath(path),
             content,
         })
