@@ -458,8 +458,8 @@ Options:
           and existing cookies will be updated.
 
       --default-extension <EXTENSION>
-          Treat input sources without a recognised extension (or Content-Type
-          header) as if they had the given extension.
+          Treat input sources without a recognised extension as if they had the
+          given extension.
 
           The extension will be used to determine the file format for link
           extraction. This is useful for stdin inputs, files without extensions,

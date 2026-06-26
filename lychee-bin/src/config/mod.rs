@@ -230,8 +230,8 @@ pub(crate) struct Config {
     #[arg(long, verbatim_doc_comment)]
     extensions: Option<FileExtensions>,
 
-    /// Treat input sources without a recognised extension (or Content-Type
-    /// header) as if they had the given extension.
+    /// Treat input sources without a recognised extension as if they had the
+    /// given extension.
     ///
     /// The extension will be used to determine the file format for link
     /// extraction. This is useful for stdin inputs, files without extensions,
