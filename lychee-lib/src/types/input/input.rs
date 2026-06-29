@@ -13,6 +13,7 @@ use crate::{ErrorKind, LycheeResult};
 use async_stream::try_stream;
 use futures::stream::{Stream, StreamExt};
 use log::debug;
+use std::ffi::OsStr;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use tokio::io::{AsyncReadExt, stdin};
@@ -257,17 +258,11 @@ impl Input {
         let path = path.into();
         let content = Self::get_content(&path, preprocessor).await?;
 
-        // This implementation is not the best. Any plaintext file is changed
-        // to the default extension, but a file could genuinely be plaintext.
-        // To do this properly would need something like a TryFrom for FileType,
-        // but this conflicts with the From which is heavily used.
-        //
-        // It's not a big deal right now because the HTML and markdown extractors
-        // also perform plaintext extraction.
-        let file_type = match (FileType::from(&path), file_type_hint) {
-            (FileType::Plaintext, Some(default)) => default,
-            (file_type, _) => file_type,
-        };
+        let ext = path.extension().and_then(OsStr::to_str);
+        let file_type = ext
+            .and_then(FileType::from_extension)
+            .or(file_type_hint)
+            .unwrap_or_default();
 
         Ok(InputContent {
             file_type,
