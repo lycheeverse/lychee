@@ -174,8 +174,21 @@ impl FileChecker {
             return Ok(path.to_path_buf());
         }
 
-        // Try fallback extensions
         let mut path_buf = path.to_path_buf();
+
+        // If existing "extension" has spaces, we assume it is not a real extension.
+        // In this case, we want to append fallbacks _after_ the full original filename.
+        if let Some(ext) = path.extension()
+            && ext.as_encoded_bytes().iter().any(u8::is_ascii_whitespace)
+            && let Some(first_fallback) = &self.fallback_extensions[..].first()
+        {
+            let mut ext = ext.to_os_string();
+            ext.push(".");
+            ext.push(first_fallback);
+            path_buf.set_extension(ext);
+        }
+
+        // Try fallback extensions, replacing any current extension in the path.
         for ext in &self.fallback_extensions {
             path_buf.set_extension(ext);
             if path_buf.is_file() {
@@ -626,6 +639,46 @@ mod tests {
             &checker,
             "filechecker/same_name/",
             Ok("filechecker/same_name.html")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_fallback_extensions_with_embedded_dots() {
+        let checker = FileChecker::new(
+            &BaseInfo::none(),
+            vec!["md".to_string(), "gz".to_string()],
+            None,
+            FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
+            false,
+        )
+        .unwrap();
+
+        // fallback extensions *should* be applied when a file name
+        // has dots but also has a space after the last dot. we assume
+        // file extensions cannot have spaces in them
+        assert_resolves!(
+            &checker,
+            "fallback-extensions/file. hi",
+            Ok("fallback-extensions/file. hi.md")
+        );
+
+        // fallback extensions replace pre-existing extensions.
+        assert_resolves!(
+            &checker,
+            "fallback-extensions/b.non-existing",
+            Ok("fallback-extensions/b.gz")
+        );
+
+        // fallback extensions should *not* double up when there is
+        // already a file extension, to avoid doubling up and getting the
+        // wrong file.
+        assert_resolves!(
+            &checker,
+            "fallback-extensions/a.tar",
+            Err(InvalidFilePath(_))
         );
     }
 }

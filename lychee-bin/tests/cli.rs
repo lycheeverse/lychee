@@ -2603,7 +2603,7 @@ The config file should contain every possible key for documentation purposes."
 
         cargo_bin_cmd!()
             .arg("--verbose")
-            .arg("--fallback-extensions=htm,html")
+            .arg("--fallback-extensions=htm,html,md")
             .arg(input)
             .assert()
             .success()
