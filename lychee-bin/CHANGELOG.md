@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.24.2...lychee-v0.25.0) - 2026-06-29
+
+### Added
+
+- list ignored (IGNORED) links in the run summary ([#2243](https://github.com/lycheeverse/lychee/pull/2243))
+
+### Fixed
+
+- default-extension not applied to local files, and tweak help ([#2245](https://github.com/lycheeverse/lychee/pull/2245))
+- count network errors in per-host statistics ([#2203](https://github.com/lycheeverse/lychee/pull/2203))
+- hide "cannot send response to queue: SendError" message ([#2209](https://github.com/lycheeverse/lychee/pull/2209))
+
+### Other
+
+- pipeline flow in `check.rs` (streams and fewer queues) ([#2136](https://github.com/lycheeverse/lychee/pull/2136))
+- Fix broken links ([#2227](https://github.com/lycheeverse/lychee/pull/2227))
+- Fix/rustdoc warnings#2045 ([#2084](https://github.com/lycheeverse/lychee/pull/2084))
+- *(deps)* bump the dependencies group with 5 updates
+- Replace Wayback Availability API with direct snapshot URLs ([#2167](https://github.com/lycheeverse/lychee/pull/2167))
+- Add binstall in docs ([#2222](https://github.com/lycheeverse/lychee/pull/2222))
+- Support HTTP request method fallback ([#2218](https://github.com/lycheeverse/lychee/pull/2218))
+- Make `lychee::latest` track the latest stable release, add `nightly` tag ([#2219](https://github.com/lycheeverse/lychee/pull/2219))
+- Treat .qmd and .Rmd files as Markdown ([#2172](https://github.com/lycheeverse/lychee/pull/2172))
+- Replace custom rate limit header parsing with rate-limits crate ([#2135](https://github.com/lycheeverse/lychee/pull/2135))
+- remove broken GitHub Action TOC link in README ([#2216](https://github.com/lycheeverse/lychee/pull/2216))
+- Remove deprecated flags from codebase. ([#2208](https://github.com/lycheeverse/lychee/pull/2208))
+- tweaks features table in readme ([#2171](https://github.com/lycheeverse/lychee/pull/2171))
+- Use hints for root-relative links error ([#2197](https://github.com/lycheeverse/lychee/pull/2197))
+- Merge pull request #2207 from lycheeverse/dependabot/cargo/dependencies-db312993ac
+- Credit NLnet ([#2200](https://github.com/lycheeverse/lychee/pull/2200))
+- *(deps)* bump the dependencies group across 1 directory with 7 updates
+- move basic auth credentials out of Request  ([#2164](https://github.com/lycheeverse/lychee/pull/2164))
+- *(deps)* bump the dependencies group with 2 updates
+- Update changelogs for v0.24.2 ([#2180](https://github.com/lycheeverse/lychee/pull/2180))
+
 ## [0.24.2](https://github.com/lycheeverse/lychee/compare/lychee-v0.24.1...lychee-v0.24.2) - 2026-04-30
 
 ### Added
