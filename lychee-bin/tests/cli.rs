@@ -3514,14 +3514,16 @@ The config file should contain every possible key for documentation purposes."
             .arg(file_without_ext.path())
             .assert()
             .success()
-            .stdout(contains("https://example.com"));
+            .stdout(contains("https://example.com"))
+            .stdout(contains("local.md"));
 
         let mut html_file_without_ext = NamedTempFile::new()?;
         // Create HTML content but with no file extension
         writeln!(html_file_without_ext, "<html><body>")?;
         writeln!(
             html_file_without_ext,
-            "<a href=\"https://html-example.com\">HTML Link</a>"
+            "<a href=\"https://html-example.com\">HTML Link</a>
+             <a href=\"relative-html-link\">HTML Link</a>"
         )?;
         writeln!(html_file_without_ext, "</body></html>")?;
 
@@ -3533,7 +3535,8 @@ The config file should contain every possible key for documentation purposes."
             .arg(html_file_without_ext.path())
             .assert()
             .success()
-            .stdout(contains("https://html-example.com"));
+            .stdout(contains("https://html-example.com"))
+            .stdout(contains("relative-html-link"));
 
         Ok(())
     }

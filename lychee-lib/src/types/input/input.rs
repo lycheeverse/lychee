@@ -13,6 +13,7 @@ use crate::{ErrorKind, LycheeResult};
 use async_stream::try_stream;
 use futures::stream::{Stream, StreamExt};
 use log::debug;
+use std::ffi::OsStr;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use tokio::io::{AsyncReadExt, stdin};
@@ -165,7 +166,7 @@ impl Input {
                     Ok(source) => {
                         let content_result = match source {
                             ResolvedInputSource::FsPath(path) => {
-                                Self::path_content(&path, preprocessor.as_ref()).await
+                                Self::path_content(&path, preprocessor.as_ref(), self.file_type_hint).await
                             },
                             ResolvedInputSource::RemoteUrl(url) => {
                                 resolver.url_contents(*url).await
@@ -252,12 +253,19 @@ impl Input {
     pub async fn path_content<P: Into<PathBuf> + AsRef<Path> + Clone>(
         path: P,
         preprocessor: Option<&Preprocessor>,
+        file_type_hint: Option<FileType>,
     ) -> LycheeResult<InputContent> {
         let path = path.into();
         let content = Self::get_content(&path, preprocessor).await?;
 
+        let ext = path.extension().and_then(OsStr::to_str);
+        let file_type = ext
+            .and_then(FileType::from_extension)
+            .or(file_type_hint)
+            .unwrap_or_default();
+
         Ok(InputContent {
-            file_type: FileType::from(&path),
+            file_type,
             source: ResolvedInputSource::FsPath(path),
             content,
         })

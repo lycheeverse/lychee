@@ -230,14 +230,19 @@ pub(crate) struct Config {
     #[arg(long, verbatim_doc_comment)]
     extensions: Option<FileExtensions>,
 
-    /// This is the default file extension that is applied to files without an extension.
+    /// Parse input sources without a recognised file type by using the given
+    /// file extension.
     ///
-    /// This is useful for files without extensions or with unknown extensions.
-    /// The extension will be used to determine the file type for processing.
+    /// This affects how links are extracted from certain input sources. This
+    /// is useful for stdin inputs, files without extensions, and files with
+    /// unknown extensions.
     ///
     /// Examples:
     ///   --default-extension md
     ///   --default-extension html
+    ///
+    /// To automatically append file extensions when locating files, see
+    /// `--fallback-extensions`.
     #[arg(long, value_name = "EXTENSION", verbatim_doc_comment)]
     default_extension: Option<String>,
 
