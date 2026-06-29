@@ -3,6 +3,7 @@ use crate::{
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
     quirks::Quirks,
     ratelimit::HostPool,
+    remap::Remaps,
     retry::RetryExt,
     types::{
         redirect_history::{RedirectHistory, Redirects},
@@ -13,9 +14,51 @@ use crate::{
 use async_trait::async_trait;
 use http::{Method, StatusCode};
 use octocrab::Octocrab;
-use reqwest::{Request, header::CONTENT_TYPE};
+use reqwest::{
+    Request,
+    header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue},
+};
 use std::{borrow::Cow, collections::HashSet, path::Path, sync::Arc, time::Duration};
 use url::Url;
+
+#[derive(Debug)]
+struct GitHubTokenHandler {
+    token: Option<String>,
+}
+
+#[async_trait]
+impl Handler<Request, Status> for GitHubTokenHandler {
+    async fn handle(&mut self, mut request: Request) -> ChainResult<Request, Status> {
+        if request.url().host_str() == Some("api.github.com")
+            && let Some(token) = &self.token
+            && let Ok(value) = HeaderValue::from_str(&format!("Bearer {token}"))
+        {
+            request.headers_mut().insert(AUTHORIZATION, value);
+        }
+        ChainResult::Next(request)
+    }
+}
+
+/// Applies remap rules inside the chain, after quirks, so quirk-rewritten URLs can be remapped.
+#[derive(Debug)]
+struct RemapChainHandler {
+    remaps: Option<Remaps>,
+}
+
+#[async_trait]
+impl Handler<Request, Status> for RemapChainHandler {
+    async fn handle(&mut self, mut request: Request) -> ChainResult<Request, Status> {
+        if let Some(remaps) = &self.remaps {
+            let uri = Uri {
+                url: request.url().clone(),
+            };
+            if let Ok(Some(remap)) = remaps.remap(&uri) {
+                *request.url_mut() = remap.new.url;
+            }
+        }
+        ChainResult::Next(request)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub(crate) struct WebsiteChecker {
@@ -28,6 +71,13 @@ pub(crate) struct WebsiteChecker {
 
     /// GitHub client used for requests.
     github_client: Option<Octocrab>,
+
+    /// Raw GitHub token for injecting Authorization headers on API requests.
+    github_token: Option<String>,
+
+    /// Remap rules applied inside the chain (after quirks) for intercepting
+    /// quirk-rewritten URLs such as those targeting `api.github.com`.
+    remaps: Option<Remaps>,
 
     /// The chain of plugins to be executed on each request.
     plugin_request_chain: RequestChain,
@@ -85,6 +135,8 @@ impl WebsiteChecker {
         max_retries: u64,
         accepted: HashSet<StatusCode>,
         github_client: Option<Octocrab>,
+        github_token: Option<String>,
+        remaps: Option<Remaps>,
         require_https: bool,
         plugin_request_chain: RequestChain,
         fragment_checker_options: FragmentCheckerOptions,
@@ -94,6 +146,8 @@ impl WebsiteChecker {
         Self {
             methods,
             github_client,
+            github_token,
+            remaps,
             plugin_request_chain,
             redirect_history,
             max_retries,
@@ -219,7 +273,13 @@ impl WebsiteChecker {
         let credentials = self.basic_auth.matches(uri);
 
         let default_chain: RequestChain = Chain::new(vec![
-            Box::<Quirks>::default(),
+            Box::new(Quirks::default()),
+            Box::new(GitHubTokenHandler {
+                token: self.github_token.clone(),
+            }),
+            Box::new(RemapChainHandler {
+                remaps: self.remaps.clone(),
+            }),
             Box::new(credentials),
             Box::new(self.clone()),
         ]);
@@ -422,6 +482,8 @@ mod tests {
             0,
             DEFAULT_ACCEPTED_STATUS_CODES.clone(),
             None,
+            None,
+            None,
             false,
             RequestChain::default(),
             FragmentCheckerOptions::default(),
@@ -515,6 +577,8 @@ mod tests {
             0,
             DEFAULT_ACCEPTED_STATUS_CODES.clone(),
             Some(client),
+            None,
+            None,
             false,
             RequestChain::default(),
             FragmentCheckerOptions::default(),

@@ -24,6 +24,12 @@ static GITHUB_BLOB_LINE_FRAGMENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^https://github\.com/(?<user>.*?)/(?<repo>.*?)/blob/(?<path>.*?)#L\d+(?:-L?\d+)?$")
         .unwrap()
 });
+static GITHUB_README_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"^https://github\.com/(?<owner>[^/]+)/(?<repo>[^/]+)(?:/tree/(?<branch>[^#]+))?#readme$",
+    )
+    .unwrap()
+});
 
 // Retrieve a map of query params for the given request
 fn query(request: &Request) -> HashMap<String, String> {
@@ -109,6 +115,27 @@ impl Default for Quirks {
                         &mut raw_url,
                     );
                     *request.url_mut() = Url::parse(&raw_url).unwrap();
+                    request
+                },
+            },
+            Quirk {
+                name: "check GitHub README existence via API",
+                pattern: &GITHUB_README_PATTERN,
+                rewrite: |mut request, captures| {
+                    let mut api_url = String::new();
+                    captures.expand(
+                        "https://api.github.com/repos/$owner/$repo/readme",
+                        &mut api_url,
+                    );
+                    let mut url = Url::parse(&api_url).unwrap();
+                    if let Some(branch) = captures.name("branch") {
+                        url.query_pairs_mut().append_pair("ref", branch.as_str());
+                    }
+                    *request.url_mut() = url;
+                    request.headers_mut().insert(
+                        header::ACCEPT,
+                        HeaderValue::from_static("application/vnd.github.v3+json"),
+                    );
                     request
                 },
             },
@@ -314,5 +341,33 @@ mod tests {
         let modified = Quirks::default().apply(request);
 
         assert_eq!(MockRequest(modified), MockRequest::new(Method::GET, url));
+    }
+
+    #[rstest]
+    // Basic repo URL → API readme endpoint
+    #[case(
+        "https://github.com/lycheeverse/lychee#readme",
+        "https://api.github.com/repos/lycheeverse/lychee/readme"
+    )]
+    // Tree URL with simple branch name → ref query param
+    #[case(
+        "https://github.com/lycheeverse/lychee/tree/main#readme",
+        "https://api.github.com/repos/lycheeverse/lychee/readme?ref=main"
+    )]
+    // Tree URL with branch name containing '/' → encoded ref query param
+    #[case(
+        "https://github.com/lycheeverse/lychee/tree/feat/per-host-rate-limiting/lychee-lib#readme",
+        "https://api.github.com/repos/lycheeverse/lychee/readme?ref=feat%2Fper-host-rate-limiting%2Flychee-lib"
+    )]
+    // Non-readme fragment → URL unchanged
+    #[case(
+        "https://github.com/lycheeverse/lychee#installation",
+        "https://github.com/lycheeverse/lychee#installation"
+    )]
+    fn test_github_readme_quirk(#[case] input: &str, #[case] expected: &str) {
+        let url = Url::parse(input).unwrap();
+        let request = Request::new(Method::GET, url);
+        let modified = Quirks::default().apply(request);
+        assert_eq!(modified.url().as_str(), expected);
     }
 }

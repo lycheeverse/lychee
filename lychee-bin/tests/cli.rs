@@ -4638,6 +4638,71 @@ exclude_path = ["exclude_package.txt"]
             .assert()
             .stderr(contains("Fragments aren't checked").not());
     }
+
+    /// Verify that a `github.com/owner/repo#readme` link is checked via the
+    /// GitHub API and reported as valid when the API returns 200. The
+    /// `--remap` flag redirects `api.github.com` to the mock server so the
+    /// test is fully self-contained. The mock also asserts that lychee sends
+    /// an `Authorization: Bearer` header, confirming token injection works
+    /// end-to-end through the quirk and chain pipeline.
+    #[tokio::test]
+    async fn test_github_readme_api_uses_bearer_token() {
+        let mock_server = wiremock::MockServer::start().await;
+
+        wiremock::Mock::given(method("GET"))
+            .and(path("/repos/lycheeverse/lychee/readme"))
+            .and(wiremock::matchers::header(
+                "Authorization",
+                "Bearer test_token_123",
+            ))
+            .and(wiremock::matchers::header(
+                "Accept",
+                "application/vnd.github.v3+json",
+            ))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .named("GET github readme API with auth")
+            .mount(&mock_server)
+            .await;
+
+        let remap = format!("https://api.github.com {}", mock_server.uri());
+
+        cargo_bin_cmd!()
+            .env("GITHUB_TOKEN", "test_token_123")
+            .arg("--remap")
+            .arg(&remap)
+            .arg("--no-progress")
+            .arg("-")
+            .write_stdin("https://github.com/lycheeverse/lychee#readme")
+            .assert()
+            .success();
+
+        mock_server.verify().await;
+    }
+
+    /// Verify that a `github.com/owner/repo#readme` link is reported as broken
+    /// when the GitHub API returns 404 (the repository has no README).
+    #[tokio::test]
+    async fn test_github_readme_api_fails_for_missing_readme() {
+        let mock_server = wiremock::MockServer::start().await;
+
+        wiremock::Mock::given(method("GET"))
+            .and(path("/repos/lycheeverse/no-readme-repo/readme"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&mock_server)
+            .await;
+
+        let remap = format!("https://api.github.com {}", mock_server.uri());
+
+        cargo_bin_cmd!()
+            .arg("--remap")
+            .arg(&remap)
+            .arg("--no-progress")
+            .arg("-")
+            .write_stdin("https://github.com/lycheeverse/no-readme-repo#readme")
+            .assert()
+            .failure();
+    }
 }
 
 #[cfg(unix)]
