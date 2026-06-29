@@ -458,18 +458,19 @@ Options:
           and existing cookies will be updated.
 
       --default-extension <EXTENSION>
-          Treat input sources without a recognised extension as if they had the
-          given extension.
+          Parse input sources without a recognised file type by using the given
+          file extension.
 
-          The extension will be used to determine the file format for link
-          extraction. This is useful for stdin inputs, files without extensions,
-          and files with unknown extensions.
+          This affects how links are extracted from certain input sources. This
+          is useful for stdin inputs, files without extensions, and files with
+          unknown extensions.
 
           Examples:
             --default-extension md
             --default-extension html
 
-          To automatically append file extensions to links, see `--fallback-extensions`.
+          To automatically append file extensions when locating files, see
+          `--fallback-extensions`.
 
       --dump[=<false|true>]
           Don't perform any link checking. Instead, dump all the links extracted from inputs that would be checked
