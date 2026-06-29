@@ -469,7 +469,7 @@ Options:
             --default-extension md
             --default-extension html
 
-          See also: `--fallback-extensions`.
+          To automatically append file extensions to links, see `--fallback-extensions`.
 
       --dump[=<false|true>]
           Don't perform any link checking. Instead, dump all the links extracted from inputs that would be checked

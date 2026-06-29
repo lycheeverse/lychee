@@ -241,7 +241,7 @@ pub(crate) struct Config {
     ///   --default-extension md
     ///   --default-extension html
     ///
-    /// See also: `--fallback-extensions`.
+    /// To automatically append file extensions to links, see `--fallback-extensions`.
     #[arg(long, value_name = "EXTENSION", verbatim_doc_comment)]
     default_extension: Option<String>,
 
