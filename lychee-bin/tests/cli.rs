@@ -137,6 +137,7 @@ mod cli {
 
             let output = std::fs::read_to_string(&outfile)?;
             std::fs::remove_file(outfile)?;
+            println!("JSON file contents:\n{output}");
 
             let actual: Value = serde_json::from_str(&output)?;
             let expected: Value = serde_json::to_value(&$expected)?;
