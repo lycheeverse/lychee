@@ -100,6 +100,7 @@ mod tests {
     ]
   },
   "excluded_map": {},
+  "unsupported_map": {},
   "duration": {
     "secs": 0,
     "nanos": 0

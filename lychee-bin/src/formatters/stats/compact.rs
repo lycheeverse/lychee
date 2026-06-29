@@ -30,6 +30,7 @@ impl Display for CompactResponseStats {
             .error_map
             .iter()
             .chain(stats.timeout_map.iter())
+            .chain(stats.unsupported_map.iter())
             .count();
 
         if issues > 0 {
@@ -44,9 +45,13 @@ impl Display for CompactResponseStats {
 
         let response_formatter = get_response_formatter(&self.mode);
 
-        for (source, responses) in
-            super::sort_stats_iter(stats.error_map.iter().chain(stats.timeout_map.iter()))
-        {
+        for (source, responses) in super::sort_stats_iter(
+            stats
+                .error_map
+                .iter()
+                .chain(stats.timeout_map.iter())
+                .chain(stats.unsupported_map.iter()),
+        ) {
             color!(f, BOLD_YELLOW, "[{}]:\n", source)?;
             write_responses(f, &*response_formatter, responses)?;
             write_suggestions(f, stats, source)?;
@@ -188,6 +193,57 @@ https://original.dev/ --> https://suggestion.dev/
 ────────────────────────────────────────────────────────────
 example.com   │      5 reqs │   60.0% success │      N/A median │   20.0% cached
 "
+        );
+    }
+
+    #[test]
+    fn test_formatter_lists_ignored_only_input() {
+        use std::collections::{HashMap, HashSet};
+        use std::time::Duration;
+
+        use lychee_lib::{ErrorKind, InputSource, ResponseBody, Status, Uri};
+        use url::Url;
+
+        // An input whose *only* problem is an ignored link (no errors/timeouts)
+        // should still list that link, not just bump the Unsupported count.
+        let source = InputSource::RemoteUrl(Box::new(Url::parse("https://example.com").unwrap()));
+        let unsupported_map = HashMap::from([(
+            source,
+            HashSet::from([ResponseBody {
+                uri: Uri::try_from("https://example.com/ignored").unwrap(),
+                status: Status::Unsupported(ErrorKind::InvalidUrlHost),
+                redirects: None,
+                remap: None,
+                span: None,
+                duration: Some(Duration::from_secs(1)),
+            }]),
+        )]);
+
+        let stats = ResponseStats {
+            total: 1,
+            unique: 1,
+            unsupported: 1,
+            unsupported_map,
+            ..Default::default()
+        };
+
+        let response_stats = CompactResponseStats {
+            stats,
+            mode: OutputMode::Plain,
+        };
+        let without_color_codes = Regex::new(r"\u{1b}\[[0-9;]*m")
+            .unwrap()
+            .replace_all(&response_stats.to_string(), "")
+            .to_string();
+
+        assert_eq!(
+            without_color_codes,
+            "Issues found in 1 input. Find details below.
+
+[https://example.com/]:
+[IGNORED] https://example.com/ignored | Unsupported: URL is missing a hostname
+
+🔍 1 Total (in 0s) 🔗 1 Unique ✅ 0 OK 🚫 0 Errors ⛔ 1 Unsupported"
         );
     }
 }

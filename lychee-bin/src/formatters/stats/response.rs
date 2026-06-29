@@ -56,6 +56,9 @@ pub(crate) struct ResponseStats {
     pub(crate) redirect_map: HashMap<InputSource, HashSet<Redirects>>,
     /// Excluded responses (if `detailed_stats` is enabled)
     pub(crate) excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
+    /// Unsupported responses (shown as `IGNORED`), e.g. malformed URLs or
+    /// unsupported URI schemes that could not be turned into a request
+    pub(crate) unsupported_map: HashMap<InputSource, HashSet<ResponseBody>>,
     /// The time it took to perform the full run
     pub(crate) duration: Duration,
     /// Also track successful and excluded responses
@@ -121,6 +124,8 @@ impl ResponseStats {
             self.error_map.entry(source).or_default()
         } else if status.is_excluded() {
             self.excluded_map.entry(source).or_default()
+        } else if status.is_unsupported() {
+            self.unsupported_map.entry(source).or_default()
         } else if status.is_success() && self.detailed_stats {
             self.success_map.entry(source).or_default()
         } else {
@@ -202,6 +207,10 @@ mod tests {
         mock_response(Status::Excluded)
     }
 
+    fn dummy_unsupported() -> Response {
+        mock_response(Status::Unsupported(ErrorKind::InvalidUrlHost))
+    }
+
     #[tokio::test]
     async fn test_stats_is_empty() {
         let mut stats = ResponseStats::default();
@@ -230,6 +239,26 @@ mod tests {
         assert_eq!(stats.error_map, expected_error_map);
 
         assert!(stats.success_map.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_unsupported_stats() {
+        let mut stats = ResponseStats::default();
+        assert!(stats.unsupported_map.is_empty());
+
+        stats.add(dummy_unsupported());
+
+        // Unsupported (ignored) responses are counted
+        assert_eq!(stats.unsupported, 1);
+
+        // Stored so they can be listed in the summary
+        let response = dummy_unsupported();
+        let expected_unsupported_map: HashMap<InputSource, HashSet<ResponseBody>> =
+            HashMap::from_iter([(
+                response.source().clone(),
+                HashSet::from_iter([response.into_body()]),
+            )]);
+        assert_eq!(stats.unsupported_map, expected_unsupported_map);
     }
 
     #[tokio::test]
