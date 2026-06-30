@@ -275,8 +275,12 @@ fn raw_uri(dest_url: &CowStr<'_>, span: RawUriSpan) -> Vec<RawUri> {
 /// It means a single heading such as `## Frag 1 {#frag-2}` would generate two fragments.
 pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
     let mut in_heading = false;
+    let mut in_paragraph = false;
     let mut heading_text = String::new();
     let mut heading_id: Option<CowStr<'_>> = None;
+    let mut heading_block_id: Option<String> = None;
+    let mut paragraph_text = String::new();
+    let mut pending_heading_block_id: Option<String> = None;
     let mut id_generator = HeadingIdGenerator::default();
 
     let mut out = HashSet::new();
@@ -284,12 +288,25 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
     for event in Parser::new_ext(input, md_extensions()) {
         match event {
             Event::Start(Tag::Heading { id, .. }) => {
+                heading_block_id = pending_heading_block_id.take();
                 heading_id = id;
                 in_heading = true;
+            }
+            Event::Start(Tag::Paragraph) => {
+                pending_heading_block_id = None;
+                paragraph_text.clear();
+                in_paragraph = true;
+            }
+            Event::Start(_) if !in_heading && !in_paragraph => {
+                pending_heading_block_id = None;
             }
             Event::End(TagEnd::Heading(_)) => {
                 if let Some(frag) = heading_id.take() {
                     out.insert(frag.to_string());
+                }
+
+                if let Some(frag) = heading_block_id.take() {
+                    out.insert(frag);
                 }
 
                 if !heading_text.is_empty() {
@@ -300,12 +317,21 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
 
                 in_heading = false;
             }
+            Event::End(TagEnd::Paragraph) => {
+                pending_heading_block_id = extract_block_heading_id(&paragraph_text);
+                paragraph_text.clear();
+                in_paragraph = false;
+            }
             Event::Text(text) | Event::Code(text) if in_heading => {
                 heading_text.push_str(&text);
+            }
+            Event::Text(text) | Event::Code(text) if in_paragraph => {
+                paragraph_text.push_str(&text);
             }
 
             // An HTML node
             Event::Html(html) | Event::InlineHtml(html) => {
+                pending_heading_block_id = None;
                 out.extend(extract_html_fragments(&html));
             }
 
@@ -314,6 +340,16 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
         }
     }
     out
+}
+
+fn extract_block_heading_id(text: &str) -> Option<String> {
+    let inner = text.trim().strip_prefix('{')?.strip_suffix('}')?.trim();
+
+    inner
+        .split_whitespace()
+        .find_map(|attribute| attribute.strip_prefix('#'))
+        .filter(|id| !id.is_empty())
+        .map(ToString::to_string)
 }
 
 #[derive(Default)]
@@ -390,6 +426,21 @@ or inline like `https://bar.org` for instance.
         ]);
         let actual = extract_markdown_fragments(MD_INPUT);
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_extract_fragments_from_preceding_heading_attributes() {
+        let markdown = r"
+# Attribute-list anchor test
+
+{#block-id}
+### Heading two
+";
+
+        let actual = extract_markdown_fragments(markdown);
+
+        assert!(actual.contains("block-id"));
+        assert!(actual.contains("heading-two"));
     }
 
     #[test]
