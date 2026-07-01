@@ -277,10 +277,16 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
     let mut in_heading = false;
     let mut in_paragraph = false;
     let mut heading_text = String::new();
+    // Explicit ID parsed from pulldown-cmark's inline heading attribute support,
+    // e.g. `## Heading {#custom-id}`.
     let mut heading_id: Option<CowStr<'_>> = None;
-    let mut heading_block_id: Option<String> = None;
-    let mut paragraph_text = String::new();
-    let mut pending_heading_block_id: Option<String> = None;
+    // Explicit ID parsed from a standalone attribute paragraph immediately
+    // before a heading, e.g. `{#custom-id}\n## Heading`.
+    let mut heading_block_id: Option<HeadingId> = None;
+    let mut paragraph_text: Option<String> = None;
+    // Block attributes are emitted as the paragraph before the heading they
+    // belong to, so keep one pending ID until the next block starts.
+    let mut pending_heading_block_id: Option<HeadingId> = None;
     let mut id_generator = HeadingIdGenerator::default();
 
     let mut out = HashSet::new();
@@ -294,7 +300,7 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
             }
             Event::Start(Tag::Paragraph) => {
                 pending_heading_block_id = None;
-                paragraph_text.clear();
+                paragraph_text = Some(String::new());
                 in_paragraph = true;
             }
             Event::Start(_) if !in_heading && !in_paragraph => {
@@ -306,7 +312,7 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
                 }
 
                 if let Some(frag) = heading_block_id.take() {
-                    out.insert(frag);
+                    out.insert(frag.into_string());
                 }
 
                 if !heading_text.is_empty() {
@@ -318,15 +324,26 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
                 in_heading = false;
             }
             Event::End(TagEnd::Paragraph) => {
-                pending_heading_block_id = extract_block_heading_id(&paragraph_text);
-                paragraph_text.clear();
+                pending_heading_block_id = paragraph_text
+                    .take()
+                    .and_then(|text| extract_block_heading_id(&text));
                 in_paragraph = false;
             }
             Event::Text(text) | Event::Code(text) if in_heading => {
                 heading_text.push_str(&text);
             }
             Event::Text(text) | Event::Code(text) if in_paragraph => {
-                paragraph_text.push_str(&text);
+                let keep_collecting = paragraph_text.as_ref().is_some_and(|text_buffer| {
+                    !text_buffer.is_empty() || text.trim_start().starts_with('{')
+                });
+
+                if keep_collecting {
+                    if let Some(paragraph_text) = &mut paragraph_text {
+                        paragraph_text.push_str(&text);
+                    }
+                } else {
+                    paragraph_text = None;
+                }
             }
 
             // An HTML node
@@ -342,14 +359,34 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
     out
 }
 
-fn extract_block_heading_id(text: &str) -> Option<String> {
+fn extract_block_heading_id(text: &str) -> Option<HeadingId> {
     let inner = text.trim().strip_prefix('{')?.strip_suffix('}')?.trim();
 
     inner
         .split_whitespace()
-        .find_map(|attribute| attribute.strip_prefix('#'))
-        .filter(|id| !id.is_empty())
-        .map(ToString::to_string)
+        .find_map(|attribute| HeadingId::try_from(attribute).ok())
+}
+
+struct HeadingId(String);
+
+impl HeadingId {
+    fn into_string(self) -> String {
+        self.0
+    }
+}
+
+impl TryFrom<&str> for HeadingId {
+    type Error = ();
+
+    fn try_from(attribute: &str) -> Result<Self, Self::Error> {
+        let id = attribute.strip_prefix('#').ok_or(())?;
+
+        if id.is_empty() {
+            return Err(());
+        }
+
+        Ok(Self(id.to_string()))
+    }
 }
 
 #[derive(Default)]
@@ -440,6 +477,35 @@ or inline like `https://bar.org` for instance.
         let actual = extract_markdown_fragments(markdown);
 
         assert!(actual.contains("block-id"));
+        assert!(actual.contains("heading-two"));
+    }
+
+    #[test]
+    fn test_extract_fragments_from_preceding_heading_attributes_ignores_non_heading_blocks() {
+        let markdown = r"
+{#not-a-heading-id}
+
+This paragraph consumes the pending block attribute.
+
+### Heading two
+";
+
+        let actual = extract_markdown_fragments(markdown);
+
+        assert!(!actual.contains("not-a-heading-id"));
+        assert!(actual.contains("heading-two"));
+    }
+
+    #[test]
+    fn test_extract_fragments_from_preceding_heading_attributes_ignores_missing_id() {
+        let markdown = r"
+{.class key=value #}
+### Heading two
+";
+
+        let actual = extract_markdown_fragments(markdown);
+
+        assert!(!actual.contains(""));
         assert!(actual.contains("heading-two"));
     }
 

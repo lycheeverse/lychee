@@ -2499,6 +2499,7 @@ The config file should contain every possible key for documentation purposes."
         let expected_successes = vec![
             "fixtures/fragments/empty_dir",
             "fixtures/fragments/empty_file#fragment", // XXX: is this a bug? a fragment in an empty file is being treated as valid
+            "fixtures/fragments/file1.md#block-heading-id",
             "fixtures/fragments/file1.md#code-heading",
             "fixtures/fragments/file1.md#explicit-fragment",
             "fixtures/fragments/file1.md#f%C3%BCnf-s%C3%9C%C3%9Fe-%C3%84pfel",
