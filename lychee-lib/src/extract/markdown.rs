@@ -486,6 +486,35 @@ or inline like `https://bar.org` for instance.
     }
 
     #[test]
+    fn test_extract_fragments_from_preceding_heading_attributes_ignores_non_heading_blocks() {
+        let markdown = r"
+{#not-a-heading-id}
+
+This paragraph consumes the pending block attribute.
+
+### Heading two
+";
+
+        let actual = extract_markdown_fragments(markdown);
+
+        assert!(!actual.contains("not-a-heading-id"));
+        assert!(actual.contains("heading-two"));
+    }
+
+    #[test]
+    fn test_extract_fragments_from_preceding_heading_attributes_ignores_missing_id() {
+        let markdown = r"
+{.class key=value #}
+### Heading two
+";
+
+        let actual = extract_markdown_fragments(markdown);
+
+        assert!(!actual.contains(""));
+        assert!(actual.contains("heading-two"));
+    }
+
+    #[test]
     fn test_skip_verbatim() {
         let expected = vec![
             RawUri {
