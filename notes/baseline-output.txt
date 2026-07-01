@@ -1,6 +1,0 @@
-    Blocking waiting for file lock on artifact directory
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.69s
-     Running `target/debug/lychee --no-progress fixtures/TEST_HTML5.html`
-  [WARN] fixtures/TEST_HTML5.html: No files found for this input source
-🔍 0 Total (in 0s) 🔗 0 Unique ✅ 0 OK 🚫 0 Errors
-
