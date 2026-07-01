@@ -25,7 +25,3 @@ debug/
 # lychee-specific files
 .lycheecache
 .config.dummy.report.md
-
-# Local debugging logs (not for upstream)
-build.log
-test-*.log
