@@ -14,13 +14,17 @@ impl Display for CompactHostStats {
         };
 
         writeln!(f)?;
-        writeln!(f, "📊 Per-host Statistics")?;
+        let sorted_hosts = host_stats.sorted();
+        let domain_count = sorted_hosts.len();
+        let total_links: u64 = sorted_hosts.iter().map(|(_, s)| s.total_requests).sum();
+        writeln!(
+            f,
+            "📊 Per-host Statistics ({domain_count} domains, {total_links} links checked)"
+        )?;
 
         let separator = "─".repeat(60);
         color!(f, DIM, "{}", separator)?;
         writeln!(f)?;
-
-        let sorted_hosts = host_stats.sorted();
 
         // Calculate optimal hostname width based on longest hostname
         let max_hostname_len = sorted_hosts

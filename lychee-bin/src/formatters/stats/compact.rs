@@ -189,7 +189,7 @@ https://original.dev/ --> https://suggestion.dev/
 
 🔍 2 Total (in 0s) 🔗 2 Unique ✅ 0 OK 🚫 1 Error ⏳ 1 Timeouts 🔀 1 Redirects
 
-📊 Per-host Statistics
+📊 Per-host Statistics (1 domains, 5 links checked)
 ────────────────────────────────────────────────────────────
 example.com   │      5 reqs │   60.0% success │      N/A median │   20.0% cached
 "
