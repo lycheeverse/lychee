@@ -1,5 +1,6 @@
 use std::fmt::{self, Display};
 
+use super::write_header;
 use lychee_lib::ratelimit::HostStatsMap;
 use tabled::{
     Table, Tabled,
@@ -16,7 +17,7 @@ impl Display for MarkdownHostStats {
             return Ok(());
         };
 
-        writeln!(f, "\n## Per-host Statistics")?;
+        write_header(f, "## ", host_stats)?;
         writeln!(f)?;
         writeln!(f, "{}", host_stats_table(host_stats))?;
 
@@ -41,9 +42,8 @@ struct HostStatsTableEntry {
 }
 
 fn host_stats_table(host_stats: &HostStatsMap) -> String {
-    let sorted_hosts = host_stats.sorted();
-
-    let entries: Vec<HostStatsTableEntry> = sorted_hosts
+    let entries: Vec<HostStatsTableEntry> = host_stats
+        .sorted()
         .into_iter()
         .map(|(hostname, stats)| {
             let median_time = stats
@@ -51,7 +51,7 @@ fn host_stats_table(host_stats: &HostStatsMap) -> String {
                 .map_or_else(|| "N/A".to_string(), |d| format!("{:.0}ms", d.as_millis()));
 
             HostStatsTableEntry {
-                host: hostname.clone(),
+                host: hostname,
                 requests: stats.total_requests,
                 success_rate: format!("{:.1}%", stats.success_rate() * 100.0),
                 network_errors: stats.network_errors,
@@ -65,9 +65,8 @@ fn host_stats_table(host_stats: &HostStatsMap) -> String {
         return String::new();
     }
 
-    let style = Style::markdown();
     Table::new(entries)
         .with(Modify::new(Segment::all()).with(Alignment::left()))
-        .with(style)
+        .with(Style::markdown())
         .to_string()
 }

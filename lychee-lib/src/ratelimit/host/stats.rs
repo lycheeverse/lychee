@@ -17,6 +17,18 @@ impl HostStatsMap {
         sorted_hosts.sort_by_key(|(_, stats)| std::cmp::Reverse(stats.total_requests));
         sorted_hosts
     }
+
+    /// Returns the number of unique hosts that have been accessed.
+    #[must_use]
+    pub fn total_hosts(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns the number of total requests across all hosts.
+    #[must_use]
+    pub fn total_requests(&self) -> u64 {
+        self.0.values().map(|stats| stats.total_requests).sum()
+    }
 }
 
 impl From<HashMap<String, HostStats>> for HostStatsMap {

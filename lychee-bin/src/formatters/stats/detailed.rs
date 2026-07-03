@@ -169,7 +169,7 @@ Redirects in https://example.com/
 https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
 
 
-📊 Per-host Statistics
+📊 Per-host Statistics (1 domains, 5 links checked)
 ---------------------
 
 Host: example.com
