@@ -26,10 +26,6 @@ pub enum ErrorKind {
     #[error("Failed to create HTTP request client: {0}")]
     BuildRequestClient(#[source] reqwest::Error),
 
-    /// Network error while using GitHub API
-    #[error("Network error while using GitHub client")]
-    GithubRequest(#[from] Box<octocrab::Error>),
-
     /// Error while executing a future on the Tokio runtime
     #[error("Task failed to execute to completion: {0}")]
     RuntimeJoin(#[from] JoinError),
@@ -53,10 +49,6 @@ pub enum ErrorKind {
         "Encountered invalid UTF-8 sequence, while trying to interpret bytes UTF-8 string: {0}"
     )]
     Utf8(#[from] std::str::Utf8Error),
-
-    /// The GitHub client required for making requests cannot be created
-    #[error("Failed to create GitHub client")]
-    BuildGithubClient(#[source] Box<octocrab::Error>),
 
     /// Invalid GitHub URL
     #[error("GitHub URL is invalid: {0}")]
@@ -125,10 +117,6 @@ pub enum ErrorKind {
     /// The given glob pattern is not valid
     #[error("Invalid glob pattern: {0}")]
     InvalidGlobPattern(#[from] glob::PatternError),
-
-    /// The GitHub API could not be called because of a missing GitHub token.
-    #[error("GitHub token required")]
-    MissingGitHubToken,
 
     /// Used an insecure URI where a secure variant was reachable
     #[error("Insecure HTTP URL used, where '{0}' can be used instead")]
@@ -207,14 +195,6 @@ impl ErrorKind {
     pub fn details(&self) -> String {
         match self {
             ErrorKind::NetworkRequest(e) => utils::reqwest::analyze_error_chain(e),
-            ErrorKind::GithubRequest(e) => {
-                let detail = if let octocrab::Error::GitHub { source, .. } = &**e {
-                    source.message.clone()
-                } else {
-                    e.to_string()
-                };
-                format!("{self}: {detail}")
-            }
             ErrorKind::ReadFileInput(e, path) => match e.kind() {
                 std::io::ErrorKind::NotFound => "Check if file path is correct".to_string(),
                 std::io::ErrorKind::PermissionDenied => format!(
@@ -249,9 +229,6 @@ impl ErrorKind {
             ErrorKind::BuildRequestClient(_) => {
                 format!("{self}: Check system configuration")
             }
-            ErrorKind::BuildGithubClient(error) => {
-                format!("{self}: {error}. Check token and network connectivity")
-            }
             ErrorKind::InvalidGithubUrl(_) => {
                 format!("{self}. Check URL syntax")
             }
@@ -273,9 +250,6 @@ impl ErrorKind {
             }
             ErrorKind::InvalidGlobPattern(_) => {
                 format!("{self}. Check pattern syntax")
-            }
-            ErrorKind::MissingGitHubToken => {
-                format!("{self}. Use --github-token flag or GITHUB_TOKEN environment variable")
             }
             ErrorKind::InvalidStatusCode(_) => {
                 format!("{self}. Must be in the range 100-999")
@@ -338,17 +312,6 @@ impl ErrorKind {
         self.source()
             .and_then(|e| e.downcast_ref::<reqwest::Error>())
     }
-
-    /// Return the underlying source of the given [`ErrorKind`]
-    /// if it is a `octocrab::Error`.
-    /// This is useful for extracting the status code of a failed request.
-    /// If the error is not a `octocrab::Error`, `None` is returned.
-    #[must_use]
-    #[allow(clippy::redundant_closure_for_method_calls)]
-    pub(crate) fn github_error(&self) -> Option<&octocrab::Error> {
-        self.source()
-            .and_then(|e| e.downcast_ref::<octocrab::Error>())
-    }
 }
 
 #[allow(clippy::match_same_arms)]
@@ -370,7 +333,6 @@ impl PartialEq for ErrorKind {
             }
             (Self::ReadInputUrlStatusCode(e1), Self::ReadInputUrlStatusCode(e2)) => e1 == e2,
             (Self::ReadStdinInput(e1), Self::ReadStdinInput(e2)) => e1.kind() == e2.kind(),
-            (Self::GithubRequest(e1), Self::GithubRequest(e2)) => e1.to_string() == e2.to_string(),
             (Self::InvalidGithubUrl(s1), Self::InvalidGithubUrl(s2)) => s1 == s2,
             (Self::ParseUrl(s1, e1), Self::ParseUrl(s2, e2)) => s1 == s2 && e1 == e2,
             (Self::UnreachableEmailAddress(u1, ..), Self::UnreachableEmailAddress(u2, ..)) => {
@@ -380,8 +342,7 @@ impl PartialEq for ErrorKind {
             (Self::InvalidGlobPattern(e1), Self::InvalidGlobPattern(e2)) => {
                 e1.msg == e2.msg && e1.pos == e2.pos
             }
-            (Self::InvalidHeader(_), Self::InvalidHeader(_))
-            | (Self::MissingGitHubToken, Self::MissingGitHubToken) => true,
+            (Self::InvalidHeader(_), Self::InvalidHeader(_)) => true,
             (Self::InvalidStatusCode(c1), Self::InvalidStatusCode(c2)) => c1 == c2,
             (Self::InvalidUrlHost, Self::InvalidUrlHost) => true,
             (Self::InvalidURI(u1), Self::InvalidURI(u2)) => u1 == u2,
@@ -424,8 +385,6 @@ impl Hash for ErrorKind {
             Self::NetworkRequest(e) => e.to_string().hash(state),
             Self::ReadResponseBody(e) => e.to_string().hash(state),
             Self::BuildRequestClient(e) => e.to_string().hash(state),
-            Self::BuildGithubClient(e) => e.to_string().hash(state),
-            Self::GithubRequest(e) => e.to_string().hash(state),
             Self::InvalidGithubUrl(s) => s.hash(state),
             Self::DirTraversal(e) => e.to_string().hash(state),
             Self::InvalidInput(s) => s.hash(state),
@@ -449,7 +408,7 @@ impl Hash for ErrorKind {
             Self::RejectedStatusCode(c) => c.hash(state),
             Self::Channel(e) => e.to_string().hash(state),
             Self::WatchRecv(e) => e.to_string().hash(state),
-            Self::MissingGitHubToken | Self::InvalidUrlHost => {
+            Self::InvalidUrlHost => {
                 std::mem::discriminant(self).hash(state);
             }
             Self::Regex(e) => e.to_string().hash(state),

@@ -16,14 +16,6 @@ static YOUTUBE_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(https?://)?(www\.)?youtube(-nocookie)?\.com").unwrap());
 static YOUTUBE_SHORT_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(https?://)?(www\.)?(youtu\.be)").unwrap());
-static GITHUB_BLOB_MARKDOWN_FRAGMENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^https://github\.com/(?<user>.*?)/(?<repo>.*?)/blob/(?<path>.*?)/(?<file>.*\.(md|markdown)#.*)$")
-        .unwrap()
-});
-static GITHUB_BLOB_LINE_FRAGMENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^https://github\.com/(?<user>.*?)/(?<repo>.*?)/blob/(?<path>.*?)#L\d+(?:-L?\d+)?$")
-        .unwrap()
-});
 
 // Retrieve a map of query params for the given request
 fn query(request: &Request) -> HashMap<String, String> {
@@ -91,27 +83,6 @@ impl Default for Quirks {
                     request
                 },
             },
-            Quirk {
-                name: "delete line number fragments in GitHub links",
-                pattern: &GITHUB_BLOB_LINE_FRAGMENT_PATTERN,
-                rewrite: |mut request, _| {
-                    request.url_mut().set_fragment(None);
-                    request
-                },
-            },
-            Quirk {
-                name: "fetch raw GitHub Markdown files",
-                pattern: &GITHUB_BLOB_MARKDOWN_FRAGMENT_PATTERN,
-                rewrite: |mut request, captures| {
-                    let mut raw_url = String::new();
-                    captures.expand(
-                        "https://raw.githubusercontent.com/$user/$repo/$path/$file",
-                        &mut raw_url,
-                    );
-                    *request.url_mut() = Url::parse(&raw_url).unwrap();
-                    request
-                },
-            },
         ];
         Self { quirks }
     }
@@ -145,9 +116,7 @@ mod tests {
     use header::HeaderValue;
     use http::{Method, header};
     use reqwest::{Request, Url};
-    use rstest::rstest;
 
-    use super::GITHUB_BLOB_LINE_FRAGMENT_PATTERN;
     use super::Quirks;
 
     #[derive(Debug)]
@@ -223,88 +192,6 @@ mod tests {
         let modified = Quirks::default().apply(request);
 
         assert_eq!(MockRequest(modified), MockRequest::new(Method::GET, url));
-    }
-
-    #[test]
-    fn test_github_blob_markdown_fragment_request() {
-        let cases = [
-            (
-                "https://github.com/moby/docker-image-spec/blob/main/spec.md#terminology",
-                "https://raw.githubusercontent.com/moby/docker-image-spec/main/spec.md#terminology",
-            ),
-            (
-                "https://github.com/moby/docker-image-spec/blob/main/spec.markdown#terminology",
-                "https://raw.githubusercontent.com/moby/docker-image-spec/main/spec.markdown#terminology",
-            ),
-            (
-                "https://github.com/moby/docker-image-spec/blob/main/spec.md",
-                "https://github.com/moby/docker-image-spec/blob/main/spec.md",
-            ),
-            (
-                "https://github.com/lycheeverse/lychee/blob/master/.gitignore#section",
-                "https://github.com/lycheeverse/lychee/blob/master/.gitignore#section",
-            ),
-            (
-                "https://github.com/lycheeverse/lychee/blob/v0.15.0/README.md#features",
-                "https://raw.githubusercontent.com/lycheeverse/lychee/v0.15.0/README.md#features",
-            ),
-            (
-                // GITHUB_BLOB_LINE_FRAGMENT_PATTERN should have precedence over
-                // GITHUB_BLOB_MARKDOWN_FRAGMENT_PATTERN for line-number fragments.
-                "https://github.com/lycheeverse/lychee/blob/v0.15.0/README.md#L1",
-                "https://github.com/lycheeverse/lychee/blob/v0.15.0/README.md",
-            ),
-        ];
-        for (origin, expect) in &cases {
-            let url = Url::parse(origin).unwrap();
-            let request = Request::new(Method::GET, url);
-            let modified = Quirks::default().apply(request);
-
-            assert_eq!(
-                MockRequest(modified),
-                MockRequest::new(Method::GET, Url::parse(expect).unwrap())
-            );
-        }
-    }
-
-    #[rstest]
-    // Standard single line
-    #[case(
-        "https://github.com/lycheeverse/lychee/blob/master/README.md#L10",
-        true
-    )]
-    // Standard range with double 'L'
-    #[case(
-        "https://github.com/lycheeverse/lychee/blob/master/src/main.rs#L10-L20",
-        true
-    )]
-    // Shorthand range (no second 'L')
-    #[case(
-        "https://github.com/lycheeverse/lychee/blob/master/src/lib.rs#L5-15",
-        true
-    )]
-    // Deeply nested path
-    #[case(
-        "https://github.com/user/repo/blob/feat/branch/path/to/file.txt#L1",
-        true
-    )]
-    // Should match: Markdown file with line number fragment
-    #[case("https://github.com/user/repo/blob/master/README.md#L2", true)]
-    // Should NOT match: Markdown fragment (handled by the other regex)
-    #[case(
-        "https://github.com/user/repo/blob/master/README.md#installation",
-        false
-    )]
-    // Should NOT match: Raw blob without line numbers
-    #[case("https://github.com/user/repo/blob/master/src/main.rs", false)]
-    // Should NOT match: Normal website URL
-    #[case("https://github.com/user/repo", false)]
-    fn test_github_blob_line_fragment_regex(#[case] url: &str, #[case] expected: bool) {
-        assert_eq!(
-            GITHUB_BLOB_LINE_FRAGMENT_PATTERN.is_match(url),
-            expected,
-            "Github blob line regex had unexpected outcome for {url}"
-        );
     }
 
     #[test]

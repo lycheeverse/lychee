@@ -21,11 +21,10 @@ use http::{
     header::{HeaderMap, HeaderValue},
 };
 use log::debug;
-use octocrab::Octocrab;
 use regex::RegexSet;
 use reqwest::{header, redirect, tls};
 use reqwest_cookie_store::CookieStoreMutex;
-use secrecy::{ExposeSecret, SecretString};
+use secrecy::SecretString;
 use typed_builder::TypedBuilder;
 
 use crate::{
@@ -83,7 +82,7 @@ impl FragmentCheckerOptions {
 pub struct ClientBuilder {
     /// Optional GitHub token used for GitHub links.
     ///
-    /// This allows much more request before getting rate-limited.
+    /// This allows more requests before getting rate-limited.
     ///
     /// # Rate-limiting Defaults
     ///
@@ -358,9 +357,6 @@ impl ClientBuilder {
     /// - The reqwest client cannot be instantiated. This occurs if a TLS
     ///   backend cannot be initialized or the resolver fails to load the system
     ///   configuration. See [here].
-    /// - The GitHub client cannot be created. Since the implementation also
-    ///   uses reqwest under the hood, this errors in the same circumstances as
-    ///   the last one.
     ///
     /// [here]: https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#errors
     pub fn client(self) -> Result<Client> {
@@ -379,17 +375,7 @@ impl ClientBuilder {
             client_map,
         );
 
-        let github_client = match self.github_token.as_ref().map(ExposeSecret::expose_secret) {
-            Some(token) if !token.is_empty() => Some(
-                Octocrab::builder()
-                    .personal_token(token.to_string())
-                    .build()
-                    // this is essentially the same `reqwest::ClientBuilder::build` error
-                    // see https://docs.rs/octocrab/0.18.1/src/octocrab/lib.rs.html#360-364
-                    .map_err(|e: octocrab::Error| ErrorKind::BuildGithubClient(Box::new(e)))?,
-            ),
-            _ => None,
-        };
+        let github_token = self.github_token;
 
         let filter = Filter {
             includes: self.includes.map(Into::into),
@@ -409,7 +395,7 @@ impl ClientBuilder {
             redirect_history.clone(),
             self.max_retries,
             self.accepted,
-            github_client,
+            github_token,
             self.require_https,
             self.plugin_request_chain,
             self.fragment_checker_options,
