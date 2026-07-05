@@ -26,7 +26,7 @@ static GITHUB_BLOB_LINE_FRAGMENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
 });
 static GITHUB_README_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"^https://github\.com/(?<owner>[^/]+)/(?<repo>[^/]+)(?:/tree/(?<branch>[^#]+))?#readme$",
+        r"^https://github\.com/(?<owner>[^/]+)/(?<repo>[^/]+)(?:/tree/(?<branch>[^/]+))?#readme$",
     )
     .unwrap()
 });
@@ -353,11 +353,6 @@ mod tests {
     #[case(
         "https://github.com/lycheeverse/lychee/tree/main#readme",
         "https://api.github.com/repos/lycheeverse/lychee/readme?ref=main"
-    )]
-    // Tree URL with branch name containing '/' → encoded ref query param
-    #[case(
-        "https://github.com/lycheeverse/lychee/tree/feat/per-host-rate-limiting/lychee-lib#readme",
-        "https://api.github.com/repos/lycheeverse/lychee/readme?ref=feat%2Fper-host-rate-limiting%2Flychee-lib"
     )]
     // Non-readme fragment → URL unchanged
     #[case(
