@@ -1,7 +1,7 @@
 use std::fmt::{self, Display};
 
-use super::write_host_heading;
-use crate::formatters::color::{DIM, NORMAL, color};
+use super::{status_summary, write_host_heading};
+use crate::formatters::color::{NORMAL, color};
 use lychee_lib::ratelimit::HostStatsMap;
 
 pub(crate) struct CompactHostStats {
@@ -16,37 +16,22 @@ impl Display for CompactHostStats {
 
         write_host_heading(f, "\n📊 ", host_stats)?;
 
-        let separator = "─".repeat(60);
-        color!(f, DIM, "{}", separator)?;
-        writeln!(f)?;
-
         let sorted_hosts = host_stats.sorted();
-
-        // Calculate optimal hostname width based on longest hostname
-        let max_hostname_len = sorted_hosts
+        let hostname_width = sorted_hosts
             .iter()
             .map(|(hostname, _)| hostname.len())
             .max()
-            .unwrap_or(0);
-        let hostname_width = (max_hostname_len + 2).max(10); // At least 10 chars with padding
+            .unwrap_or(0)
+            .max(10);
 
         for (hostname, stats) in sorted_hosts {
-            let median_time = stats
-                .median_request_time()
-                .map_or_else(|| "N/A".to_string(), |d| format!("{:.0}ms", d.as_millis()));
-
-            let cache_hit_rate = stats.cache_hit_rate() * 100.0;
-
             color!(
                 f,
                 NORMAL,
-                "{:<width$} │ {:>6} reqs │ {:>6.1}% success │ {:>8} median │ {:>6.1}% cached",
-                hostname,
+                "  {hostname:<width$}  {:>6} reqs  {}",
                 stats.total_requests,
-                stats.success_rate() * 100.0,
-                median_time,
-                cache_hit_rate,
-                width = hostname_width
+                status_summary(&stats),
+                width = hostname_width,
             )?;
             writeln!(f)?;
         }

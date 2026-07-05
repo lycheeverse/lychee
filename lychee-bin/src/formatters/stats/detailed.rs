@@ -170,7 +170,7 @@ https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
 
 
 📊 Per-host Statistics (1 domains, 5 requests)
----------------------
+---------------------------------------------
 
 Host: example.com
   Total requests: 5
