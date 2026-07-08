@@ -147,9 +147,9 @@ mod tests {
             result,
             "📝 Summary
 ---------------------
-🔍 Total............2
-🔗 Unique...........2
-✅ Successful.......0
+🔍 Total............5
+🔗 Unique...........5
+✅ Successful.......3
 ⏳ Timeouts.........1
 🔀 Redirected.......1
 👻 Excluded.........0
@@ -158,7 +158,7 @@ mod tests {
 ⛔ Unsupported......0
 
 Errors in https://example.com/
-[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found
+[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | Rejected status code: 404 Not Found
 [TIMEOUT] https://httpbin.org/delay/2 (at 1:1) | Request timed out
 
 Suggestions in https://example.com/
@@ -169,14 +169,15 @@ Redirects in https://example.com/
 https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
 
 
-📊 Per-host Statistics (1 domains, 5 links checked)
+📊 Per-host Statistics (1 domains, 5 requests)
 ---------------------
 
 Host: example.com
   Total requests: 5
   Successful: 3 (60.0%)
-  Rate limited: 1 (429 Too Many Requests)
-  Server errors (5xx): 1
+  Client errors (4xx): 1
+  Network errors: 1
+  Median response time: 100ms
   Cache hit rate: 20.0%
   Cache hits: 1, misses: 4
 "

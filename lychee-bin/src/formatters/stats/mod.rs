@@ -126,12 +126,15 @@ where
     entries
 }
 
+/// Create a bunch of dummy stats for testing the formatters.
 #[cfg(test)]
 fn get_dummy_stats() -> OutputStats {
     use std::{num::NonZeroUsize, time::Duration};
 
     use http::StatusCode;
-    use lychee_lib::{RawUriSpan, Redirect, Redirects, ResponseBody, Status, ratelimit::HostStats};
+    use lychee_lib::{
+        ErrorKind, RawUriSpan, Redirect, Redirects, ResponseBody, Status, ratelimit::HostStats,
+    };
     use url::Url;
 
     use crate::formatters::suggestion::Suggestion;
@@ -149,7 +152,7 @@ fn get_dummy_stats() -> OutputStats {
             uri: "https://github.com/mre/idiomatic-rust-doesnt-exist-man"
                 .try_into()
                 .unwrap(),
-            status: Status::Ok(StatusCode::NOT_FOUND),
+            status: Status::Error(ErrorKind::RejectedStatusCode(StatusCode::NOT_FOUND)),
             redirects: None,
             remap: None,
             span: SPAN,
@@ -190,8 +193,9 @@ fn get_dummy_stats() -> OutputStats {
     let redirect_map = HashMap::from([(source.clone(), HashSet::from([redirects]))]);
 
     let response_stats = ResponseStats {
-        total: 2,
-        unique: 2,
+        total: 5,
+        unique: 5,
+        successful: 3,
         errors: 1,
         timeouts: 1,
         redirects: 1,
@@ -208,8 +212,15 @@ fn get_dummy_stats() -> OutputStats {
         HostStats {
             total_requests: 5,
             successful_requests: 3,
-            rate_limited: 1,
-            server_errors: 1,
+            client_errors: 1,
+            network_errors: 1,
+            request_times: vec![
+                Duration::from_millis(80),
+                Duration::from_millis(90),
+                Duration::from_millis(100),
+                Duration::from_millis(110),
+                Duration::from_millis(120),
+            ],
             cache_hits: 1,
             cache_misses: 4,
             ..Default::default()

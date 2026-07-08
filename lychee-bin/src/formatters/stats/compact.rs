@@ -181,17 +181,17 @@ mod tests {
             "Issues found in 2 inputs. Find details below.
 
 [https://example.com/]:
-[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found
+[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | Rejected status code: 404 Not Found
 [TIMEOUT] https://httpbin.org/delay/2 (at 1:1) | Request timed out
 
 ℹ Suggestions
 https://original.dev/ --> https://suggestion.dev/
 
-🔍 2 Total (in 0s) 🔗 2 Unique ✅ 0 OK 🚫 1 Error ⏳ 1 Timeouts 🔀 1 Redirects
+🔍 5 Total (in 0s) 🔗 5 Unique ✅ 3 OK 🚫 1 Error ⏳ 1 Timeouts 🔀 1 Redirects
 
-📊 Per-host Statistics (1 domains, 5 links checked)
+📊 Per-host Statistics (1 domains, 5 requests)
 ────────────────────────────────────────────────────────────
-example.com   │      5 reqs │   60.0% success │      N/A median │   20.0% cached
+example.com   │      5 reqs │   60.0% success │    100ms median │   20.0% cached
 "
         );
     }

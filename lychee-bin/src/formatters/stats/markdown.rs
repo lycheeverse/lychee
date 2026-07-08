@@ -271,9 +271,9 @@ mod tests {
 
 | Status         | Count |
 |----------------|-------|
-| 🔍 Total       | 2     |
-| 🔗 Unique      | 2     |
-| ✅ Successful  | 0     |
+| 🔍 Total       | 5     |
+| 🔗 Unique      | 5     |
+| ✅ Successful  | 3     |
 | ⏳ Timeouts    | 1     |
 | 🔀 Redirected  | 1     |
 | 👻 Excluded    | 0     |
@@ -285,7 +285,7 @@ mod tests {
 
 ### Errors in https://example.com/
 
-* [404] <https://github.com/mre/idiomatic-rust-doesnt-exist-man> (at 1:1) | 404 Not Found
+* [404] <https://github.com/mre/idiomatic-rust-doesnt-exist-man> (at 1:1) | Rejected status code: 404 Not Found
 
 ## Timeouts per input
 

@@ -1,6 +1,6 @@
 use std::fmt::{self, Display};
 
-use super::write_header;
+use super::write_host_heading;
 use lychee_lib::ratelimit::HostStatsMap;
 use tabled::{
     Table, Tabled,
@@ -17,7 +17,8 @@ impl Display for MarkdownHostStats {
             return Ok(());
         };
 
-        write_header(f, "## ", host_stats)?;
+        writeln!(f)?;
+        write_host_heading(f, "## ", host_stats)?;
         writeln!(f)?;
         writeln!(f, "{}", host_stats_table(host_stats))?;
 

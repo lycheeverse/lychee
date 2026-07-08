@@ -24,9 +24,9 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     const EXPECTED_JSON: &str = r#"{
-  "total": 2,
-  "unique": 2,
-  "successful": 0,
+  "total": 5,
+  "unique": 5,
+  "successful": 3,
   "unknown": 0,
   "unsupported": 0,
   "timeouts": 1,
@@ -41,7 +41,7 @@ mod tests {
       {
         "url": "https://github.com/mre/idiomatic-rust-doesnt-exist-man",
         "status": {
-          "text": "404 Not Found",
+          "text": "Rejected status code: 404 Not Found",
           "code": 404
         },
         "span": {
@@ -111,11 +111,11 @@ mod tests {
       "total_requests": 5,
       "successful_requests": 3,
       "success_rate": 0.6,
-      "rate_limited": 1,
-      "client_errors": 0,
-      "server_errors": 1,
-      "network_errors": 0,
-      "median_request_time_ms": null,
+      "rate_limited": 0,
+      "client_errors": 1,
+      "server_errors": 0,
+      "network_errors": 1,
+      "median_request_time_ms": 100,
       "cache_hits": 1,
       "cache_misses": 4,
       "cache_hit_rate": 0.2,
