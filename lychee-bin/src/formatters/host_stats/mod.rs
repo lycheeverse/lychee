@@ -1,5 +1,3 @@
-use std::fmt;
-
 use lychee_lib::ratelimit::{HostStats, HostStatsMap};
 
 mod compact;
@@ -16,15 +14,6 @@ fn host_heading(prefix: &str, host_stats: &HostStatsMap) -> String {
         hosts = host_stats.total_hosts(),
         requests = host_stats.total_requests(),
     )
-}
-
-/// Writes the heading for a host statistics section.
-fn write_host_heading(
-    f: &mut fmt::Formatter<'_>,
-    prefix: &str,
-    host_stats: &HostStatsMap,
-) -> fmt::Result {
-    writeln!(f, "{}", host_heading(prefix, host_stats))
 }
 
 /// Returns a compact representation of the number of successful, failed, and

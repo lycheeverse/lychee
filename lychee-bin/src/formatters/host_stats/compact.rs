@@ -1,6 +1,6 @@
 use std::fmt::{self, Display};
 
-use super::{status_summary, write_host_heading};
+use super::{host_heading, status_summary};
 use crate::formatters::color::{NORMAL, color};
 use lychee_lib::ratelimit::HostStatsMap;
 
@@ -14,7 +14,7 @@ impl Display for CompactHostStats {
             return Ok(());
         };
 
-        write_host_heading(f, "\n📊 ", host_stats)?;
+        writeln!(f, "{}", host_heading("\n📊 ", host_stats))?;
 
         let sorted_hosts = host_stats.sorted();
         let hostname_width = sorted_hosts
@@ -25,12 +25,14 @@ impl Display for CompactHostStats {
             .max(10);
 
         for (hostname, stats) in sorted_hosts {
+            let status_summary = status_summary(&stats);
+            let cache_summary = stats.cache_summary();
+
             color!(
                 f,
                 NORMAL,
-                "  {hostname:<width$}  {:>6} reqs  {}",
+                "  {hostname:<width$}  {:>6} reqs  {cache_summary:>12}    {status_summary}",
                 stats.total_requests,
-                status_summary(&stats),
                 width = hostname_width,
             )?;
             writeln!(f)?;

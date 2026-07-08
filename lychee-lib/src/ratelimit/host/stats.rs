@@ -205,6 +205,12 @@ impl HostStats {
         }
     }
 
+    /// Get human-readable cache summary
+    #[must_use]
+    pub fn cache_summary(&self) -> String {
+        format!("({:.0}% cached)", self.cache_hit_rate() * 100.0)
+    }
+
     /// Get human-readable summary of the stats
     #[must_use]
     pub fn summary(&self) -> String {
