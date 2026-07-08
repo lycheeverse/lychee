@@ -13,8 +13,7 @@ impl Display for DetailedHostStats {
             return Ok(());
         };
 
-        writeln!(f)?;
-        write_host_heading(f, "📊 ", host_stats)?;
+        write_host_heading(f, "\n📊 ", host_stats)?;
         writeln!(f, "---------------------")?;
 
         for (hostname, stats) in host_stats.sorted() {
