@@ -1731,9 +1731,9 @@ The config file should contain every possible key for documentation purposes."
             // Per-host statistics
             // 2 rate limited + 8 OK
             .stdout(contains("10 reqs"))
-            .stdout(contains("80.0% success"))
+            .stdout(contains("[✓ 8, ✗ 2]"))
             // 2 rate limited, 1 OK, 7 cached
-            .stdout(contains("70.0% cached"));
+            .stdout(contains("(70% cached)"));
 
         server.verify().await;
         Ok(())
