@@ -283,6 +283,34 @@ mod tests {
     }
 
     #[test]
+    fn test_host_config_merge_accept_precedence() {
+        let a = StatusCodeSelector::from_str("200").unwrap();
+        let b = StatusCodeSelector::from_str("429").unwrap();
+
+        // self=Some + other=Some -> self wins.
+        let merged = HostConfig {
+            accept: Some(a.clone()),
+            ..HostConfig::default()
+        }
+        .merge(HostConfig {
+            accept: Some(b.clone()),
+            ..HostConfig::default()
+        });
+        assert_eq!(merged.accept, Some(a));
+
+        // self=None + other=Some -> other fills in.
+        let merged = HostConfig::default().merge(HostConfig {
+            accept: Some(b.clone()),
+            ..HostConfig::default()
+        });
+        assert_eq!(merged.accept, Some(b));
+
+        // both None -> None.
+        let merged = HostConfig::default().merge(HostConfig::default());
+        assert_eq!(merged.accept, None);
+    }
+
+    #[test]
     fn test_config_serialization() {
         let config = RateLimitConfig {
             concurrency: 15,

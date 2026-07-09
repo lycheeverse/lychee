@@ -271,6 +271,68 @@ mod tests {
         }
     }
 
+    /// The per-host `accept` override on a cache hit must be resolved from the
+    /// *cache-key* host (post-remap), not the original request host. Here the
+    /// request host (`request-host.com`) has no override and remaps to a
+    /// different cache-key host (`accepted-host.com`) which accepts 429. The
+    /// cached 429 is judged by the cache-key host's override, so it succeeds.
+    /// If resolution keyed off the request URL instead, this would fail.
+    #[tokio::test]
+    async fn test_cache_hit_resolves_accept_from_cache_key_host() {
+        use lychee_lib::remap::Remaps;
+
+        let host_cfg = HostConfig {
+            accept: Some(StatusCodeSelector::from_str("429").unwrap()),
+            ..HostConfig::default()
+        };
+        let hosts = HostConfigs::from([(HostKey::from("accepted-host.com".to_string()), host_cfg)]);
+
+        let accept: HashSet<StatusCode> = StatusCodeSelector::default_accepted().into();
+
+        let client = ClientBuilder::builder()
+            .accepted(accept.clone())
+            .hosts(hosts)
+            .remaps(Remaps::new(vec![(
+                regex::Regex::new("https://request-host.com").unwrap(),
+                "https://accepted-host.com".to_string(),
+            )]))
+            .build()
+            .client()
+            .unwrap();
+
+        let request = Request::try_from("https://request-host.com/").unwrap();
+
+        // Derive the cache key exactly as `handle` does (post-remap) so the
+        // inserted entry matches, and confirm the remap really crossed hosts.
+        let mut cache_key = request.uri.clone();
+        client.remap(&mut cache_key).unwrap();
+        assert_eq!(
+            cache_key.domain(),
+            Some("accepted-host.com"),
+            "remap must move the cache key to the override host"
+        );
+
+        let cache = Cache::new();
+        cache.insert(
+            cache_key,
+            CacheValue {
+                status: CacheStatus::Error(Some(StatusCode::TOO_MANY_REQUESTS)),
+                timestamp: timestamp(),
+            },
+        );
+
+        let never = |_req: Request| async move { unreachable!("cache hit; network must not run") };
+        let response = cache
+            .handle(&client, &HashSet::new(), &accept, request, never)
+            .await;
+
+        assert!(
+            response.status().is_success(),
+            "cached 429 must be judged by the cache-key host's override, got {:?}",
+            response.status()
+        );
+    }
+
     #[test]
     fn test_excluded_status_not_reused_from_cache() {
         let uri: Uri = "https://example.com".try_into().unwrap();
