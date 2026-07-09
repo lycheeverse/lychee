@@ -1,9 +1,10 @@
-use http::{HeaderMap, HeaderName, HeaderValue};
+use http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::collections::hash_map::Iter;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
+use crate::StatusCodeSelector;
 use crate::ratelimit::HostKey;
 
 /// Default number of concurrent requests per host
@@ -128,6 +129,14 @@ pub struct HostConfig {
     #[serde(deserialize_with = "deserialize_headers")]
     #[serde(serialize_with = "serialize_headers")]
     pub headers: HeaderMap,
+
+    /// Accepted status codes for this host.
+    ///
+    /// When set, this fully **replaces** the global `accept` set for this host
+    /// (it is not merged with it), consistent with how `concurrency` and
+    /// `request_interval` override their global defaults.
+    #[serde(default)]
+    pub accept: Option<StatusCodeSelector>,
 }
 
 impl Default for HostConfig {
@@ -136,6 +145,7 @@ impl Default for HostConfig {
             concurrency: None,
             request_interval: None,
             headers: HeaderMap::new(),
+            accept: None,
         }
     }
 }
@@ -154,6 +164,18 @@ impl HostConfig {
             .unwrap_or(global_config.request_interval)
     }
 
+    /// Get the effective set of accepted status codes.
+    ///
+    /// If this host defines its own `accept`, it fully **replaces** the global
+    /// set (no union). Otherwise the global set is used.
+    #[must_use]
+    pub fn effective_accept(&self, global: &HashSet<StatusCode>) -> HashSet<StatusCode> {
+        match &self.accept {
+            Some(selector) => selector.clone().into(),
+            None => global.clone(),
+        }
+    }
+
     #[must_use]
     pub(crate) fn merge(mut self, other: Self) -> Self {
         for (k, v) in other.headers {
@@ -166,6 +188,7 @@ impl HostConfig {
             concurrency: self.concurrency.or(other.concurrency),
             request_interval: self.request_interval.or(other.request_interval),
             headers: self.headers,
+            accept: self.accept.or(other.accept),
         }
     }
 }
@@ -205,6 +228,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn test_default_rate_limit_config() {
@@ -230,12 +254,32 @@ mod tests {
             concurrency: Some(5),
             request_interval: Some(Duration::from_millis(500)),
             headers: HeaderMap::new(),
+            accept: None,
         };
         assert_eq!(host_config.effective_concurrency(&global_config), 5);
         assert_eq!(
             host_config.effective_request_interval(&global_config),
             Duration::from_millis(500)
         );
+    }
+
+    #[test]
+    fn test_host_config_effective_accept() {
+        let global: HashSet<StatusCode> = StatusCodeSelector::default_accepted().into();
+
+        // No per-host override: falls back to the global set.
+        let host_config = HostConfig::default();
+        assert_eq!(host_config.effective_accept(&global), global);
+
+        // Per-host override fully REPLACES the global set (no union).
+        let host_config = HostConfig {
+            accept: Some(StatusCodeSelector::from_str("429").unwrap()),
+            ..HostConfig::default()
+        };
+        let effective = host_config.effective_accept(&global);
+        assert_eq!(effective, HashSet::from([StatusCode::TOO_MANY_REQUESTS]));
+        // The global 200 is no longer accepted for this host.
+        assert!(!effective.contains(&StatusCode::OK));
     }
 
     #[test]
@@ -262,6 +306,7 @@ mod tests {
             concurrency: Some(5),
             request_interval: Some(Duration::from_millis(500)),
             headers,
+            accept: None,
         };
 
         let toml = toml::to_string(&host_config).unwrap();
@@ -275,5 +320,28 @@ mod tests {
         assert_eq!(deserialized.headers.len(), 2);
         assert!(deserialized.headers.contains_key("authorization"));
         assert!(deserialized.headers.contains_key("user-agent"));
+    }
+
+    #[test]
+    fn test_accept_deserialization() {
+        // Mirrors the per-host TOML shape: `[hosts."example.com"] accept = [200, 429]`
+        let host_config: HostConfig = toml::from_str("accept = [200, 429]").unwrap();
+        let selector = host_config.accept.expect("accept should be set");
+        assert!(selector.contains(200));
+        assert!(selector.contains(429));
+        assert!(!selector.contains(404));
+    }
+
+    #[test]
+    fn test_accept_serialization_round_trip() {
+        let host_config = HostConfig {
+            accept: Some(StatusCodeSelector::from_str("200..=204,429").unwrap()),
+            ..HostConfig::default()
+        };
+
+        let toml = toml::to_string(&host_config).unwrap();
+        let deserialized: HostConfig = toml::from_str(&toml).unwrap();
+
+        assert_eq!(deserialized.accept, host_config.accept);
     }
 }
