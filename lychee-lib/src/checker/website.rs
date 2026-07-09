@@ -1,19 +1,17 @@
 use crate::{
     BasicAuthExtractor, ErrorKind, FileType, FragmentCheckerOptions, Methods, Status, Uri,
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
+    checker::github::{GitHubChecker, request::GitHubRequestRewriter},
     quirks::Quirks,
     ratelimit::HostPool,
     retry::RetryExt,
-    types::{
-        redirect_history::{RedirectHistory, Redirects},
-        uri::github::GithubUri,
-    },
+    types::redirect_history::{RedirectHistory, Redirects},
     utils::fragment_checker::{FragmentChecker, FragmentInput},
 };
 use async_trait::async_trait;
 use http::{Method, StatusCode};
-use octocrab::Octocrab;
 use reqwest::{Request, header::CONTENT_TYPE};
+use secrecy::SecretString;
 use std::{borrow::Cow, collections::HashSet, path::Path, sync::Arc, time::Duration};
 use url::Url;
 
@@ -26,8 +24,8 @@ pub(crate) struct WebsiteChecker {
     /// and return the first successful one.
     methods: Methods,
 
-    /// GitHub client used for requests.
-    github_client: Option<Octocrab>,
+    /// GitHub-specific checker used before and after the generic website path.
+    github_checker: GitHubChecker,
 
     /// The chain of plugins to be executed on each request.
     plugin_request_chain: RequestChain,
@@ -84,7 +82,7 @@ impl WebsiteChecker {
         redirect_history: RedirectHistory,
         max_retries: u64,
         accepted: HashSet<StatusCode>,
-        github_client: Option<Octocrab>,
+        github_token: Option<SecretString>,
         require_https: bool,
         plugin_request_chain: RequestChain,
         fragment_checker_options: FragmentCheckerOptions,
@@ -93,7 +91,7 @@ impl WebsiteChecker {
     ) -> Self {
         Self {
             methods,
-            github_client,
+            github_checker: GitHubChecker::new(host_pool.clone(), github_token, accepted.clone()),
             plugin_request_chain,
             redirect_history,
             max_retries,
@@ -216,9 +214,19 @@ impl WebsiteChecker {
     /// - The response status code is not accepted.
     /// - The URI cannot be converted to HTTPS.
     pub(crate) async fn check_website(&self, uri: &Uri) -> (Status, Option<Redirects>) {
+        if let Some(status) = self
+            .github_checker
+            .check_before_website(uri, self.fragment_checker_options)
+            .await
+        {
+            let redirects = self.redirect_history.resolve(&uri.url);
+            return (status, redirects);
+        }
+
         let credentials = self.basic_auth.matches(uri);
 
         let default_chain: RequestChain = Chain::new(vec![
+            Box::<GitHubRequestRewriter>::default(),
             Box::<Quirks>::default(),
             Box::new(credentials),
             Box::new(self.clone()),
@@ -317,52 +325,9 @@ impl WebsiteChecker {
             .traverse(request)
             .await;
 
-        self.handle_github(status, uri).await
-    }
-
-    // Pull out the heavy machinery in case of a failed normal request.
-    // This could be a GitHub URL and we ran into the rate limiter.
-    // TODO: We should try to parse the URI as GitHub URI first (Lucius, Jan 2023)
-    async fn handle_github(&self, status: Status, uri: &Uri) -> Status {
-        if status.is_success() {
-            return status;
-        }
-
-        if let Ok(github_uri) = GithubUri::try_from(uri) {
-            let status = self.check_github(github_uri).await;
-            if status.is_success() {
-                return status;
-            }
-        }
-
-        status
-    }
-
-    /// Check a `uri` hosted on `GitHub` via the GitHub API.
-    ///
-    /// # Caveats
-    ///
-    /// Files inside private repositories won't get checked and instead would
-    /// be reported as valid if the repository itself is reachable through the
-    /// API.
-    ///
-    /// A better approach would be to download the file through the API or
-    /// clone the repo, but we chose the pragmatic approach.
-    async fn check_github(&self, uri: GithubUri) -> Status {
-        let Some(client) = &self.github_client else {
-            return ErrorKind::MissingGitHubToken.into();
-        };
-        let repo = match client.repos(&uri.owner, &uri.repo).get().await {
-            Ok(repo) => repo,
-            Err(e) => return ErrorKind::GithubRequest(Box::new(e)).into(),
-        };
-        if let Some(true) = repo.private {
-            return Status::Ok(StatusCode::OK);
-        } else if let Some(endpoint) = uri.endpoint {
-            return ErrorKind::InvalidGithubUrl(format!("{}/{}/{endpoint}", uri.owner, uri.repo))
-                .into();
-        }
-        Status::Ok(StatusCode::OK)
+        self.github_checker
+            .check_after_website_failure(status, uri)
+            .await
     }
 }
 
@@ -391,18 +356,20 @@ mod tests {
     use std::{str::FromStr, sync::Arc, time::Duration};
 
     use http::{Method, StatusCode};
-    use octocrab::Octocrab;
-    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method as method_matcher};
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method as method_matcher, path as path_matcher},
+    };
 
     use crate::{
-        BasicAuthExtractor, FragmentCheckerOptions, Uri,
+        BasicAuthExtractor, ErrorKind, FragmentCheckerOptions, Status, Uri,
         chain::RequestChain,
-        checker::website::WebsiteChecker,
-        ratelimit::{HostConfigs, HostPool, RateLimitConfig},
-        types::{
-            DEFAULT_ACCEPTED_STATUS_CODES, Methods, redirect_history::RedirectHistory,
-            uri::github::GithubUri,
+        checker::{
+            github::{GitHubChecker, api::GitHubApi},
+            website::WebsiteChecker,
         },
+        ratelimit::{HostConfigs, HostPool, RateLimitConfig},
+        types::{DEFAULT_ACCEPTED_STATUS_CODES, Methods, redirect_history::RedirectHistory},
     };
 
     /// Build a checker for the given methods, routing requests through a
@@ -430,20 +397,132 @@ mod tests {
         )
     }
 
-    /// Test GitHub client integration.
-    /// This prevents a regression of <https://github.com/lycheeverse/lychee/issues/2024>
+    fn checker_with_github_api(api_server: &MockServer) -> WebsiteChecker {
+        let host_pool = Arc::new(HostPool::new(
+            RateLimitConfig::default(),
+            HostConfigs::default(),
+            reqwest::Client::new(),
+            std::collections::HashMap::new(),
+        ));
+
+        let github_api = GitHubApi::with_base_url(
+            Arc::clone(&host_pool),
+            None,
+            api_server.uri().parse().unwrap(),
+            DEFAULT_ACCEPTED_STATUS_CODES.clone(),
+        );
+
+        let mut checker = WebsiteChecker::new(
+            Method::GET.into(),
+            Duration::ZERO,
+            RedirectHistory::new(),
+            0,
+            DEFAULT_ACCEPTED_STATUS_CODES.clone(),
+            None,
+            false,
+            RequestChain::default(),
+            FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
+            host_pool,
+            BasicAuthExtractor::empty(),
+        );
+        checker.github_checker = GitHubChecker::with_api(github_api);
+        checker
+    }
+
     #[tokio::test]
-    async fn test_github_client_integration() {
-        let client = Octocrab::builder().personal_token("dummy").build().unwrap();
+    async fn test_github_readme_fragment_uses_specialized_api_checker() {
+        let api_server = MockServer::start().await;
+        Mock::given(method_matcher("GET"))
+            .and(path_matcher("/repos/lycheeverse/lychee/readme"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&api_server)
+            .await;
+
+        let checker = checker_with_github_api(&api_server);
+        let uri = Uri::try_from("https://github.com/lycheeverse/lychee#readme").unwrap();
+
+        let (status, _) = checker.check_website(&uri).await;
+
+        assert!(status.is_success(), "expected success, got {status:?}");
+    }
+
+    #[tokio::test]
+    async fn test_github_fallback_preserves_non_readme_repo_fragment_errors() {
+        let api_server = MockServer::start().await;
+        let checker = checker_with_github_api(&api_server);
         let uri =
-            GithubUri::try_from(Uri::try_from("https://github.com/lycheeverse/lychee").unwrap())
-                .unwrap();
+            Uri::try_from("https://github.com/lycheeverse/lychee#non-existent-anchor").unwrap();
+        let failure = Status::Error(ErrorKind::InvalidFragment(uri.clone()));
 
-        let status = get_checker(client).check_github(uri).await;
+        let status = checker
+            .github_checker
+            .check_after_website_failure(failure, &uri)
+            .await;
 
-        // Because of the invalid authentication token the request failed.
-        // But we proved how we could build a client and perform a request.
-        assert!(status.is_error());
+        assert_eq!(
+            status,
+            Status::Error(ErrorKind::InvalidFragment(uri)),
+            "expected the original fragment error to be preserved"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_github_fallback_accepts_private_repo_paths() {
+        let api_server = MockServer::start().await;
+        Mock::given(method_matcher("GET"))
+            .and(path_matcher("/repos/lycheeverse/private"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "private": true,
+            })))
+            .expect(1)
+            .mount(&api_server)
+            .await;
+
+        let checker = checker_with_github_api(&api_server);
+        let uri =
+            Uri::try_from("https://github.com/lycheeverse/private/blob/master/missing.md").unwrap();
+
+        let status = checker
+            .github_checker
+            .check_after_website_failure(
+                Status::Error(ErrorKind::RejectedStatusCode(StatusCode::NOT_FOUND)),
+                &uri,
+            )
+            .await;
+
+        assert!(status.is_success(), "expected success, got {status:?}");
+    }
+
+    #[tokio::test]
+    async fn test_github_fallback_reports_public_repo_paths_as_invalid() {
+        let api_server = MockServer::start().await;
+        Mock::given(method_matcher("GET"))
+            .and(path_matcher("/repos/lycheeverse/lychee"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "private": false,
+            })))
+            .expect(1)
+            .mount(&api_server)
+            .await;
+
+        let checker = checker_with_github_api(&api_server);
+        let uri =
+            Uri::try_from("https://github.com/lycheeverse/lychee/blob/master/missing.md").unwrap();
+
+        let status = checker
+            .github_checker
+            .check_after_website_failure(
+                Status::Error(ErrorKind::RejectedStatusCode(StatusCode::NOT_FOUND)),
+                &uri,
+            )
+            .await;
+
+        assert!(status.is_error(), "expected error, got {status:?}");
+        assert_eq!(status.code(), None);
     }
 
     /// When every configured method fails, the status of the *last* method
@@ -504,22 +583,5 @@ mod tests {
             status.is_timeout(),
             "expected timeout to short-circuit fallback, got {status:?}"
         );
-    }
-
-    fn get_checker(client: Octocrab) -> WebsiteChecker {
-        let host_pool = HostPool::default();
-        WebsiteChecker::new(
-            Method::GET.into(),
-            Duration::ZERO,
-            RedirectHistory::new(),
-            0,
-            DEFAULT_ACCEPTED_STATUS_CODES.clone(),
-            Some(client),
-            false,
-            RequestChain::default(),
-            FragmentCheckerOptions::default(),
-            Arc::new(host_pool),
-            BasicAuthExtractor::empty(),
-        )
     }
 }
