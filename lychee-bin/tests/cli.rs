@@ -176,9 +176,9 @@ mod cli {
         let bad_gateway = mock_server!(StatusCode::BAD_GATEWAY);
         let contents = format!(
             "{} {} {}",
-            &not_found.uri(),
-            &internal_server_error.uri(),
-            &bad_gateway.uri(),
+            not_found.uri(),
+            internal_server_error.uri(),
+            bad_gateway.uri(),
         );
 
         let mut cmd = cargo_bin_cmd!();
