@@ -14,7 +14,6 @@ use lychee_lib::RequestError;
 use lychee_lib::Status;
 use lychee_lib::archive::Archive;
 use lychee_lib::async_lib::stream::StreamExt as _;
-use lychee_lib::async_lib::waiter::{WaitGroup, WaitGuard};
 use lychee_lib::ratelimit::HostPool;
 use lychee_lib::{Client, ErrorKind, Request, Response};
 use tokio_stream::wrappers::ReceiverStream;
@@ -61,46 +60,38 @@ pub(crate) async fn check(
 
     /* Input streams and channels (both initial and recursive) */
 
-    let (waiter, wait_guard) = WaitGroup::new();
+    let (recursive_channel_send, recursive_channel_recv) = mpsc::channel(max_concurrency);
+    let queue = RequestQueue(recursive_channel_send);
 
     // Split initial requests into: valid requests and request errors. Note that
-    // this stream closure *owns* a wait guard, so we must drop the closure after
+    // this stream closure *owns* the queue handle, so we must drop the closure after
     // it's finished to avoid deadlock. This is done using the `.chain()` combinator.
     let (valid_requests, request_errors) = requests
         .inspect(|_| progress.inc_length(1))
-        .map(move |request| (request, wait_guard.clone()))
+        .map(move |request| (request, queue.clone()))
         .chain(futures::stream::empty())
-        .map(|(request, guard)| match request {
-            Ok(request) => Ok((guard, request)),
-            Err(request_error) => Err((guard, request_error)),
+        .map(|(request, queue)| match request {
+            Ok(request) => Ok((queue, request)),
+            Err(request_error) => Err((queue, request_error)),
         })
-        .partition_result::<(WaitGuard, Request), (WaitGuard, RequestError)>();
+        .partition_result::<(RequestQueue, Request), (RequestQueue, RequestError)>();
 
     // Further partition the request errors into request building errors (like
     // unresolved relative URLs) and fatal errors when fetching a user input fails.
     let (request_building_errors, mut fatal_errors) = request_errors
         .map(
-            |(guard, request_error)| match request_error.into_response() {
-                Ok(request_building_error) => Ok((guard, request_building_error)),
-                Err(fatal_user_input_error) => Err((guard, fatal_user_input_error)),
+            |(queue, request_error)| match request_error.into_response() {
+                Ok(request_building_error) => Ok((queue, request_building_error)),
+                Err(fatal_user_input_error) => Err((queue, fatal_user_input_error)),
             },
         )
-        .partition_result::<(WaitGuard, Response), (WaitGuard, ErrorKind)>();
+        .partition_result::<(RequestQueue, Response), (RequestQueue, ErrorKind)>();
 
-    let (recursive_channel_send, recursive_channel_recv) = mpsc::channel(max_concurrency);
-
-    let send_recursive_req = async |(guard, req)| {
-        progress.inc_length(1);
-        recursive_channel_send
-            .send((guard, req))
-            .await
-            .unwrap_or_else(|e| warn!("unable to send recursive uri {:?} - channel closed?", e.0));
-    };
-
-    // Combine recursive requests and input requests.
+    // Combine recursive requests and input requests. The recursive stream ends
+    // once every `RequestQueue` handle has been dropped, closing the channel.
     let requests = futures::stream::select_with_strategy(
         valid_requests,
-        ReceiverStream::new(recursive_channel_recv).take_until(waiter.wait()),
+        ReceiverStream::new(recursive_channel_recv),
         |()| futures::stream::PollNext::Right, // Recursive requests consume memory, prefer those.
     );
 
@@ -108,34 +99,42 @@ pub(crate) async fn check(
 
     // Perform requests. This is the only part of the main pipeline that happens concurrently.
     let check_responses = requests
-        .map(async |(guard, request)| -> (WaitGuard, Response) {
+        .map(async |(queue, request)| -> (RequestQueue, Response) {
             let check_url = |r| check_url(&client, r);
             // TODO: eventually, this should be a checker that uses a cache, rather than
             // a cache that uses a checker.
             let response = cache
                 .handle(&client, &cache_exclude_status, &accept, request, check_url)
                 .await;
-            (guard, response)
+            (queue, response)
         })
         .buffer_unordered(max_concurrency);
 
     let responses = futures::stream::select(check_responses, request_building_errors);
 
-    // Increment stats and extract recursive uris from responses.
-    let recursive_uris = responses.map(|(_guard, response)| -> Vec<(WaitGuard, Request)> {
+    // Increment stats and extract recursive uris from responses. Each discovered
+    // child must carry a clone of `queue` to stay outstanding; dropping `queue`
+    // here (the common, non-recursive case) releases this request's liveness.
+    let recursive_uris = responses.map(|(queue, response)| -> Vec<(RequestQueue, Request)> {
         progress.update(Some(response.body()));
         stats.add(response);
 
         let recursive_uris = vec![]; // currently unused.
 
+        let _ = &queue;
         recursive_uris
     });
 
     // Send recursive uris back to the initial channel. This will terminate
-    // only when all requests are finished and all `WaitGuard`s are dropped.
-    let all_done = recursive_uris
-        .flat_map(stream::iter)
-        .for_each(send_recursive_req);
+    // only when all requests are finished and all `RequestQueue` handles are dropped.
+    let all_done = recursive_uris.flat_map(stream::iter).for_each(
+        async |(queue, req): (RequestQueue, Request)| {
+            progress.inc_length(1);
+            queue.enqueue(req).await.unwrap_or_else(|e| {
+                warn!("unable to send recursive uri {:?} - channel closed?", e.0.1);
+            });
+        },
+    );
 
     let start = std::time::Instant::now();
 
@@ -150,7 +149,7 @@ pub(crate) async fn check(
     match futures::future::select(pin!(all_done), fatal_errors.next()).await {
         Either::Left(((), _fatal_errors)) => (),
         Either::Right((None, remaining)) => remaining.await,
-        Either::Right((Some((_guard, fatal_error)), _remaining)) => {
+        Either::Right((Some((_queue, fatal_error)), _remaining)) => {
             progress.finish("Error while fetching initial inputs");
             return Err(fatal_error);
         }
@@ -177,6 +176,28 @@ pub(crate) async fn check(
         false => ExitCode::LinkCheckFailure,
     };
     Ok((stats, cache, code, client.host_pool()))
+}
+
+/// Ride-along handle for the recursive request channel.
+///
+/// Every in-flight request carries one. Holding it keeps the recursive channel
+/// open, so the run continues until the last handle is dropped, at which point
+/// the channel closes and the pipeline terminates.
+///
+/// Recursively discovered links are fed back in via [`RequestQueue::enqueue`],
+/// which moves the handle onto the child so it stays open.
+#[derive(Clone)]
+struct RequestQueue(mpsc::Sender<(RequestQueue, Request)>);
+
+impl RequestQueue {
+    /// Enqueues a recursively discovered request
+    async fn enqueue(
+        self,
+        request: Request,
+    ) -> Result<(), mpsc::error::SendError<(RequestQueue, Request)>> {
+        let sender = self.0.clone();
+        sender.send((self, request)).await
+    }
 }
 
 async fn suggest_archived_links(
