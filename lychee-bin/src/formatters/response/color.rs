@@ -18,7 +18,7 @@ impl ColorFormatter {
     fn status_color(status: &Status) -> &'static LazyLock<console::Style> {
         match status {
             Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) => &GREEN,
-            Status::Excluded
+            Status::Excluded(_)
             | Status::Unsupported(_)
             | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => &DIM,
             Status::UnknownStatusCode(_) | Status::UnknownMailStatus(_) | Status::Timeout(_) => {

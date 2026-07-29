@@ -14,7 +14,7 @@ impl EmojiFormatter {
     const fn emoji_for_status(status: &Status) -> &'static str {
         match status {
             Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) => "✅",
-            Status::Excluded => "👻",
+            Status::Excluded(_) => "👻",
             Status::Unsupported(_)
             | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => "🚫",
             Status::UnknownStatusCode(_) | Status::UnknownMailStatus(_) | Status::Timeout(_) => {
@@ -38,7 +38,7 @@ impl ResponseFormatter for EmojiFormatter {
 mod emoji_tests {
     use super::*;
     use http::StatusCode;
-    use lychee_lib::{ErrorKind, Redirects, ResponseBody, Status, Uri};
+    use lychee_lib::{ErrorKind, ExcludeReason, Redirects, ResponseBody, Status, Uri};
     use test_utils::mock_response_body;
 
     #[test]
@@ -64,10 +64,13 @@ mod emoji_tests {
     #[test]
     fn test_format_response_with_excluded_status() {
         let formatter = EmojiFormatter;
-        let body = mock_response_body!(Status::Excluded, "https://example.com/not-checked");
+        let body = mock_response_body!(
+            Status::Excluded(ExcludeReason::Pattern("example\\.com".to_owned())),
+            "https://example.com/not-checked"
+        );
         assert_eq!(
             formatter.format_response(&body),
-            "👻 https://example.com/not-checked | This is due to your 'exclude' values"
+            "👻 https://example.com/not-checked | Excluded by pattern: `example\\.com`"
         );
     }
 

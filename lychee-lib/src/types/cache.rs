@@ -111,7 +111,7 @@ impl From<&Status> for CacheStatus {
             // TODO: Use accepted status codes to decide whether this is a
             // success or failure
             Status::Ok(code) | Status::UnknownStatusCode(code) => Self::Ok(*code),
-            Status::Excluded => Self::Excluded,
+            Status::Excluded(_) => Self::Excluded,
             Status::Unsupported(_) => Self::Unsupported,
             Status::Timeout(code) => Self::Error(*code),
             Status::Error(e) => match e {

@@ -11,7 +11,7 @@
 //! the handler to the chain.
 //!
 //! [pattern]: https://github.com/lpxxn/rust-design-pattern/blob/master/behavioral/chain_of_responsibility.rs
-use crate::Status;
+use crate::{ExcludeReason, Status};
 use async_trait::async_trait;
 use core::fmt::Debug;
 use std::sync::Arc;
@@ -224,7 +224,7 @@ impl<'a> ClientRequestChains<'a> {
 
         // Consider the request to be excluded if no chain element has converted
         // it to a `ChainResult::Done`
-        Status::Excluded
+        Status::Excluded(ExcludeReason::RequestChain)
     }
 }
 

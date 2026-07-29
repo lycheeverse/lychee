@@ -28,7 +28,7 @@ impl MailChecker {
         reason = "Match the signature of the function with the email-check feature"
     )]
     pub(crate) async fn check_mail(&self, _uri: &Uri) -> Status {
-        Status::Excluded
+        Status::Excluded(crate::ExcludeReason::MailFeatureDisabled)
     }
 }
 

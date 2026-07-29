@@ -16,6 +16,59 @@ const ICON_ERROR: &str = "✗";
 const ICON_TIMEOUT: &str = "⧖";
 const ICON_CACHED: &str = "↻";
 
+/// The reason why a resource was excluded from checking.
+#[derive(Debug, Hash, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ExcludeReason {
+    /// A user-provided exclude pattern matched the resource.
+    Pattern(String),
+    /// Mail checking is disabled.
+    Mail,
+    /// The URI scheme is not enabled.
+    Scheme,
+    /// The host is excluded.
+    Host,
+    /// The IP address is excluded.
+    Ip,
+    /// Telephone links are not checked.
+    Telephone,
+    /// Reserved example domains are not checked.
+    ExampleDomain,
+    /// The domain is not supported.
+    UnsupportedDomain,
+    /// The resource is a known false positive.
+    FalsePositive,
+    /// No user-provided include pattern matched the resource.
+    NotIncluded,
+    /// Mail checking support is not enabled in this build.
+    MailFeatureDisabled,
+    /// A request chain excluded the resource.
+    RequestChain,
+}
+
+impl Display for ExcludeReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Pattern(pattern) => write!(f, "Excluded by pattern: `{pattern}`"),
+            Self::Mail => {
+                f.write_str("Excluded: mail checking is disabled (use --include-mail to enable)")
+            }
+            Self::Scheme => f.write_str("Excluded: URI scheme is not enabled"),
+            Self::Host => f.write_str("Excluded: host is excluded"),
+            Self::Ip => f.write_str("Excluded: IP address is excluded"),
+            Self::Telephone => f.write_str("Excluded: telephone links are not checked"),
+            Self::ExampleDomain => f.write_str("Excluded: example domains are not checked"),
+            Self::UnsupportedDomain => f.write_str("Excluded: domain is not supported"),
+            Self::FalsePositive => f.write_str("Excluded: known false positive"),
+            Self::NotIncluded => f.write_str("Excluded: no include pattern matched"),
+            Self::MailFeatureDisabled => {
+                f.write_str("Excluded: mail checking support is not enabled in this build")
+            }
+            Self::RequestChain => f.write_str("Excluded by request chain"),
+        }
+    }
+}
+
 /// Response status of the request.
 #[allow(variant_size_differences)]
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -35,7 +88,7 @@ pub enum Status {
     /// mail servers (blocklisting) or your ISP (port filtering).
     UnknownMailStatus(String),
     /// Resource was excluded from checking
-    Excluded,
+    Excluded(ExcludeReason),
     /// The request type is currently not supported,
     /// for example when the URL scheme is `slack://`.
     /// See <https://github.com/lycheeverse/lychee/issues/199>
@@ -56,7 +109,7 @@ impl Display for Status {
             Status::Error(e) => write!(f, "{e}"),
             Status::RequestError(e) => write!(f, "{e}"),
             Status::Cached(status) => write!(f, "{status}"),
-            Status::Excluded => f.write_str("Excluded"),
+            Status::Excluded(_) => f.write_str("Excluded"),
         }
     }
 }
@@ -142,7 +195,7 @@ impl Status {
             Status::RequestError(e) => e.error().details(),
             Status::UnknownMailStatus(reason) => reason.clone(),
             Status::Timeout(_) => "Request timed out".into(),
-            Status::Excluded => "This is due to your 'exclude' values".into(),
+            Status::Excluded(reason) => reason.to_string(),
             Status::Unsupported(_) | Status::Cached(_) | Status::UnknownStatusCode(_) => {
                 self.to_string()
             }
@@ -175,7 +228,7 @@ impl Status {
     pub const fn is_excluded(&self) -> bool {
         matches!(
             self,
-            Status::Excluded | Status::Cached(CacheStatus::Excluded)
+            Status::Excluded(_) | Status::Cached(CacheStatus::Excluded)
         )
     }
 
@@ -213,7 +266,7 @@ impl Status {
         match self {
             Status::Ok(_) => ICON_OK,
             Status::UnknownStatusCode(_) | Status::UnknownMailStatus(_) => ICON_UNKNOWN,
-            Status::Excluded => ICON_EXCLUDED,
+            Status::Excluded(_) => ICON_EXCLUDED,
             Status::Error(_) | Status::RequestError(_) => ICON_ERROR,
             Status::Timeout(_) => ICON_TIMEOUT,
             Status::Unsupported(_) => ICON_UNSUPPORTED,
@@ -246,7 +299,7 @@ impl Status {
         match self {
             Status::Ok(code) | Status::UnknownStatusCode(code) => code.as_u16().to_string(),
             Status::UnknownMailStatus(_) => "UNKNOWN".to_string(),
-            Status::Excluded => "EXCLUDED".to_string(),
+            Status::Excluded(_) => "EXCLUDED".to_string(),
             Status::Error(e) => match e {
                 ErrorKind::RejectedStatusCode(code) => code.as_u16().to_string(),
                 ErrorKind::ReadResponseBody(e) | ErrorKind::BuildRequestClient(e) => {
@@ -300,7 +353,7 @@ impl From<ErrorKind> for Status {
 
 #[cfg(test)]
 mod tests {
-    use crate::{CacheStatus, ErrorKind, Status};
+    use crate::{CacheStatus, ErrorKind, ExcludeReason, Status};
     use http::StatusCode;
 
     #[test]
@@ -358,7 +411,7 @@ mod tests {
         );
         assert_eq!(Status::Timeout(None).code(), None);
         assert_eq!(Status::Cached(CacheStatus::Error(None)).code(), None);
-        assert_eq!(Status::Excluded.code(), None);
+        assert_eq!(Status::Excluded(ExcludeReason::Mail).code(), None);
         assert_eq!(
             Status::Unsupported(ErrorKind::InvalidStatusCode(999)).code(),
             None

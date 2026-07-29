@@ -101,10 +101,10 @@ pub use crate::{
     remap::Remap,
     types::{
         BaseInfo, BasicAuthCredentials, BasicAuthSelector, CacheStatus, CookieJar, ErrorKind,
-        FileExtensions, FileType, Input, InputContent, InputResolver, InputSource, LycheeResult,
-        Methods, MethodsError, Preprocessor, Redirect, Redirects, Request, RequestError,
-        ResolvedInputSource, Response, ResponseBody, Result, Status, StatusCodeSelector,
-        StatusRange, StatusRangeError, hints::*, uri::raw::RawUri, uri::raw::RawUriSpan,
-        uri::valid::Uri,
+        ExcludeReason, FileExtensions, FileType, Input, InputContent, InputResolver, InputSource,
+        LycheeResult, Methods, MethodsError, Preprocessor, Redirect, Redirects, Request,
+        RequestError, ResolvedInputSource, Response, ResponseBody, Result, Status,
+        StatusCodeSelector, StatusRange, StatusRangeError, hints::*, uri::raw::RawUri,
+        uri::raw::RawUriSpan, uri::valid::Uri,
     },
 };

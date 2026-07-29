@@ -34,7 +34,7 @@ pub use redirect_history::{Redirect, Redirects};
 pub use request::Request;
 pub use request_error::RequestError;
 pub use response::{Response, ResponseBody};
-pub use status::Status;
+pub use status::{ExcludeReason, Status};
 pub use status_code_selector::*;
 
 /// The lychee `Result` type

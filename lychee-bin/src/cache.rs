@@ -149,8 +149,8 @@ fn cache_hit(
     cache_key: &Uri,
     value: &CacheValue,
 ) -> Response {
-    let status = if client.is_excluded(cache_key) {
-        Status::Excluded
+    let status = if let Some(reason) = client.exclusion_reason(cache_key) {
+        Status::Excluded(reason)
     } else {
         // Can't impl `Status::from(v.value().status)` here because the
         // `accepted` status codes might have changed from the previous run
