@@ -7,9 +7,9 @@ use governor::{
 };
 use http::{Method, StatusCode};
 use humantime_serde::re::humantime::format_duration;
-use log::warn;
+use log::{debug, warn};
 use reqwest::{Client as ReqwestClient, Request, Response as ReqwestResponse};
-use std::{num::NonZeroU32, sync::Mutex};
+use std::{error::Error, num::NonZeroU32, sync::Mutex};
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -62,6 +62,9 @@ pub struct Host {
     /// HTTP client configured for this specific host
     client: ReqwestClient,
 
+    /// HTTP/1.1-only client used after an HTTP/2 stream or protocol error
+    http1_client: Option<ReqwestClient>,
+
     /// Request statistics and adaptive behavior tracking
     stats: Mutex<HostStats>,
 
@@ -85,6 +88,16 @@ impl Host {
         global_config: &RateLimitConfig,
         client: ReqwestClient,
     ) -> Self {
+        Self::new_with_http1_client(key, host_config, global_config, client, None)
+    }
+
+    pub(crate) fn new_with_http1_client(
+        key: HostKey,
+        host_config: &HostConfig,
+        global_config: &RateLimitConfig,
+        client: ReqwestClient,
+        http1_client: Option<ReqwestClient>,
+    ) -> Self {
         const MAX_BURST: NonZeroU32 = NonZeroU32::new(1).unwrap();
         let interval = host_config.effective_request_interval(global_config);
         let rate_limiter =
@@ -99,6 +112,7 @@ impl Host {
             rate_limiter,
             semaphore,
             client,
+            http1_client,
             stats: Mutex::new(HostStats::default()),
             backoff_duration: Mutex::new(Duration::from_millis(0)),
             cache: DashMap::new(),
@@ -194,16 +208,28 @@ impl Host {
         needs_body: bool,
     ) -> Result<CacheableResponse> {
         let start_time = Instant::now();
+        let http1_request = self.http1_client.as_ref().and_then(|_| request.try_clone());
         let response = match self.client.execute(request).await {
             Ok(response) => response,
-            Err(e) => {
-                // Record the network error in the per-host totals.
-                self.stats
-                    .lock()
-                    .unwrap()
-                    .record_network_error(start_time.elapsed());
-                // Wrap network/HTTP errors to preserve the original error
-                return Err(ErrorKind::NetworkRequest(e));
+            Err(error) => {
+                if is_http2_stream_error(&error)
+                    && let Some((client, request)) = self.http1_client.as_ref().zip(http1_request)
+                {
+                    debug!(
+                        "HTTP/2 failed for {}; retrying once over HTTP/1.1",
+                        request.url()
+                    );
+                    match client.execute(request).await {
+                        Ok(response) => response,
+                        Err(error) => {
+                            self.record_network_error(start_time.elapsed());
+                            return Err(ErrorKind::NetworkRequest(error));
+                        }
+                    }
+                } else {
+                    self.record_network_error(start_time.elapsed());
+                    return Err(ErrorKind::NetworkRequest(error));
+                }
             }
         };
 
@@ -214,6 +240,13 @@ impl Host {
         let response = CacheableResponse::from_response(response, needs_body).await?;
         self.cache_result(key, response.clone());
         Ok(response)
+    }
+
+    fn record_network_error(&self, request_time: Duration) {
+        self.stats
+            .lock()
+            .unwrap()
+            .record_network_error(request_time);
     }
 
     /// Await adaptive backoff if needed
@@ -344,6 +377,21 @@ impl Host {
     }
 }
 
+fn is_http2_stream_error(error: &(dyn Error + 'static)) -> bool {
+    let mut current = Some(error);
+    while let Some(error) = current {
+        let message = error.to_string().to_ascii_lowercase();
+        if message.contains("http2 error")
+            || message.contains("http/2 error")
+            || (message.contains("stream error") && message.contains("protocol error"))
+        {
+            return true;
+        }
+        current = error.source();
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -362,5 +410,19 @@ mod tests {
         assert_eq!(host.semaphore.available_permits(), 10); // Default concurrency
         assert!((host.stats().success_rate() - 1.0).abs() < f64::EPSILON);
         assert_eq!(host.cache_size(), 0);
+    }
+
+    #[test]
+    fn identifies_http2_protocol_errors() {
+        let error = std::io::Error::other(
+            "http2 error: stream error detected: unspecific protocol error detected",
+        );
+        assert!(is_http2_stream_error(&error));
+    }
+
+    #[test]
+    fn does_not_downgrade_for_unrelated_network_errors() {
+        let error = std::io::Error::other("connection reset by peer");
+        assert!(!is_http2_stream_error(&error));
     }
 }

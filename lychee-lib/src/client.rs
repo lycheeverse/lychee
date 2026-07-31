@@ -370,13 +370,22 @@ impl ClientBuilder {
             .build()
             .map_err(ErrorKind::BuildRequestClient)?;
 
-        let client_map = self.build_host_clients(&redirect_history)?;
+        let http1_client = self
+            .build_client(redirect_history.clone())?
+            .http1_only()
+            .build()
+            .map_err(ErrorKind::BuildRequestClient)?;
 
-        let host_pool = HostPool::new(
+        let client_map = self.build_host_clients(&redirect_history, false)?;
+        let http1_client_map = self.build_host_clients(&redirect_history, true)?;
+
+        let host_pool = HostPool::new_with_http1_clients(
             self.rate_limit_config,
             self.hosts,
             reqwest_client,
             client_map,
+            http1_client,
+            http1_client_map,
         );
 
         let github_client = match self.github_token.as_ref().map(ExposeSecret::expose_secret) {
@@ -433,17 +442,23 @@ impl ClientBuilder {
     }
 
     /// Build the host-specific clients with their host-specific headers
-    fn build_host_clients(&self, redirect_history: &RedirectHistory) -> Result<ClientMap> {
+    fn build_host_clients(
+        &self,
+        redirect_history: &RedirectHistory,
+        http1_only: bool,
+    ) -> Result<ClientMap> {
         self.hosts
             .iter()
             .map(|(host, config)| {
                 let mut headers = self.default_headers()?;
                 headers.extend(config.headers.clone());
-                let client = self
+                let mut builder = self
                     .build_client(redirect_history.clone())?
-                    .default_headers(headers)
-                    .build()
-                    .map_err(ErrorKind::BuildRequestClient)?;
+                    .default_headers(headers);
+                if http1_only {
+                    builder = builder.http1_only();
+                }
+                let client = builder.build().map_err(ErrorKind::BuildRequestClient)?;
                 Ok((HostKey::from(host.as_str()), client))
             })
             .collect()
