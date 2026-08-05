@@ -24,12 +24,16 @@ pub enum ExcludeReason {
     Pattern(String),
     /// Mail checking is disabled.
     Mail,
-    /// The URI scheme is not enabled.
-    Scheme,
+    /// The URI scheme is not among the accepted schemes.
+    Scheme(String),
     /// The host is excluded.
-    Host,
-    /// The IP address is excluded.
-    Ip,
+    Host(String),
+    /// The IP address is in the loopback range.
+    LoopbackIp(String),
+    /// The IP address is in a private range.
+    PrivateIp(String),
+    /// The IP address is in the link-local range.
+    LinkLocalIp(String),
     /// Telephone links are not checked.
     Telephone,
     /// Reserved example domains are not checked.
@@ -53,9 +57,28 @@ impl Display for ExcludeReason {
             Self::Mail => {
                 f.write_str("Excluded: mail checking is disabled (use --include-mail to enable)")
             }
-            Self::Scheme => f.write_str("Excluded: URI scheme is not enabled"),
-            Self::Host => f.write_str("Excluded: host is excluded"),
-            Self::Ip => f.write_str("Excluded: IP address is excluded"),
+            Self::Scheme(scheme) => {
+                write!(
+                    f,
+                    "Excluded: scheme `{scheme}` is not among the accepted schemes"
+                )
+            }
+            Self::Host(host) => write!(
+                f,
+                "Excluded: host `{host}` resolves to a loopback address (use --exclude-loopback=false to check it)"
+            ),
+            Self::LoopbackIp(addr) => write!(
+                f,
+                "Excluded: `{addr}` is a loopback IP address (use --exclude-loopback=false to check it)"
+            ),
+            Self::PrivateIp(addr) => write!(
+                f,
+                "Excluded: `{addr}` is a private IP address (use --exclude-private=false to check it)"
+            ),
+            Self::LinkLocalIp(addr) => write!(
+                f,
+                "Excluded: `{addr}` is a link-local IP address (use --exclude-link-local=false to check it)"
+            ),
             Self::Telephone => f.write_str("Excluded: telephone links are not checked"),
             Self::ExampleDomain => f.write_str("Excluded: example domains are not checked"),
             Self::UnsupportedDomain => f.write_str("Excluded: domain is not supported"),
@@ -355,6 +378,78 @@ impl From<ErrorKind> for Status {
 mod tests {
     use crate::{CacheStatus, ErrorKind, ExcludeReason, Status};
     use http::StatusCode;
+
+    /// The rendered reason is what users see for every excluded link, so pin
+    /// down the wording of every variant.
+    ///
+    /// This also covers the variants that cannot be reached from the filter
+    /// unit tests: `ExampleDomain` (the example domain set is empty under
+    /// `cfg(test)`) and `MailFeatureDisabled` (only produced when the
+    /// `email-check` feature is off).
+    #[test]
+    fn test_exclude_reason_messages() {
+        let cases = [
+            (
+                ExcludeReason::Pattern(r"example\.com".to_owned()),
+                r"Excluded by pattern: `example\.com`",
+            ),
+            (
+                ExcludeReason::Mail,
+                "Excluded: mail checking is disabled (use --include-mail to enable)",
+            ),
+            (
+                ExcludeReason::Scheme("http".to_owned()),
+                "Excluded: scheme `http` is not among the accepted schemes",
+            ),
+            (
+                ExcludeReason::Host("localhost".to_owned()),
+                "Excluded: host `localhost` resolves to a loopback address (use --exclude-loopback=false to check it)",
+            ),
+            (
+                ExcludeReason::LoopbackIp("127.0.0.1".to_owned()),
+                "Excluded: `127.0.0.1` is a loopback IP address (use --exclude-loopback=false to check it)",
+            ),
+            (
+                ExcludeReason::PrivateIp("192.168.0.1".to_owned()),
+                "Excluded: `192.168.0.1` is a private IP address (use --exclude-private=false to check it)",
+            ),
+            (
+                ExcludeReason::LinkLocalIp("169.254.0.1".to_owned()),
+                "Excluded: `169.254.0.1` is a link-local IP address (use --exclude-link-local=false to check it)",
+            ),
+            (
+                ExcludeReason::Telephone,
+                "Excluded: telephone links are not checked",
+            ),
+            (
+                ExcludeReason::ExampleDomain,
+                "Excluded: example domains are not checked",
+            ),
+            (
+                ExcludeReason::UnsupportedDomain,
+                "Excluded: domain is not supported",
+            ),
+            (
+                ExcludeReason::FalsePositive,
+                "Excluded: known false positive",
+            ),
+            (
+                ExcludeReason::NotIncluded,
+                "Excluded: no include pattern matched",
+            ),
+            (
+                ExcludeReason::MailFeatureDisabled,
+                "Excluded: mail checking support is not enabled in this build",
+            ),
+            (ExcludeReason::RequestChain, "Excluded by request chain"),
+        ];
+
+        for (reason, expected) in cases {
+            assert_eq!(reason.to_string(), expected);
+            // The reason is what ends up in the report and in JSON output
+            assert_eq!(Status::Excluded(reason).details(), expected);
+        }
+    }
 
     #[test]
     fn test_status_serialization() {
