@@ -428,6 +428,12 @@ pub(crate) struct Config {
     /// fallback extensions. Multiple extensions can be separated by commas. Extensions
     /// will be checked in order of appearance.
     ///
+    /// The path itself is tried first, then every extension appended to the full
+    /// file name, then every extension replacing an existing one. So `a.b` with
+    /// `html,htm` is looked up as `a.b`, `a.b.html`, `a.b.htm`, `a.html`,
+    /// `a.htm`. An existing extension containing ASCII whitespace is never
+    /// replaced, since replacing it could discard part of the file name.
+    ///
     /// Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi
     ///
     /// Note: This option takes effect on `file://` URIs which do not exist and on

@@ -1,4 +1,7 @@
-use crate::{BaseInfo, ErrorKind, Uri, checker::wikilink::index::WikilinkIndex};
+use crate::{
+    BaseInfo, ErrorKind, Uri,
+    checker::{fallback_candidates, wikilink::index::WikilinkIndex},
+};
 use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug)]
@@ -32,12 +35,10 @@ impl WikilinkResolver {
             fallback_extensions,
         })
     }
-    /// Resolves a wikilink by searching the index with fallback extensions.
+    /// Resolves a wikilink by searching the index for each
+    /// [`fallback_candidates`] entry.
     pub(crate) fn resolve(&self, path: &Path, uri: &Uri) -> Result<PathBuf, ErrorKind> {
-        for ext in &self.fallback_extensions {
-            let mut candidate = path.to_path_buf();
-            candidate.set_extension(ext);
-
+        for candidate in fallback_candidates(path, &self.fallback_extensions) {
             if let Some(resolved) = self.checker.contains_path(&candidate) {
                 return Ok(resolved);
             }
@@ -65,6 +66,85 @@ mod tests {
         let path = fixtures_path!().join("Usage");
         let expected_result = fixtures_path!().join("wiki/Usage.md");
         assert_eq!(resolver.resolve(&path, &uri), Ok(expected_result));
+    }
+
+    #[test]
+    fn test_wikilink_resolves_dotted_filename() {
+        let dir = tempfile::tempdir().expect("temp dir should be creatable");
+        for name in ["Page.v1.md", "Page.md"] {
+            std::fs::write(dir.path().join(name), "").expect("fixture should be writable");
+        }
+
+        let resolver = WikilinkResolver::new(
+            &BaseInfo::from_path(dir.path()).unwrap(),
+            vec!["md".to_string()],
+        )
+        .unwrap();
+        let uri = Uri {
+            url: url::Url::from_directory_path(dir.path())
+                .unwrap()
+                .join("Page.v1")
+                .unwrap(),
+        };
+        let path = dir.path().join("Page.v1");
+
+        // `Page.md` exists only so the replaced candidate is a real alternative.
+        assert_eq!(
+            resolver.resolve(&path, &uri),
+            Ok(dir.path().join("Page.v1.md"))
+        );
+    }
+
+    #[test]
+    fn test_wikilink_prefers_the_name_as_written() {
+        let dir = tempfile::tempdir().expect("temp dir should be creatable");
+        // `image.png` sits in a subdirectory so a match proves the index was
+        // consulted; `image.png.md` is the appended candidate it must beat.
+        std::fs::create_dir(dir.path().join("shadow")).unwrap();
+        std::fs::write(dir.path().join("shadow/image.png"), "").unwrap();
+        std::fs::write(dir.path().join("image.png.md"), "").unwrap();
+
+        let resolver = WikilinkResolver::new(
+            &BaseInfo::from_path(dir.path()).unwrap(),
+            vec!["md".to_string()],
+        )
+        .unwrap();
+        let uri = Uri {
+            url: url::Url::from_directory_path(dir.path())
+                .unwrap()
+                .join("image.png")
+                .unwrap(),
+        };
+
+        assert_eq!(
+            resolver.resolve(&dir.path().join("image.png"), &uri),
+            Ok(dir.path().join("shadow/image.png"))
+        );
+    }
+
+    #[test]
+    fn test_wikilink_index_ignores_directories() {
+        let dir = tempfile::tempdir().expect("temp dir should be creatable");
+        // A directory is the only thing named `Notes.md`, so the lookup can
+        // only succeed if directories are indexed.
+        std::fs::create_dir(dir.path().join("Notes.md")).unwrap();
+
+        let resolver = WikilinkResolver::new(
+            &BaseInfo::from_path(dir.path()).unwrap(),
+            vec!["md".to_string()],
+        )
+        .unwrap();
+        let uri = Uri {
+            url: url::Url::from_directory_path(dir.path())
+                .unwrap()
+                .join("Notes.md")
+                .unwrap(),
+        };
+
+        assert!(matches!(
+            resolver.resolve(&dir.path().join("Notes.md"), &uri),
+            Err(ErrorKind::WikilinkNotFound(..))
+        ));
     }
 
     #[test]
