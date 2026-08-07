@@ -3,6 +3,7 @@ use log::warn;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
+use crate::checker::fallback_candidates;
 use crate::checker::wikilink::resolver::WikilinkResolver;
 use crate::{
     BaseInfo, ErrorKind, FragmentCheckerOptions, Result, Status, Uri,
@@ -12,8 +13,8 @@ use crate::{
 /// A utility for checking the existence and validity of file-based URIs.
 ///
 /// `FileChecker` resolves and validates file paths, handling both absolute and relative paths.
-/// It supports base path resolution, fallback extensions for files without extensions,
-/// and optional fragment checking for HTML files.
+/// It supports base path resolution, fallback extensions for paths that do not
+/// resolve as written, and optional fragment checking for HTML files.
 #[derive(Debug, Clone)]
 pub(crate) struct FileChecker {
     /// List of file extensions to try if the original path doesn't exist.
@@ -154,10 +155,9 @@ impl FileChecker {
 
     /// Resolves a path to a file, applying fallback extensions if necessary.
     ///
-    /// This function will try to find a file, first by attempting the given path
-    /// itself, then by attempting the path with each extension from
-    /// [`FileChecker::fallback_extensions`]. The first existing file (not directory),
-    /// if any, will be returned.
+    /// Returns the first candidate from [`fallback_candidates`] that exists and
+    /// is a file. The path itself is one of those candidates, but a directory
+    /// never matches.
     ///
     /// # Arguments
     ///
@@ -169,30 +169,9 @@ impl FileChecker {
     /// Returns `Ok(PathBuf)` with the resolved file path, or `Err` if no valid file is found.
     /// If `Ok` is returned, the contained `PathBuf` is guaranteed to exist and be a file.
     fn apply_fallback_extensions(&self, path: &Path, uri: &Uri) -> Result<PathBuf> {
-        // If it's already a file, use it directly
-        if path.is_file() {
-            return Ok(path.to_path_buf());
-        }
-
-        let mut path_buf = path.to_path_buf();
-
-        // If existing "extension" has spaces, we assume it is not a real extension.
-        // In this case, we want to append fallbacks _after_ the full original filename.
-        if let Some(ext) = path.extension()
-            && ext.as_encoded_bytes().iter().any(u8::is_ascii_whitespace)
-            && let Some(first_fallback) = self.fallback_extensions.first()
-        {
-            let mut ext = ext.to_os_string();
-            ext.push(".");
-            ext.push(first_fallback);
-            path_buf.set_extension(ext);
-        }
-
-        // Try fallback extensions, replacing any current extension in the path.
-        for ext in &self.fallback_extensions {
-            path_buf.set_extension(ext);
-            if path_buf.is_file() {
-                return Ok(path_buf);
+        for candidate in fallback_candidates(path, &self.fallback_extensions) {
+            if candidate.is_file() {
+                return Ok(candidate);
             }
         }
 
@@ -363,6 +342,43 @@ mod tests {
             let result_subpath = result
                 .as_deref()
                 .map(|p| p.strip_prefix(fixtures_path!()).unwrap())
+                .map(|p| p.to_string_lossy());
+            assert!(
+                matches!(result_subpath.as_deref(), $expected),
+                "{:?} resolved to {:?} but should be {}",
+                $subpath,
+                result_subpath,
+                stringify!($expected)
+            );
+        };
+    }
+
+    /// Creates the given names as empty files in a fresh temporary directory.
+    ///
+    /// Only the names matter for fallback resolution.
+    fn temp_dir_with(names: &[&str]) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().expect("temp dir should be creatable");
+        for name in names {
+            std::fs::write(dir.path().join(name), "").expect("fixture should be writable");
+        }
+        dir
+    }
+
+    /// Like [`assert_resolves`], but resolves against a temporary directory
+    /// instead of the checked-in fixtures.
+    macro_rules! assert_resolves_in {
+        ($checker:expr, $dir:expr, $subpath:expr, $expected:pat) => {
+            let base =
+                url::Url::from_directory_path($dir.path()).expect("temp dir should be a valid URL");
+            let uri = Uri::from(
+                base.join($subpath)
+                    .expect("subpath should form a valid URL"),
+            );
+            let path = uri.url.to_file_path().expect("uri should be a valid path");
+            let result = $checker.resolve_local_path(&path, &uri);
+            let result_subpath = result
+                .as_deref()
+                .map(|p| p.strip_prefix($dir.path()).unwrap())
                 .map(|p| p.to_string_lossy());
             assert!(
                 matches!(result_subpath.as_deref(), $expected),
@@ -672,20 +688,63 @@ mod tests {
             Ok("fallback-extensions/file2. hi.gz")
         );
 
-        // fallback extensions replace pre-existing extensions.
+        // when appending finds nothing, fallback extensions still replace a
+        // pre-existing extension.
         assert_resolves!(
             &checker,
             "fallback-extensions/b.non-existing",
             Ok("fallback-extensions/b.gz")
         );
 
-        // fallback extensions should *not* double up when there is
-        // already a file extension, to avoid doubling up and getting the
-        // wrong file.
+        // appending keeps a pre-existing extension rather than replacing it.
         assert_resolves!(
             &checker,
             "fallback-extensions/a.tar",
-            Err(InvalidFilePath(_))
+            Ok("fallback-extensions/a.tar.gz")
         );
+    }
+
+    /// Builds a checker with the given fallback extensions and nothing else on.
+    fn fallback_checker(extensions: &[&str]) -> FileChecker {
+        FileChecker::new(
+            &BaseInfo::none(),
+            extensions.iter().map(|e| (*e).to_string()).collect(),
+            None,
+            FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
+            false,
+        )
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_appended_candidate_wins_over_replaced() {
+        let checker = fallback_checker(&["md"]);
+        let dir = temp_dir_with(&["c.d.md", "c.md"]);
+
+        // `c.md` exists only so the replaced candidate is a real alternative.
+        assert_resolves_in!(&checker, dir, "c.d", Ok("c.d.md"));
+    }
+
+    #[tokio::test]
+    async fn test_appending_is_exhausted_before_replacing() {
+        let checker = fallback_checker(&["html", "htm"]);
+        let dir = temp_dir_with(&["d.html", "d.e.htm"]);
+
+        // `d.html` is the first extension's replaced candidate; it must lose
+        // to the second extension's appended candidate.
+        assert_resolves_in!(&checker, dir, "d.e", Ok("d.e.htm"));
+    }
+
+    #[tokio::test]
+    async fn test_extension_with_whitespace_is_not_replaced() {
+        let checker = fallback_checker(&["md"]);
+        let dir = temp_dir_with(&["e.md"]);
+
+        // Replacing ` hi` would discard it, so the unrelated `e.md` must not be
+        // reached.
+        assert_resolves_in!(&checker, dir, "e.%20hi", Err(InvalidFilePath(_)));
     }
 }
