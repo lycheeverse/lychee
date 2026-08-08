@@ -925,6 +925,7 @@ We collect a list of common workarounds for various websites in our [troubleshoo
 - https://github.com/prosekit/prosekit
 - https://github.com/tldr-pages/tldr
 - https://gitlab.torproject.org/tpo/web/marble/support
+- https://github.com/oxsecurity/megalinter (ships lychee as one of its bundled linters: https://megalinter.io/latest/descriptors/spell_lychee/)
 - https://github.com/lycheeverse/lychee (yes, lychee is checked with lychee 🤯)
 
 If you are using lychee for your project, **please add it here**.
