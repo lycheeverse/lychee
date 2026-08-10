@@ -618,6 +618,11 @@ Options:
 
           If provided without a value, defaults to `anchor-only`.
 
+          Fragment checking does not work for every URL. In general, the target
+          content needs to be Markdown or HTML and follow common conventions.
+          Anchors that only appear after JavaScript execution may be missed, since
+          lychee does not run a browser engine.
+
       --include-mail[=<false|true>]
           Also check email addresses
 
