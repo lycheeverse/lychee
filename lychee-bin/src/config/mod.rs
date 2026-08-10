@@ -518,6 +518,17 @@ pub(crate) struct Config {
     /// or `full` to check both.
     ///
     /// If provided without a value, defaults to `anchor-only`.
+    ///
+    /// This check will not work on all URLs.
+    /// The rough requirements are, that the target content be Markdown or HTML,
+    /// and that it follows certain, common conventions.
+    /// If for example JavaScript needs to be executed
+    /// to get to the actual HTML content that might contain the anchor,
+    /// the check will not see the anchor (e.g. report a miss),
+    /// as this scenario would require running this checker to run a browser engine,
+    /// which would make it orders of magnitude heavier on computing resources.
+    /// More info about this check can be found here:
+    /// <https://lychee.cli.rs/recipes/anchors/>
     #[arg(
         long,
         default_missing_value = "anchor-only",
