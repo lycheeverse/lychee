@@ -74,6 +74,14 @@ snap install lychee
 apk add lychee
 ```
 
+### Debian
+
+Available in the [pkg.haus](https://pkg.haus) archive. Follow the [setup instructions](https://pkg.haus) to configure the repository, then install with:
+
+```sh
+sudo apt install lychee
+```
+
 ### macOS
 
 Via [Homebrew](https://brew.sh):
