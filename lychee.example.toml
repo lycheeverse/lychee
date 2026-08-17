@@ -55,6 +55,15 @@ max_retries = 2
 # Maximum number of concurrent link checks.
 max_concurrency = 14
 
+# Recursively follow links on remote input domains.
+recursive = false
+
+# Maximum number of link levels to follow when recursively checking a website.
+max_depth = 3
+
+# Additional domains that may be followed recursively.
+recursed_domains = ["docs.example.com", "assets.example.com"]
+
 # extension applied to files without extension
 default_extension = "md"
 

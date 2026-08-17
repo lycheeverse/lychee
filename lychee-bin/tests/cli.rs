@@ -2671,6 +2671,228 @@ The config file should contain every possible key for documentation purposes."
             .stdout(contains("0 Errors"));
     }
 
+    async fn recursive_test_server() -> wiremock::MockServer {
+        let mock_server = wiremock::MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/index.html"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_raw(r#"<a href="/level-one.html">one</a>"#, "text/html"),
+            )
+            .mount(&mock_server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/level-one.html"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_raw(r#"<a href="/level-two.html">two</a>"#, "text/html"),
+            )
+            .mount(&mock_server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/level-two.html"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_raw(r#"<a href="/broken.html">broken</a>"#, "text/html"),
+            )
+            .mount(&mock_server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/broken.html"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&mock_server)
+            .await;
+
+        mock_server
+    }
+
+    #[tokio::test]
+    async fn test_recursive_link_checking() {
+        let mock_server = recursive_test_server().await;
+
+        cargo_bin_cmd!()
+            .arg("--recursive")
+            .arg("--verbose")
+            .arg(format!("{}/index.html", mock_server.uri()))
+            .assert()
+            .code(2)
+            .stdout(contains("/broken.html"))
+            .stdout(contains("1 Error"));
+    }
+
+    #[tokio::test]
+    async fn test_recursive_link_checking_respects_max_depth() {
+        let mock_server = recursive_test_server().await;
+
+        cargo_bin_cmd!()
+            .arg("--recursive")
+            .arg("--max-depth")
+            .arg("1")
+            .arg("--verbose")
+            .arg(format!("{}/index.html", mock_server.uri()))
+            .assert()
+            .success()
+            .stdout(contains("/broken.html").not())
+            .stdout(contains("2 Total"))
+            .stdout(contains("0 Errors"));
+    }
+
+    async fn external_recursive_test_servers()
+    -> (wiremock::MockServer, wiremock::MockServer, String) {
+        let root_server = wiremock::MockServer::start().await;
+        let external_server = wiremock::MockServer::start().await;
+        let external_url = external_server.uri().replace("127.0.0.1", "localhost");
+
+        Mock::given(method("GET"))
+            .and(path("/index.html"))
+            .respond_with(ResponseTemplate::new(200).set_body_raw(
+                format!(r#"<a href="{external_url}/external.html">external</a>"#),
+                "text/html",
+            ))
+            .mount(&root_server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/external.html"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_raw(r#"<a href="/broken.html">broken</a>"#, "text/html"),
+            )
+            .mount(&external_server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/broken.html"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&external_server)
+            .await;
+
+        (root_server, external_server, external_url)
+    }
+
+    #[tokio::test]
+    async fn test_recursive_link_checking_does_not_follow_external_domains() {
+        let (root_server, _external_server, _external_url) =
+            external_recursive_test_servers().await;
+
+        cargo_bin_cmd!()
+            .arg("--recursive")
+            .arg("--verbose")
+            .arg(format!("{}/index.html", root_server.uri()))
+            .assert()
+            .success()
+            .stdout(contains("/broken.html").not())
+            .stdout(contains("1 Total"))
+            .stdout(contains("0 Errors"));
+    }
+
+    #[tokio::test]
+    async fn test_recursive_link_checking_follows_configured_domains() {
+        let (root_server, _external_server, external_url) = external_recursive_test_servers().await;
+
+        cargo_bin_cmd!()
+            .arg("--recursive")
+            .arg("--recursed-domains")
+            .arg("localhost")
+            .arg("--verbose")
+            .arg(format!("{}/index.html", root_server.uri()))
+            .assert()
+            .code(2)
+            .stdout(contains(format!("{external_url}/broken.html")))
+            .stdout(contains("1 Error"));
+    }
+
+    #[tokio::test]
+    async fn test_recursive_link_checking_does_not_follow_external_redirects() {
+        let root_server = wiremock::MockServer::start().await;
+        let external_server = wiremock::MockServer::start().await;
+        let external_url = external_server.uri().replace("127.0.0.1", "localhost");
+
+        Mock::given(method("GET"))
+            .and(path("/index.html"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_raw(r#"<a href="/redirect">redirect</a>"#, "text/html"),
+            )
+            .mount(&root_server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/redirect"))
+            .respond_with(
+                ResponseTemplate::new(302)
+                    .insert_header("Location", format!("{external_url}/external.html")),
+            )
+            .mount(&root_server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/external.html"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_raw(r#"<a href="/broken.html">broken</a>"#, "text/html"),
+            )
+            .mount(&external_server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/broken.html"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&external_server)
+            .await;
+
+        cargo_bin_cmd!()
+            .arg("--recursive")
+            .arg("--verbose")
+            .arg(format!("{}/index.html", root_server.uri()))
+            .assert()
+            .success()
+            .stdout(contains("/broken.html").not())
+            .stdout(contains("1 Total"))
+            .stdout(contains("0 Errors"));
+    }
+
+    #[tokio::test]
+    async fn test_recursive_link_checking_with_full_bounded_channel() {
+        let mock_server = wiremock::MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/index.html"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_raw(r#"<a href="/page.html">page</a>"#, "text/html"),
+            )
+            .mount(&mock_server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/page.html"))
+            .respond_with(ResponseTemplate::new(200).set_body_raw(
+                r#"
+                    <a href="/a.html">a</a>
+                    <a href="/b.html">b</a>
+                    <a href="/c.html">c</a>
+                "#,
+                "text/html",
+            ))
+            .mount(&mock_server)
+            .await;
+        for path_value in ["/a.html", "/b.html", "/c.html"] {
+            Mock::given(method("GET"))
+                .and(path(path_value))
+                .respond_with(ResponseTemplate::new(200))
+                .mount(&mock_server)
+                .await;
+        }
+
+        cargo_bin_cmd!()
+            .arg("--recursive")
+            .arg("--max-depth")
+            .arg("1")
+            .arg("--max-concurrency")
+            .arg("1")
+            .arg(format!("{}/index.html", mock_server.uri()))
+            .assert()
+            .success()
+            .stdout(contains("4 Total"))
+            .stdout(contains("0 Errors"));
+    }
+
     #[tokio::test]
     async fn test_json_format_in_config() -> Result<()> {
         let mock_server = mock_server!(StatusCode::OK);
