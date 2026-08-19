@@ -10,10 +10,12 @@ use clap_mangen::{
     Man,
     roff::{Roff, roman},
 };
+use schemars::JsonSchema;
 use serde::Deserialize;
 use strum::{Display, EnumIter, EnumString, VariantNames};
 
 use crate::LycheeOptions;
+use crate::config::Config;
 
 const CONTRIBUTOR_THANK_NOTE: &str = "\n\nA huge thank you to all the wonderful contributors who helped make this project a success.";
 
@@ -71,13 +73,17 @@ const EXIT_CODE_SECTION: &str = "
 ";
 
 /// What to generate when providing the --generate flag
-#[derive(Debug, Deserialize, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq)]
+#[derive(
+    Debug, Deserialize, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq, JsonSchema,
+)]
 #[non_exhaustive]
 #[strum(serialize_all = "kebab-case")]
 #[serde(rename_all = "kebab-case")]
 pub(crate) enum GenerateMode {
     /// Generate roff used for the man page
     Man,
+    /// Generate a JSON schema for the configuration file
+    ConfigSchema,
     /// Generate shell completion for Bash
     CompleteBash,
     /// Generate shell completion for Elvish
@@ -94,12 +100,23 @@ pub(crate) enum GenerateMode {
 pub(crate) fn generate(mode: &GenerateMode) -> Result<String> {
     match mode {
         GenerateMode::Man => man_page(),
+        GenerateMode::ConfigSchema => config_schema(),
         GenerateMode::CompleteBash => shell_completion(Shell::Bash),
         GenerateMode::CompleteElvish => shell_completion(Shell::Elvish),
         GenerateMode::CompleteFish => shell_completion(Shell::Fish),
         GenerateMode::CompletePowershell => shell_completion(Shell::PowerShell),
         GenerateMode::CompleteZsh => shell_completion(Shell::Zsh),
     }
+}
+
+/// Generate a JSON schema for the `lychee.toml` configuration file.
+///
+/// The schema is derived from the [`Config`] type. It can be referenced from a
+/// config file via the `$schema` key (or a `taplo`/editor setting) to get
+/// autocompletion and validation while editing.
+fn config_schema() -> Result<String> {
+    let schema = schemars::schema_for!(Config);
+    Ok(serde_json::to_string_pretty(&schema)?)
 }
 
 /// Generate shell completion for the given shell
@@ -166,9 +183,40 @@ fn render_section(title: &str, content: &str, buffer: &mut Vec<u8>) -> Result<()
 
 #[cfg(test)]
 mod tests {
-    use super::man_page;
+    use super::{config_schema, man_page};
     use crate::generate::{CONTRIBUTOR_THANK_NOTE, EXIT_CODE_SECTION};
     use anyhow::Result;
+
+    #[test]
+    fn test_config_schema() -> Result<()> {
+        let schema: serde_json::Value = serde_json::from_str(&config_schema()?)?;
+
+        // The schema describes the config file (i.e. the `Config` type).
+        assert_eq!(schema["title"], "Config");
+
+        // `deny_unknown_fields` on `Config` should forbid unknown keys.
+        assert_eq!(schema["additionalProperties"], false);
+
+        // A few representative options should be present, including their
+        // documentation lifted from the doc comments.
+        let properties = &schema["properties"];
+        assert!(properties["max_retries"].is_object());
+        assert!(properties["accept"].is_object());
+        assert!(
+            properties["timeout"]["description"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("timeout")
+        );
+
+        // Enum options should expose their allowed values.
+        let modes = schema["$defs"]["StatsFormat"]["enum"]
+            .as_array()
+            .expect("StatsFormat should be represented as an enum");
+        assert!(modes.iter().any(|value| value == "json"));
+
+        Ok(())
+    }
 
     #[test]
     fn test_man_page() -> Result<()> {
