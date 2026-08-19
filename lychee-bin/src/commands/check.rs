@@ -61,14 +61,14 @@ pub(crate) async fn check(
     /* Input streams and channels (both initial and recursive) */
 
     let (recursive_channel_send, recursive_channel_recv) = mpsc::channel(max_concurrency);
-    let queue = RequestQueue(recursive_channel_send);
+    let recursive_channel_send = RequestQueue(recursive_channel_send);
 
     // Split initial requests into: valid requests and request errors. Note that
-    // this stream closure *owns* the queue handle, so we must drop the closure after
+    // this stream closure *owns* the initial queue handle, so we must drop the closure after
     // it's finished to avoid deadlock. This is done using the `.chain()` combinator.
     let (valid_requests, request_errors) = requests
         .inspect(|_| progress.inc_length(1))
-        .map(move |request| (request, queue.clone()))
+        .map(move |request| (request, recursive_channel_send.clone()))
         .chain(futures::stream::empty())
         .map(|(request, queue)| match request {
             Ok(request) => Ok((queue, request)),
@@ -192,11 +192,11 @@ struct RequestQueue(mpsc::Sender<(RequestQueue, Request)>);
 impl RequestQueue {
     /// Enqueues a recursively discovered request
     async fn enqueue(
-        self,
+        &self,
         request: Request,
     ) -> Result<(), mpsc::error::SendError<(RequestQueue, Request)>> {
-        let sender = self.0.clone();
-        sender.send((self, request)).await
+        let queue = self.clone();
+        self.0.send((queue, request)).await
     }
 }
 
