@@ -550,7 +550,7 @@ Options:
       --generate <GENERATE>
           Generate special output (e.g. the man page) instead of performing link checking
 
-          [possible values: man, complete-bash, complete-elvish, complete-fish, complete-powershell, complete-zsh]
+          [possible values: man, config-schema, complete-bash, complete-elvish, complete-fish, complete-powershell, complete-zsh]
 
       --github-token <GITHUB_TOKEN>
           GitHub API token to use when checking github.com links, to avoid rate limiting
@@ -824,6 +824,24 @@ If the `--cache` flag is set, lychee will cache responses in a file called
 then the cache will be loaded on startup. This can greatly speed up future runs.
 Note that by default lychee will not store any data on disk.
 This is explained in more detail in [our documentation](https://lychee.cli.rs/recipes/caching/).
+
+### Configuration file schema
+
+lychee can emit a [JSON schema](https://json-schema.org/) for its configuration
+file:
+
+```sh
+lychee --generate config-schema > lychee.schema.json
+```
+
+The schema describes every available key (along with its documentation) and can
+be used by editors with a TOML language server such as
+[Taplo](https://taplo.tamasfe.dev/) to get autocompletion and validation for
+`lychee.toml`. For example, using a Taplo directive at the top of the file:
+
+```toml
+#:schema ./lychee.schema.json
+```
 
 ## Supported file formats
 
