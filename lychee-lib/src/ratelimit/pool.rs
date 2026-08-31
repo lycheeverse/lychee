@@ -38,14 +38,8 @@ pub struct HostPool {
     /// Fallback client for hosts without host-specific client
     default_client: Client,
 
-    /// HTTP/1.1-only client used after an HTTP/2 stream or protocol error
-    default_http1_client: Option<Client>,
-
     /// Host-specific clients
     client_map: ClientMap,
-
-    /// Host-specific HTTP/1.1-only clients
-    http1_client_map: ClientMap,
 }
 
 impl HostPool {
@@ -62,29 +56,7 @@ impl HostPool {
             global_config,
             host_configs,
             default_client,
-            default_http1_client: None,
             client_map,
-            http1_client_map: HashMap::new(),
-        }
-    }
-
-    /// Create a new `HostPool` with HTTP/1.1 fallback clients.
-    pub(crate) fn new_with_http1_clients(
-        global_config: RateLimitConfig,
-        host_configs: HostConfigs,
-        default_client: Client,
-        client_map: ClientMap,
-        default_http1_client: Client,
-        http1_client_map: ClientMap,
-    ) -> Self {
-        Self {
-            hosts: DashMap::new(),
-            global_config,
-            host_configs,
-            default_client,
-            default_http1_client: Some(default_http1_client),
-            client_map,
-            http1_client_map,
         }
     }
 
@@ -139,18 +111,11 @@ impl HostPool {
                     .unwrap_or(&self.default_client)
                     .clone();
 
-                let http1_client = self
-                    .http1_client_map
-                    .get(&host_key)
-                    .cloned()
-                    .or_else(|| self.default_http1_client.clone());
-
-                Arc::new(Host::new_with_http1_client(
+                Arc::new(Host::new(
                     host_key,
                     &host_config,
                     &self.global_config,
                     client,
-                    http1_client,
                 ))
             })
             .value()

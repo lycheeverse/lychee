@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt::Display};
+use std::{collections::HashSet, error::Error, fmt::Display};
 
 use super::CacheStatus;
 use crate::ErrorKind;
@@ -7,6 +7,17 @@ use crate::ratelimit::CacheableResponse;
 use http::StatusCode;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
+
+fn is_http2_error(error: &(dyn Error + 'static)) -> bool {
+    let mut current = Some(error);
+    while let Some(error) = current {
+        if error.downcast_ref::<h2::Error>().is_some() {
+            return true;
+        }
+        current = error.source();
+    }
+    false
+}
 
 const ICON_OK: &str = "✔";
 const ICON_EXCLUDED: &str = "?";
@@ -94,6 +105,14 @@ impl Status {
         } else {
             Self::Error(ErrorKind::RejectedStatusCode(status))
         }
+    }
+
+    /// Returns `true` when the status wraps an HTTP/2 transport error.
+    pub(crate) fn is_http2_error(&self) -> bool {
+        let Status::Error(ErrorKind::NetworkRequest(error)) = self else {
+            return false;
+        };
+        is_http2_error(error)
     }
 
     /// Create a status object from a cached status (from a previous run of
@@ -300,6 +319,7 @@ impl From<ErrorKind> for Status {
 
 #[cfg(test)]
 mod tests {
+    use super::is_http2_error;
     use crate::{CacheStatus, ErrorKind, Status};
     use http::StatusCode;
 
@@ -369,5 +389,17 @@ mod tests {
     fn test_status_unknown() {
         assert!(Status::UnknownStatusCode(StatusCode::from_u16(999).unwrap()).is_unknown());
         assert!(!Status::Ok(StatusCode::from_u16(200).unwrap()).is_unknown());
+    }
+
+    #[test]
+    fn identifies_http2_protocol_errors_by_type() {
+        let error = h2::Error::from(h2::Reason::PROTOCOL_ERROR);
+        assert!(is_http2_error(&error));
+    }
+
+    #[test]
+    fn ignores_unrelated_network_errors() {
+        let error = std::io::Error::other("connection reset by peer");
+        assert!(!is_http2_error(&error));
     }
 }
