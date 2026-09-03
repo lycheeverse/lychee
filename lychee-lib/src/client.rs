@@ -439,10 +439,11 @@ impl ClientBuilder {
             .map(|(host, config)| {
                 let mut headers = self.default_headers()?;
                 headers.extend(config.headers.clone());
-                let builder = self
+                let client = self
                     .build_client(redirect_history.clone())?
-                    .default_headers(headers);
-                let client = builder.build().map_err(ErrorKind::BuildRequestClient)?;
+                    .default_headers(headers)
+                    .build()
+                    .map_err(ErrorKind::BuildRequestClient)?;
                 Ok((HostKey::from(host.as_str()), client))
             })
             .collect()

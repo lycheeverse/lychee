@@ -194,10 +194,18 @@ impl Host {
         needs_body: bool,
     ) -> Result<CacheableResponse> {
         let start_time = Instant::now();
-        let response = self.client.execute(request).await.map_err(|error| {
-            self.record_network_error(start_time.elapsed());
-            ErrorKind::NetworkRequest(error)
-        })?;
+        let response = match self.client.execute(request).await {
+            Ok(response) => response,
+            Err(e) => {
+                // Record the network error in the per-host totals.
+                self.stats
+                    .lock()
+                    .unwrap()
+                    .record_network_error(start_time.elapsed());
+                // Wrap network/HTTP errors to preserve the original error
+                return Err(ErrorKind::NetworkRequest(e));
+            }
+        };
 
         self.update_stats(response.status(), start_time.elapsed());
         self.update_backoff(response.status());
@@ -206,13 +214,6 @@ impl Host {
         let response = CacheableResponse::from_response(response, needs_body).await?;
         self.cache_result(key, response.clone());
         Ok(response)
-    }
-
-    fn record_network_error(&self, request_time: Duration) {
-        self.stats
-            .lock()
-            .unwrap()
-            .record_network_error(request_time);
     }
 
     /// Await adaptive backoff if needed
