@@ -7,6 +7,9 @@ if [[ "$first_arg" == LYCHEE_VERSION=* ]]; then
     exec env "$first_arg" "$0" "$@"
 fi
 
+# https://git-scm.com/docs/githooks#:~:text=it%20should%20clear%20these%20environment%20variables
+unset $(git rev-parse --local-env-vars)
+
 # Find and navigate to the pre-commit cache folder where lychee
 # is checked out. something like: ~/.cache/pre-commit/repo7r00atq6/
 pushd "$(dirname "$0")" >/dev/null
