@@ -17,7 +17,7 @@ mod cli {
         collections::{HashMap, HashSet},
         error::Error,
         fs::{self, File},
-        io::{BufRead, Write},
+        io::{BufRead, Read, Write},
         ops::Not,
         path::Path,
         time::Duration,
@@ -4132,34 +4132,46 @@ file:///TMP/a/b/c/ROOT/server/1/up-one.html
     /// URLs should NOT be downloaded fully, unless fragment checking is on and the link has a fragment.
     #[test]
     fn test_large_file_lazy_download() {
+        // Wiremock buffers response bodies and delays before sending headers, so it cannot
+        // represent this case. Send headers immediately and leave the advertised 10 GB body
+        // incomplete to verify that lychee does not try to read it.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let large_url = format!("http://{}/large", listener.local_addr().unwrap());
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let server = std::thread::spawn(move || {
+            let mut connections = Vec::new();
+            for stream in listener.incoming().take(2) {
+                let mut stream = stream.unwrap();
+                let mut request = [0];
+                stream.read_exact(&mut request).unwrap();
+                stream
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: 10000000000\r\nConnection: close\r\n\r\n",
+                    )
+                    .unwrap();
+                stream.flush().unwrap();
+                connections.push(stream);
+            }
+            release_rx.recv().unwrap();
+        });
+
         cargo_bin_cmd!()
             .arg("-")
             .arg("--include-fragments")
-            .arg("--timeout=5")
-            .write_stdin(
-                "
-https://proof.ovh.net/files/10Gb.dat
-https://proof.ovh.net/files/1Gb.dat
-https://proof.ovh.net/files/1Mb.dat
-https://lychee.cli.rs/guides/cli/#options
-            ",
-            )
+            .arg("--timeout=1")
+            .write_stdin(large_url.as_str())
             .assert()
             .success();
 
         cargo_bin_cmd!()
             .arg("-")
-            .arg("--timeout=5")
-            .write_stdin(
-                "
-https://proof.ovh.net/files/10Gb.dat#fragments-ignored
-https://proof.ovh.net/files/1Gb.dat#fragments-ignored
-https://proof.ovh.net/files/1Mb.dat#fragments-ignored
-https://lychee.cli.rs/guides/cli/#fragments-ignored
-            ",
-            )
+            .arg("--timeout=1")
+            .write_stdin(format!("{large_url}#fragments-ignored"))
             .assert()
             .success();
+
+        release_tx.send(()).unwrap();
+        server.join().unwrap();
     }
 
     /// Verifies that loading an older, legacy `.lycheecache` file containing a cached error
