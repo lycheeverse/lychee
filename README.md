@@ -452,6 +452,11 @@ Options:
           comma-separated list of excluded status codes. This example will not cache results
           with a status code of 429, 500 and 501.
 
+      --cache-location <PATH>
+          Filesystem path used to store the on-disk request cache
+
+          [default: .lycheecache]
+
       --cookie-jar <COOKIE_JAR>
           Read and write cookies using the given file. Cookies will be stored in the
           cookie jar and sent with requests. New cookies will be stored in the cookie jar

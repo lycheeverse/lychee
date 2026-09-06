@@ -37,6 +37,9 @@ max_cache_age = "2d"
 # A list of status codes that will be ignored from the cache
 cache_exclude_status = "500.."
 
+# Filesystem path used to store the on-disk request cache.
+cache_location = ".lycheecache"
+
 #############################  Runtime  #############################
 
 # File to read and write cookies
