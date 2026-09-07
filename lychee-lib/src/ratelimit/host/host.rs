@@ -7,11 +7,14 @@ use governor::{
 };
 use http::{Method, StatusCode};
 use humantime_serde::re::humantime::format_duration;
-use log::warn;
+use log::{debug, warn};
 use reqwest::{Client as ReqwestClient, Request, Response as ReqwestResponse};
-use std::{num::NonZeroU32, sync::Mutex};
 use std::{
-    sync::Arc,
+    num::NonZeroU32,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 use tokio::sync::Semaphore;
@@ -22,7 +25,8 @@ use crate::Uri;
 use crate::types::Result;
 use crate::{
     ErrorKind,
-    ratelimit::{HostConfig, RateLimitConfig},
+    ratelimit::{HostConfig, HttpClients, RateLimitConfig},
+    retry::requires_http1_fallback,
 };
 
 /// Cap maximum backoff duration to reasonable limits
@@ -45,7 +49,7 @@ type HostCache = DashMap<RequestKey, CacheableResponse>;
 /// Each host maintains:
 /// - A token bucket rate limiter using governor
 /// - A semaphore for concurrency control
-/// - A dedicated HTTP client with host-specific headers and cookies
+/// - Dedicated HTTP clients with host-specific headers, cookies, and HTTP/1.1 fallback
 /// - Statistics tracking for adaptive behavior
 /// - A per-host cache to prevent duplicate requests
 #[derive(Debug)]
@@ -59,8 +63,11 @@ pub struct Host {
     /// Controls maximum concurrent requests to this host
     semaphore: Semaphore,
 
-    /// HTTP client configured for this specific host
-    client: ReqwestClient,
+    /// HTTP clients configured for this specific host.
+    clients: HttpClients,
+
+    /// Whether HTTP/1.1 fallback has succeeded for this host.
+    prefer_http1: AtomicBool,
 
     /// Request statistics and adaptive behavior tracking
     stats: Mutex<HostStats>,
@@ -77,13 +84,12 @@ pub struct Host {
 }
 
 impl Host {
-    /// Create a new Host instance for the given hostname
-    #[must_use]
-    pub fn new(
+    /// Create a new Host instance for the given hostname.
+    pub(crate) fn new(
         key: HostKey,
         host_config: &HostConfig,
         global_config: &RateLimitConfig,
-        client: ReqwestClient,
+        clients: HttpClients,
     ) -> Self {
         const MAX_BURST: NonZeroU32 = NonZeroU32::new(1).unwrap();
         let interval = host_config.effective_request_interval(global_config);
@@ -98,7 +104,8 @@ impl Host {
             key,
             rate_limiter,
             semaphore,
-            client,
+            clients,
+            prefer_http1: AtomicBool::new(false),
             stats: Mutex::new(HostStats::default()),
             backoff_duration: Mutex::new(Duration::from_millis(0)),
             cache: DashMap::new(),
@@ -180,21 +187,72 @@ impl Host {
             rate_limiter.until_ready().await;
         }
 
-        self.perform_request(request, key, needs_body).await
+        self.perform_request_with_fallback(request, key, needs_body)
+            .await
     }
 
     pub(crate) const fn get_client(&self) -> &ReqwestClient {
-        &self.client
+        &self.clients.default_client
     }
 
-    async fn perform_request(
+    async fn perform_request_with_fallback(
         &self,
         request: Request,
         key: RequestKey,
         needs_body: bool,
     ) -> Result<CacheableResponse> {
+        let Some(http1_fallback_client) = self.clients.http1_fallback_client.as_ref() else {
+            return self
+                .perform_request(&self.clients.default_client, request, key, needs_body)
+                .await;
+        };
+
+        if self.prefer_http1.load(Ordering::Relaxed) {
+            return self
+                .perform_request(http1_fallback_client, request, key, needs_body)
+                .await;
+        }
+
+        let Some(http1_request) = request.try_clone() else {
+            return self
+                .perform_request(&self.clients.default_client, request, key, needs_body)
+                .await;
+        };
+        let response = self
+            .perform_request(
+                &self.clients.default_client,
+                request,
+                key.clone(),
+                needs_body,
+            )
+            .await;
+
+        if !response.as_ref().is_err_and(requires_http1_fallback) {
+            return response;
+        }
+
+        debug!(
+            "HTTP/2 failed for {}; retrying over HTTP/1.1",
+            http1_request.url()
+        );
+        let response = self
+            .perform_request(http1_fallback_client, http1_request, key, needs_body)
+            .await;
+        if response.is_ok() {
+            self.prefer_http1.store(true, Ordering::Relaxed);
+        }
+        response
+    }
+
+    async fn perform_request(
+        &self,
+        client: &ReqwestClient,
+        request: Request,
+        key: RequestKey,
+        needs_body: bool,
+    ) -> Result<CacheableResponse> {
         let start_time = Instant::now();
-        let response = match self.client.execute(request).await {
+        let response = match client.execute(request).await {
             Ok(response) => response,
             Err(e) => {
                 // Record the network error in the per-host totals.
@@ -349,6 +407,10 @@ mod tests {
     use super::*;
     use crate::ratelimit::{HostConfig, RateLimitConfig};
     use reqwest::Client;
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
 
     #[tokio::test]
     async fn test_host_creation() {
@@ -356,11 +418,76 @@ mod tests {
         let host_config = HostConfig::default();
         let global_config = RateLimitConfig::default();
 
-        let host = Host::new(key.clone(), &host_config, &global_config, Client::default());
+        let host = Host::new(
+            key.clone(),
+            &host_config,
+            &global_config,
+            HttpClients::new(Client::default()),
+        );
 
         assert_eq!(host.key, key);
         assert_eq!(host.semaphore.available_permits(), 10); // Default concurrency
         assert!((host.stats().success_rate() - 1.0).abs() < f64::EPSILON);
         assert_eq!(host.cache_size(), 0);
+    }
+
+    #[tokio::test]
+    async fn retries_http2_protocol_errors_over_http1_and_remembers_preference() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut http2, _) = listener.accept().await.unwrap();
+            let mut preface = [0; 24];
+            http2.read_exact(&mut preface).await.unwrap();
+            assert_eq!(&preface, b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n");
+            http2
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .await
+                .unwrap();
+            drop(http2);
+
+            let (mut http1, _) = listener.accept().await.unwrap();
+            let mut request = [0; 1024];
+            let length = http1.read(&mut request).await.unwrap();
+            assert!(request[..length].starts_with(b"GET / HTTP/1.1\r\n"));
+            http1
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                .await
+                .unwrap();
+
+            let (mut preferred, _) = listener.accept().await.unwrap();
+            let mut request = [0; 1024];
+            let length = preferred.read(&mut request).await.unwrap();
+            assert!(request[..length].starts_with(b"GET /next HTTP/1.1\r\n"));
+            preferred
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                .await
+                .unwrap();
+        });
+
+        let default_client = Client::builder().http2_prior_knowledge().build().unwrap();
+        let clients = HttpClients::with_http1_fallback(default_client, Client::new());
+        let host = Host::new(
+            HostKey::from("127.0.0.1"),
+            &HostConfig::default(),
+            &RateLimitConfig::default(),
+            clients,
+        );
+
+        let url = format!("http://{address}/").parse().unwrap();
+        let response = host
+            .execute_request(Request::new(Method::GET, url), false)
+            .await
+            .unwrap();
+        assert!(response.status.is_success());
+
+        let next_url = format!("http://{address}/next").parse().unwrap();
+        let next_response = host
+            .execute_request(Request::new(Method::GET, next_url), false)
+            .await
+            .unwrap();
+        assert!(next_response.status.is_success());
+
+        server.await.unwrap();
     }
 }

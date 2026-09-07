@@ -19,11 +19,39 @@ mod pool;
 pub use config::{HostConfig, HostConfigs, RateLimitConfig};
 pub use host::{Host, HostKey, HostStats, HostStatsMap};
 use http::HeaderMap;
-pub use pool::{ClientMap, HostPool};
-use reqwest::Response;
+pub use pool::HostPool;
+use reqwest::{Client, Response};
+use std::collections::HashMap;
 use url::Url;
 
 use crate::{ErrorKind, Result};
+
+#[derive(Debug, Clone)]
+pub(crate) struct HttpClients {
+    pub(crate) default_client: Client,
+    pub(crate) http1_fallback_client: Option<Client>,
+}
+
+impl HttpClients {
+    pub(crate) const fn new(default_client: Client) -> Self {
+        Self {
+            default_client,
+            http1_fallback_client: None,
+        }
+    }
+
+    pub(crate) const fn with_http1_fallback(
+        default_client: Client,
+        http1_fallback_client: Client,
+    ) -> Self {
+        Self {
+            default_client,
+            http1_fallback_client: Some(http1_fallback_client),
+        }
+    }
+}
+
+pub(crate) type HostClientMap = HashMap<HostKey, HttpClients>;
 
 /// The result of a HTTP request, used for internal per-host caching.
 /// This abstraction exists, because [`Response`] cannot easily be cached

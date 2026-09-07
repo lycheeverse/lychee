@@ -1,17 +1,15 @@
 use dashmap::DashMap;
 use http::Method;
-use reqwest::{Client, Request};
+use reqwest::Request;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::ratelimit::{
-    CacheableResponse, Host, HostConfigs, HostKey, HostStats, HostStatsMap, RateLimitConfig,
+    CacheableResponse, Host, HostClientMap, HostConfigs, HostKey, HostStats, HostStatsMap,
+    HttpClients, RateLimitConfig,
 };
 use crate::types::Result;
 use crate::{ErrorKind, Uri};
-
-/// Keep track of host-specific [`reqwest::Client`]s
-pub type ClientMap = HashMap<HostKey, reqwest::Client>;
 
 /// Manages a pool of Host instances and routes requests to appropriate hosts.
 ///
@@ -35,28 +33,27 @@ pub struct HostPool {
     /// Per-host configuration overrides
     host_configs: HostConfigs,
 
-    /// Fallback client for hosts without host-specific client
-    default_client: Client,
+    /// Clients for hosts without host-specific configuration.
+    default_clients: HttpClients,
 
-    /// Host-specific clients
-    client_map: ClientMap,
+    /// Clients for hosts with custom headers.
+    host_clients: HostClientMap,
 }
 
 impl HostPool {
-    /// Create a new `HostPool` with the given configuration
-    #[must_use]
-    pub fn new(
+    /// Create a new `HostPool` with the given configuration.
+    pub(crate) fn new(
         global_config: RateLimitConfig,
         host_configs: HostConfigs,
-        default_client: Client,
-        client_map: ClientMap,
+        default_clients: HttpClients,
+        host_clients: HostClientMap,
     ) -> Self {
         Self {
             hosts: DashMap::new(),
             global_config,
             host_configs,
-            default_client,
-            client_map,
+            default_clients,
+            host_clients,
         }
     }
 
@@ -105,17 +102,17 @@ impl HostPool {
                     .cloned()
                     .unwrap_or_default();
 
-                let client = self
-                    .client_map
+                let clients = self
+                    .host_clients
                     .get(&host_key)
-                    .unwrap_or(&self.default_client)
+                    .unwrap_or(&self.default_clients)
                     .clone();
 
                 Arc::new(Host::new(
                     host_key,
                     &host_config,
                     &self.global_config,
-                    client,
+                    clients,
                 ))
             })
             .value()
@@ -217,7 +214,7 @@ impl Default for HostPool {
         Self::new(
             RateLimitConfig::default(),
             HostConfigs::default(),
-            Client::default(),
+            HttpClients::new(reqwest::Client::default()),
             HashMap::new(),
         )
     }
@@ -226,26 +223,11 @@ impl Default for HostPool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ratelimit::RateLimitConfig;
-
     use url::Url;
 
     #[test]
-    fn test_host_pool_creation() {
-        let pool = HostPool::new(
-            RateLimitConfig::default(),
-            HostConfigs::default(),
-            Client::default(),
-            HashMap::new(),
-        );
-
-        assert_eq!(pool.active_host_count(), 0);
-    }
-
-    #[test]
     fn test_host_pool_default() {
-        let pool = HostPool::default();
-        assert_eq!(pool.active_host_count(), 0);
+        assert_eq!(HostPool::default().active_host_count(), 0);
     }
 
     #[tokio::test]

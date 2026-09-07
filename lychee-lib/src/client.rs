@@ -33,7 +33,7 @@ use crate::{
     chain::RequestChain,
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::Filter,
-    ratelimit::{ClientMap, HostConfigs, HostKey, HostPool, RateLimitConfig},
+    ratelimit::{HostClientMap, HostConfigs, HostKey, HostPool, HttpClients, RateLimitConfig},
     remap::Remaps,
     types::{DEFAULT_ACCEPTED_STATUS_CODES, Redirects, redirect_history::RedirectHistory},
 };
@@ -365,18 +365,14 @@ impl ClientBuilder {
     /// [here]: https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#errors
     pub fn client(self) -> Result<Client> {
         let redirect_history = RedirectHistory::new();
-        let reqwest_client = self
-            .build_client(redirect_history.clone())?
-            .build()
-            .map_err(ErrorKind::BuildRequestClient)?;
-
-        let client_map = self.build_host_clients(&redirect_history)?;
+        let default_clients = self.build_http_clients(&redirect_history, None)?;
+        let host_clients = self.build_host_clients(&redirect_history)?;
 
         let host_pool = HostPool::new(
             self.rate_limit_config,
             self.hosts,
-            reqwest_client,
-            client_map,
+            default_clients,
+            host_clients,
         );
 
         let github_client = match self.github_token.as_ref().map(ExposeSecret::expose_secret) {
@@ -432,21 +428,57 @@ impl ClientBuilder {
         })
     }
 
-    /// Build the host-specific clients with their host-specific headers
-    fn build_host_clients(&self, redirect_history: &RedirectHistory) -> Result<ClientMap> {
+    /// Build dedicated client pairs only for hosts with custom headers.
+    ///
+    /// Other host configurations share the default pair. Custom headers are
+    /// applied as client defaults, so each such host needs its own pair.
+    fn build_host_clients(&self, redirect_history: &RedirectHistory) -> Result<HostClientMap> {
         self.hosts
             .iter()
+            .filter(|(_, config)| !config.headers.is_empty())
             .map(|(host, config)| {
-                let mut headers = self.default_headers()?;
-                headers.extend(config.headers.clone());
-                let client = self
-                    .build_client(redirect_history.clone())?
-                    .default_headers(headers)
-                    .build()
-                    .map_err(ErrorKind::BuildRequestClient)?;
-                Ok((HostKey::from(host.as_str()), client))
+                let clients = self.build_http_clients(redirect_history, Some(&config.headers))?;
+                Ok((HostKey::from(host.as_str()), clients))
             })
             .collect()
+    }
+
+    /// Build equivalent clients with automatic protocol negotiation and HTTP/1.1 only.
+    ///
+    /// Unfortunately, a separate client is necessary. That's because setting
+    /// `Request::version` to HTTP/1.1 does not override HTTP/2 selected during
+    /// TLS ALPN negotiation.
+    ///
+    /// TODO: Remove this workaround as soon as
+    /// <https://github.com/seanmonstar/reqwest/issues/2116> got fixed.
+    fn build_http_clients(
+        &self,
+        redirect_history: &RedirectHistory,
+        extra_headers: Option<&HeaderMap>,
+    ) -> Result<HttpClients> {
+        let build = |http1_only| {
+            let mut builder = self.build_client(redirect_history.clone())?;
+
+            if let Some(extra_headers) = extra_headers {
+                let mut headers = self.default_headers()?;
+                headers.extend(extra_headers.clone());
+                builder = builder.default_headers(headers);
+            }
+
+            if http1_only {
+                builder = builder.http1_only();
+            }
+
+            builder.build().map_err(ErrorKind::BuildRequestClient)
+        };
+
+        let default_client = build(false)?;
+        let http1_fallback_client = build(true)?;
+
+        Ok(HttpClients::with_http1_fallback(
+            default_client,
+            http1_fallback_client,
+        ))
     }
 
     /// Create a [`reqwest::ClientBuilder`] based on various fields
@@ -680,8 +712,42 @@ mod tests {
     use crate::{
         BasicAuthExtractor, ErrorKind, Redirect, Redirects, Request, Status, Uri,
         chain::{ChainResult, Handler, RequestChain},
+        ratelimit::{HostConfig, HostConfigs, HostKey},
         remap::{Remap, Remaps},
+        types::redirect_history::RedirectHistory,
     };
+
+    #[test]
+    fn builds_host_clients_only_for_custom_headers() {
+        let rate_limit_only = HostKey::from("rate-limit-only.example");
+        let custom_headers = HostKey::from("custom-headers.example");
+        let mut headers = HeaderMap::new();
+        headers.insert(header::AUTHORIZATION, "Bearer token".parse().unwrap());
+
+        let builder = ClientBuilder {
+            hosts: HostConfigs::from([
+                (
+                    rate_limit_only,
+                    HostConfig {
+                        concurrency: Some(1),
+                        ..HostConfig::default()
+                    },
+                ),
+                (
+                    custom_headers.clone(),
+                    HostConfig {
+                        headers,
+                        ..HostConfig::default()
+                    },
+                ),
+            ]),
+            ..ClientBuilder::default()
+        };
+
+        let clients = builder.build_host_clients(&RedirectHistory::new()).unwrap();
+        assert_eq!(clients.len(), 1);
+        assert!(clients.contains_key(&custom_headers));
+    }
 
     #[tokio::test]
     async fn test_nonexistent() {
