@@ -48,7 +48,7 @@ octocrab = { version = "0.54.1", default-features = false, features = [
 ] }
 percent-encoding = "2.3.1"
 pulldown-cmark = "0.13.4"
-quick-xml = "0.41.0"
+quick-xml = "0.42.0"
 regex = "1.12.2"
 reqwest = { version = "0.13.4", features = ["json", "gzip"] }
 reqwest_cookie_store = { version = "0.10.0", features = ["serde"] }
