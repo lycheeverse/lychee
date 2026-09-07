@@ -398,7 +398,7 @@ mod tests {
         BasicAuthExtractor, FragmentCheckerOptions, Uri,
         chain::RequestChain,
         checker::website::WebsiteChecker,
-        ratelimit::{HostConfigs, HostPool, RateLimitConfig},
+        ratelimit::{HostConfigs, HostPool, HttpClients, RateLimitConfig},
         types::{
             DEFAULT_ACCEPTED_STATUS_CODES, Methods, redirect_history::RedirectHistory,
             uri::github::GithubUri,
@@ -412,7 +412,7 @@ mod tests {
         let host_pool = HostPool::new(
             RateLimitConfig::default(),
             HostConfigs::default(),
-            client,
+            HttpClients::new(client),
             std::collections::HashMap::new(),
         );
         WebsiteChecker::new(

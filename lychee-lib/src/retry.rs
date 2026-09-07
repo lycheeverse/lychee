@@ -1,8 +1,58 @@
-use std::io;
+use std::{error::Error, io};
 
 use http::StatusCode;
 
 use crate::{ErrorKind, Status};
+
+/// Returns whether an error can be retried using the HTTP/1.1 fallback client.
+pub(crate) fn requires_http1_fallback(error: &ErrorKind) -> bool {
+    let (ErrorKind::NetworkRequest(error) | ErrorKind::ReadResponseBody(error)) = error else {
+        return false;
+    };
+
+    is_http2_protocol_error(error)
+}
+
+fn is_http2_protocol_error(error: &(dyn Error + 'static)) -> bool {
+    find_error::<h2::Error>(error)
+        .and_then(h2::Error::reason)
+        .and_then(http1_fallback_for_reason)
+        .unwrap_or(false)
+}
+
+/// Classifies every standard HTTP/2 reason known to `h2`.
+///
+/// Unknown extension codes return `None` and do not trigger a protocol downgrade.
+#[allow(clippy::match_same_arms)]
+const fn http1_fallback_for_reason(reason: h2::Reason) -> Option<bool> {
+    match reason {
+        // Generic protocol or implementation failures can come from a broken peer or intermediary.
+        h2::Reason::PROTOCOL_ERROR | h2::Reason::INTERNAL_ERROR => Some(true),
+        // These mechanisms do not exist in HTTP/1.1: flow control, settings, streams, framing, and
+        // HPACK compression respectively.
+        h2::Reason::FLOW_CONTROL_ERROR
+        | h2::Reason::SETTINGS_TIMEOUT
+        | h2::Reason::STREAM_CLOSED
+        | h2::Reason::FRAME_SIZE_ERROR
+        | h2::Reason::COMPRESSION_ERROR => Some(true),
+        // HTTP/1.1 can use TLS parameters that HTTP/2 rejects. See RFC 9113 section 9.2.2:
+        // <https://www.rfc-editor.org/rfc/rfc9113.html#section-9.2.2>.
+        h2::Reason::INADEQUATE_SECURITY => Some(true),
+        // The peer explicitly requires HTTP/1.1.
+        h2::Reason::HTTP_1_1_REQUIRED => Some(true),
+        // Graceful shutdown is not an error.
+        h2::Reason::NO_ERROR => Some(false),
+        // Safe to retry, but not evidence of an HTTP/2 incompatibility.
+        h2::Reason::REFUSED_STREAM => Some(false),
+        // The stream is no longer needed.
+        h2::Reason::CANCEL => Some(false),
+        // Specific to a failed CONNECT tunnel, which HTTP/1.1 does not fix.
+        h2::Reason::CONNECT_ERROR => Some(false),
+        // The peer is signaling excessive load; changing protocols should not bypass that signal.
+        h2::Reason::ENHANCE_YOUR_CALM => Some(false),
+        _ => None,
+    }
+}
 
 /// An extension trait to help determine if a given HTTP request
 /// is retryable.
@@ -37,7 +87,7 @@ impl RetryExt for reqwest::Error {
         } else if self.is_request() {
             // It seems that hyper::Error(IncompleteMessage) is not correctly handled by reqwest.
             // Here we check if the Reqwest error was originated by hyper and map it consistently.
-            if let Some(hyper_error) = get_source_error_type::<hyper::Error>(&self) {
+            if let Some(hyper_error) = find_error::<hyper::Error>(self) {
                 // The hyper::Error(IncompleteMessage) is raised if the HTTP
                 // response is well formatted but does not contain all the
                 // bytes. This can happen when the server has started sending
@@ -52,7 +102,7 @@ impl RetryExt for reqwest::Error {
 
                 // Try and downcast the hyper error to [`io::Error`] if that is the
                 // underlying error, and try and classify it.
-                } else if let Some(io_error) = get_source_error_type::<io::Error>(hyper_error) {
+                } else if let Some(io_error) = find_error::<io::Error>(hyper_error) {
                     should_retry_io(io_error)
                 } else {
                     false
@@ -127,19 +177,17 @@ fn should_retry_io(error: &io::Error) -> bool {
     )
 }
 
-/// Downcasts the given err source into T.
-fn get_source_error_type<T: std::error::Error + 'static>(
-    err: &dyn std::error::Error,
-) -> Option<&T> {
-    let mut source = err.source();
+/// Finds an error of type `T` in an error chain.
+fn find_error<'a, T: Error + 'static>(error: &'a (dyn Error + 'static)) -> Option<&'a T> {
+    let mut current = Some(error);
 
-    while let Some(err) = source {
-        if let Some(hyper_err) = err.downcast_ref::<T>() {
-            return Some(hyper_err);
+    while let Some(error) = current {
+        if let Some(error) = error.downcast_ref::<T>() {
+            return Some(error);
         }
-
-        source = err.source();
+        current = error.source();
     }
+
     None
 }
 
@@ -147,7 +195,56 @@ fn get_source_error_type<T: std::error::Error + 'static>(
 mod tests {
     use http::StatusCode;
 
-    use super::RetryExt;
+    use super::{RetryExt, http1_fallback_for_reason, is_http2_protocol_error};
+
+    #[test]
+    fn classifies_every_reason_known_to_h2() {
+        // `Reason` is an open integer type without an iterator. Standard codes are allocated from
+        // the low end of the registry, so scan the first byte for newly recognized codes.
+        for code in 0..=u8::MAX {
+            let reason = h2::Reason::from(u32::from(code));
+            if reason.description() != "unknown reason" {
+                assert!(
+                    http1_fallback_for_reason(reason).is_some(),
+                    "unclassified HTTP/2 reason: {reason:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn identifies_http2_protocol_errors() {
+        for reason in [
+            h2::Reason::PROTOCOL_ERROR,
+            h2::Reason::INTERNAL_ERROR,
+            h2::Reason::FLOW_CONTROL_ERROR,
+            h2::Reason::SETTINGS_TIMEOUT,
+            h2::Reason::STREAM_CLOSED,
+            h2::Reason::FRAME_SIZE_ERROR,
+            h2::Reason::COMPRESSION_ERROR,
+            h2::Reason::INADEQUATE_SECURITY,
+            h2::Reason::HTTP_1_1_REQUIRED,
+        ] {
+            assert!(is_http2_protocol_error(&h2::Error::from(reason)));
+        }
+    }
+
+    #[test]
+    fn ignores_other_http2_and_network_errors() {
+        for reason in [
+            h2::Reason::NO_ERROR,
+            h2::Reason::REFUSED_STREAM,
+            h2::Reason::CANCEL,
+            h2::Reason::CONNECT_ERROR,
+            h2::Reason::ENHANCE_YOUR_CALM,
+            h2::Reason::from(0xff),
+        ] {
+            assert!(!is_http2_protocol_error(&h2::Error::from(reason)));
+        }
+
+        let error = std::io::Error::other("connection reset by peer");
+        assert!(!is_http2_protocol_error(&error));
+    }
 
     #[test]
     fn test_should_retry() {

@@ -2378,6 +2378,7 @@ dependencies = [
  "futures",
  "glob",
  "governor",
+ "h2",
  "headers",
  "html5ever",
  "html5gum",
