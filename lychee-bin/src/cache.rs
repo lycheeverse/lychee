@@ -157,7 +157,12 @@ fn cache_hit(
         // and they may have an impact on the interpretation of the status
         // code.
         client.host_pool().record_persistent_cache_hit(cache_key);
-        Status::from_cache_status(value.status, accept)
+        // Reinterpret the cached status against the accept set for the
+        // cache-key host. A per-host `accept` override replaces the global set;
+        // resolving from the cache-key (post-remap) `Uri` ensures a cross-host
+        // cache hit is judged by that host's codes, not the global ones.
+        let accept = client.host_pool().effective_accept(cache_key, accept);
+        Status::from_cache_status(value.status, &accept)
     };
 
     Response::new(
@@ -194,13 +199,139 @@ fn should_ignore(uri: &Uri, status: &Status, cache_exclude_status: &HashSet<Stat
 mod tests {
     use std::collections::HashSet;
 
+    use std::str::FromStr;
+
     use http::StatusCode;
-    use lychee_lib::{CacheStatus, ErrorKind, Status, StatusCodeSelector, StatusRange, Uri};
+    use lychee_lib::{
+        CacheStatus, ClientBuilder, ErrorKind, Request, Status, StatusCodeSelector, StatusRange,
+        Uri,
+        ratelimit::{HostConfig, HostConfigs, HostKey},
+    };
 
     use crate::{
         cache::{Cache, CacheValue, should_ignore},
         time::timestamp,
     };
+
+    /// A per-host `accept` override must be applied when reinterpreting a cached
+    /// status, and it must be resolved from the *cache-key host* so a cross-host
+    /// cache hit is judged by that host's codes, not the global set.
+    #[tokio::test]
+    async fn test_cache_hit_uses_per_host_accept() {
+        // Global default accepts 200..=299 only. `accepted-host.com` overrides
+        // accept to include 429; `other-host.com` has no override.
+        // (Avoid RFC 2606 example domains, which are excluded by default.)
+        let host_cfg = HostConfig {
+            accept: Some(StatusCodeSelector::from_str("429").unwrap()),
+            ..HostConfig::default()
+        };
+        let hosts = HostConfigs::from([(HostKey::from("accepted-host.com".to_string()), host_cfg)]);
+
+        let accept: HashSet<StatusCode> = StatusCodeSelector::default_accepted().into();
+
+        let client = ClientBuilder::builder()
+            .accepted(accept.clone())
+            .hosts(hosts)
+            .build()
+            .client()
+            .unwrap();
+        let never = |_req: Request| async move { unreachable!("cache hit; network must not run") };
+
+        // A previously-failing 429 is cached for both hosts.
+        for host in ["https://accepted-host.com/", "https://other-host.com/"] {
+            let request = Request::try_from(host).unwrap();
+            let cache = Cache::new();
+            cache.insert(
+                request.uri.clone(),
+                CacheValue {
+                    status: CacheStatus::Error(Some(StatusCode::TOO_MANY_REQUESTS)),
+                    timestamp: timestamp(),
+                },
+            );
+
+            let response = cache
+                .handle(&client, &HashSet::new(), &accept, request, never)
+                .await;
+
+            if host.contains("accepted-host") {
+                // Per-host override accepts 429 -> success.
+                assert!(
+                    response.status().is_success(),
+                    "accepted-host.com should accept cached 429, got {:?}",
+                    response.status()
+                );
+            } else {
+                // No override -> global set rejects 429 -> error.
+                assert!(
+                    response.status().is_error(),
+                    "other-host.com should reject cached 429, got {:?}",
+                    response.status()
+                );
+            }
+        }
+    }
+
+    /// The per-host `accept` override on a cache hit must be resolved from the
+    /// *cache-key* host (post-remap), not the original request host. Here the
+    /// request host (`request-host.com`) has no override and remaps to a
+    /// different cache-key host (`accepted-host.com`) which accepts 429. The
+    /// cached 429 is judged by the cache-key host's override, so it succeeds.
+    /// If resolution keyed off the request URL instead, this would fail.
+    #[tokio::test]
+    async fn test_cache_hit_resolves_accept_from_cache_key_host() {
+        use lychee_lib::remap::Remaps;
+
+        let host_cfg = HostConfig {
+            accept: Some(StatusCodeSelector::from_str("429").unwrap()),
+            ..HostConfig::default()
+        };
+        let hosts = HostConfigs::from([(HostKey::from("accepted-host.com".to_string()), host_cfg)]);
+
+        let accept: HashSet<StatusCode> = StatusCodeSelector::default_accepted().into();
+
+        let client = ClientBuilder::builder()
+            .accepted(accept.clone())
+            .hosts(hosts)
+            .remaps(Remaps::new(vec![(
+                regex::Regex::new("https://request-host.com").unwrap(),
+                "https://accepted-host.com".to_string(),
+            )]))
+            .build()
+            .client()
+            .unwrap();
+
+        let request = Request::try_from("https://request-host.com/").unwrap();
+
+        // Derive the cache key exactly as `handle` does (post-remap) so the
+        // inserted entry matches, and confirm the remap really crossed hosts.
+        let mut cache_key = request.uri.clone();
+        client.remap(&mut cache_key).unwrap();
+        assert_eq!(
+            cache_key.domain(),
+            Some("accepted-host.com"),
+            "remap must move the cache key to the override host"
+        );
+
+        let cache = Cache::new();
+        cache.insert(
+            cache_key,
+            CacheValue {
+                status: CacheStatus::Error(Some(StatusCode::TOO_MANY_REQUESTS)),
+                timestamp: timestamp(),
+            },
+        );
+
+        let never = |_req: Request| async move { unreachable!("cache hit; network must not run") };
+        let response = cache
+            .handle(&client, &HashSet::new(), &accept, request, never)
+            .await;
+
+        assert!(
+            response.status().is_success(),
+            "cached 429 must be judged by the cache-key host's override, got {:?}",
+            response.status()
+        );
+    }
 
     #[test]
     fn test_excluded_status_not_reused_from_cache() {

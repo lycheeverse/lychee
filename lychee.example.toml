@@ -232,3 +232,6 @@ concurrency = 5
 request_interval = "0" # zero disables rate limiting
 # Merge global `header` values with the following `headers` for this host
 headers = { "A" = "B" }
+# Overwrite the global `accept` status codes for this host.
+# This fully REPLACES the global `accept` set (it is not merged with it).
+accept = [200, 429]

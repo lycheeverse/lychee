@@ -143,7 +143,12 @@ impl WebsiteChecker {
             .await
         {
             Ok(response) => {
-                let status = Status::new(&response, &self.accepted);
+                // Resolve the accepted status codes for this host: a per-host
+                // `accept` override fully replaces the global set.
+                let accepted = self
+                    .host_pool
+                    .effective_accept(&request_url, &self.accepted);
+                let status = Status::new(&response, &accepted);
                 // when `accept=200,429`, `status_code=429` will be treated as success
                 // but we are not able the check the fragment since it's inapplicable.
                 if let Some(content) = response.text
@@ -395,10 +400,10 @@ mod tests {
     use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method as method_matcher};
 
     use crate::{
-        BasicAuthExtractor, FragmentCheckerOptions, Uri,
+        BasicAuthExtractor, FragmentCheckerOptions, StatusCodeSelector, Uri,
         chain::RequestChain,
         checker::website::WebsiteChecker,
-        ratelimit::{HostConfigs, HostPool, RateLimitConfig},
+        ratelimit::{HostConfig, HostConfigs, HostKey, HostPool, RateLimitConfig},
         types::{
             DEFAULT_ACCEPTED_STATUS_CODES, Methods, redirect_history::RedirectHistory,
             uri::github::GithubUri,
@@ -407,11 +412,15 @@ mod tests {
 
     /// Build a checker for the given methods, routing requests through a
     /// `HostPool` that uses the supplied `reqwest::Client` (so tests can control
-    /// e.g. the request timeout).
-    fn checker_with(methods: Methods, client: reqwest::Client) -> WebsiteChecker {
+    /// e.g. the request timeout) and the supplied per-host overrides.
+    fn checker_with(
+        methods: Methods,
+        client: reqwest::Client,
+        host_configs: HostConfigs,
+    ) -> WebsiteChecker {
         let host_pool = HostPool::new(
             RateLimitConfig::default(),
-            HostConfigs::default(),
+            host_configs,
             client,
             std::collections::HashMap::new(),
         );
@@ -461,7 +470,7 @@ mod tests {
             .await;
 
         let methods = Methods::from_str("head,get").unwrap();
-        let checker = checker_with(methods, reqwest::Client::new());
+        let checker = checker_with(methods, reqwest::Client::new(), HostConfigs::default());
         let uri = Uri::try_from(server.uri().as_str()).unwrap();
 
         let (status, _) = checker.check_website(&uri).await;
@@ -495,7 +504,7 @@ mod tests {
             .build()
             .unwrap();
         let methods = Methods::from_str("head,get").unwrap();
-        let checker = checker_with(methods, client);
+        let checker = checker_with(methods, client, HostConfigs::default());
         let uri = Uri::try_from(server.uri().as_str()).unwrap();
 
         let (status, _) = checker.check_website(&uri).await;
@@ -503,6 +512,46 @@ mod tests {
         assert!(
             status.is_timeout(),
             "expected timeout to short-circuit fallback, got {status:?}"
+        );
+    }
+
+    /// A per-host `accept` override is applied on the live-check path: a host
+    /// configured to accept 429 treats a 429 response as success, while a host
+    /// without the override treats the same 429 as an error.
+    #[tokio::test]
+    async fn test_per_host_accept_override_on_live_check() {
+        let server = MockServer::start().await;
+        Mock::given(method_matcher("GET"))
+            .respond_with(ResponseTemplate::new(429))
+            .mount(&server)
+            .await;
+
+        let uri = Uri::try_from(server.uri().as_str()).unwrap();
+        let host = uri.url.host_str().unwrap().to_string();
+        let methods = Methods::from_str("get").unwrap();
+
+        // With a per-host `accept` override for the server's host, 429 is
+        // accepted and the check succeeds.
+        let hosts = HostConfigs::from([(
+            HostKey::from(host),
+            HostConfig {
+                accept: Some(StatusCodeSelector::from_str("429").unwrap()),
+                ..HostConfig::default()
+            },
+        )]);
+        let checker = checker_with(methods.clone(), reqwest::Client::new(), hosts);
+        let (status, _) = checker.check_website(&uri).await;
+        assert!(
+            status.is_success(),
+            "per-host accept override should treat 429 as success, got {status:?}"
+        );
+
+        // Without the override, the same 429 is an error.
+        let checker = checker_with(methods, reqwest::Client::new(), HostConfigs::default());
+        let (status, _) = checker.check_website(&uri).await;
+        assert!(
+            status.is_error(),
+            "without a per-host override, 429 should be an error, got {status:?}"
         );
     }
 

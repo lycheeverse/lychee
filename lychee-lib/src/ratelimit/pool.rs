@@ -1,7 +1,7 @@
 use dashmap::DashMap;
-use http::Method;
+use http::{Method, StatusCode};
 use reqwest::{Client, Request};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use crate::ratelimit::{
@@ -92,6 +92,26 @@ impl HostPool {
             .request(method, uri.url.clone())
             .build()
             .map_err(ErrorKind::BuildRequestClient)
+    }
+
+    /// Resolve the effective set of accepted status codes for the host of
+    /// `key` (a URL or URI).
+    ///
+    /// If the host has its own `accept` override it fully **replaces** the
+    /// `global` set; otherwise `global` is returned unchanged. Falls back to
+    /// `global` when `key` has no valid host.
+    #[must_use]
+    pub fn effective_accept<K>(&self, key: K, global: &HashSet<StatusCode>) -> HashSet<StatusCode>
+    where
+        HostKey: TryFrom<K>,
+    {
+        match HostKey::try_from(key) {
+            Ok(host_key) => self
+                .host_configs
+                .get(&host_key)
+                .map_or_else(|| global.clone(), |config| config.effective_accept(global)),
+            Err(_) => global.clone(),
+        }
     }
 
     /// Get an existing host or create a new one for the given hostname
