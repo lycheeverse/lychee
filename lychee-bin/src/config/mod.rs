@@ -321,6 +321,32 @@ pub(crate) struct Config {
     #[arg(long)]
     max_concurrency: Option<NonZeroUsize>,
 
+    /// Recursively check links discovered on remote input websites.
+    ///
+    /// Links on the input domains are followed; external links are checked once
+    /// but are not crawled. Use `--recursed-domains` to allow more domains.
+    #[arg(short = 'R', long, optional_bool_flag(), verbatim_doc_comment)]
+    #[serde(default)]
+    recursive: Option<bool>,
+
+    /// Maximum number of link levels to follow when using `--recursive`.
+    ///
+    /// A value of 0 only checks links found in the input documents.
+    #[arg(long, value_name = "DEPTH", verbatim_doc_comment)]
+    max_depth: Option<usize>,
+
+    /// Additional domains that may be followed when using `--recursive`.
+    ///
+    /// Multiple domains can be separated by commas. Subdomains are included.
+    #[arg(
+        long,
+        value_delimiter = ',',
+        value_name = "DOMAIN",
+        verbatim_doc_comment
+    )]
+    #[serde(default)]
+    recursed_domains: Vec<String>,
+
     /// Default maximum concurrent requests per host (default: 10)
     ///
     /// This limits the maximum amount of requests that are sent simultaneously
@@ -792,6 +818,21 @@ impl Config {
         self.max_concurrency.unwrap_or(DEFAULT_MAX_CONCURRENCY)
     }
 
+    /// Whether links on input domains should be followed recursively
+    pub(crate) fn recursive(&self) -> bool {
+        self.recursive.unwrap_or(false)
+    }
+
+    /// Maximum recursion depth, if configured
+    pub(crate) const fn max_depth(&self) -> Option<usize> {
+        self.max_depth
+    }
+
+    /// Additional domains allowed for recursive crawling
+    pub(crate) fn recursed_domains(&self) -> &[String] {
+        &self.recursed_domains
+    }
+
     /// Maximum number of allowed redirects
     pub(crate) fn max_redirects(&self) -> usize {
         self.max_redirects.unwrap_or(DEFAULT_MAX_REDIRECTS)
@@ -984,10 +1025,12 @@ impl Config {
                 verbose,
                 max_cache_age,
                 max_concurrency,
+                max_depth,
                 max_redirects,
                 max_retries,
                 method,
                 mode,
+                recursive,
                 retry_wait_time,
                 timeout,
                 user_agent,
@@ -998,6 +1041,7 @@ impl Config {
                 include,
                 fallback_extensions,
                 remap,
+                recursed_domains,
                 scheme,
                 header,
             },
@@ -1063,6 +1107,7 @@ This convention also simplifies our default value testing."
             // they are not public because they are only used internally.
             "default_extension",
             "files_from",
+            "max_depth",
         ];
 
         let mut default_values = default_field
@@ -1205,6 +1250,26 @@ This convention also simplifies our default value testing."
                 ("accept".to_string(), "text/html".to_string()),
                 ("x-test".to_string(), "check=this".to_string()),
             ])
+        );
+    }
+
+    #[test]
+    fn test_recursive_options() {
+        let opts = parse_options(vec![
+            "lychee",
+            "--recursive",
+            "--max-depth",
+            "3",
+            "--recursed-domains",
+            "docs.example.com,assets.example.com",
+            "https://example.com",
+        ]);
+
+        assert!(opts.config.recursive());
+        assert_eq!(opts.config.max_depth(), Some(3));
+        assert_eq!(
+            opts.config.recursed_domains(),
+            ["docs.example.com", "assets.example.com"]
         );
     }
 

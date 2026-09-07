@@ -298,8 +298,8 @@ lychee .
 # check links in specific local file(s):
 lychee README.md test.html info.txt
 
-# check links on a website:
-lychee https://endler.dev
+# check all links on a website recursively:
+lychee --recursive https://endler.dev
 ```
 
 For more examples check out our
@@ -671,6 +671,11 @@ Options:
 
           [default: 128]
 
+      --max-depth <DEPTH>
+          Maximum number of link levels to follow when using `--recursive`.
+
+          A value of 0 only checks links found in the input documents.
+
       --max-retries <MAX_RETRIES>
           Maximum number of retries per request
 
@@ -735,6 +740,17 @@ Options:
           Minimum wait time in seconds between retries of failed requests
 
           [default: 1]
+
+  -R, --recursive[=<false|true>]
+          Recursively check links discovered on remote input websites.
+
+          Links on the input domains are followed; external links are checked once
+          but are not crawled. Use `--recursed-domains` to allow more domains.
+
+      --recursed-domains <DOMAIN>
+          Additional domains that may be followed when using `--recursive`.
+
+          Multiple domains can be separated by commas. Subdomains are included.
 
       --remap <REMAP>
           Remap URI matching pattern to different URI

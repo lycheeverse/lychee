@@ -59,6 +59,14 @@ impl Redirects {
         self.redirects.len()
     }
 
+    /// Final URL reached after following the redirect chain.
+    #[must_use]
+    pub fn destination(&self) -> &Url {
+        self.redirects
+            .last()
+            .map_or(&self.origin, |redirect| &redirect.url)
+    }
+
     /// Record a new redirect
     pub fn push(&mut self, redirect: Redirect) {
         self.redirects.push(redirect);
