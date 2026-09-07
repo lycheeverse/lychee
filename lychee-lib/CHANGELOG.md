@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.24.2...lychee-lib-v0.25.0) - 2026-09-07
+
+### Added
+
+- match github's markdown fragment generation ([#2153](https://github.com/lycheeverse/lychee/pull/2153))
+
+### Fixed
+
+- extract issues due to not switching HTML parser states ([#2288](https://github.com/lycheeverse/lychee/pull/2288))
+- default-extension not applied to local files, and tweak help ([#2245](https://github.com/lycheeverse/lychee/pull/2245))
+- count network errors in per-host statistics ([#2203](https://github.com/lycheeverse/lychee/pull/2203))
+
+### Other
+
+- Extend --include-fragments docu #2278 ([#2281](https://github.com/lycheeverse/lychee/pull/2281))
+- Add MegaLinter to users list ([#2277](https://github.com/lycheeverse/lychee/pull/2277))
+- Revert "Wayback reinstate network test ([#2226](https://github.com/lycheeverse/lychee/pull/2226))" ([#2270](https://github.com/lycheeverse/lychee/pull/2270))
+- *(deps)* bump dependencies and fix rustls feature flag  ([#2269](https://github.com/lycheeverse/lychee/pull/2269))
+- add missing `cfg(test)` and fix new 1.97 warnings ([#2266](https://github.com/lycheeverse/lychee/pull/2266))
+- Add short per-domain statistics ([#2253](https://github.com/lycheeverse/lychee/pull/2253))
+- Add domains and links to the Per-host stats header ([#2252](https://github.com/lycheeverse/lychee/pull/2252))
+- *(deps)* bump the dependencies group with 7 updates
+- Append fallback extensions when the pre-existing extension has a space ([#2236](https://github.com/lycheeverse/lychee/pull/2236))
+- add generic Cache to deduplicate in-progress tasks ([#2188](https://github.com/lycheeverse/lychee/pull/2188))
+- pipeline flow in `check.rs` (streams and fewer queues) ([#2136](https://github.com/lycheeverse/lychee/pull/2136))
+- *(deps)* bump the dependencies group with 7 updates
+- Fix broken links ([#2227](https://github.com/lycheeverse/lychee/pull/2227))
+- Wayback reinstate network test ([#2226](https://github.com/lycheeverse/lychee/pull/2226))
+- Fix/rustdoc warnings#2045 ([#2084](https://github.com/lycheeverse/lychee/pull/2084))
+- *(deps)* bump the dependencies group with 5 updates
+- Replace Wayback Availability API with direct snapshot URLs ([#2167](https://github.com/lycheeverse/lychee/pull/2167))
+- Add binstall in docs ([#2222](https://github.com/lycheeverse/lychee/pull/2222))
+- Support HTTP request method fallback ([#2218](https://github.com/lycheeverse/lychee/pull/2218))
+- Make `lychee::latest` track the latest stable release, add `nightly` tag ([#2219](https://github.com/lycheeverse/lychee/pull/2219))
+- Treat .qmd and .Rmd files as Markdown ([#2172](https://github.com/lycheeverse/lychee/pull/2172))
+- Replace custom rate limit header parsing with rate-limits crate ([#2135](https://github.com/lycheeverse/lychee/pull/2135))
+- Remove deprecated legacy cookie format support ([#2215](https://github.com/lycheeverse/lychee/pull/2215))
+- remove broken GitHub Action TOC link in README ([#2216](https://github.com/lycheeverse/lychee/pull/2216))
+- Remove deprecated flags from codebase. ([#2208](https://github.com/lycheeverse/lychee/pull/2208))
+- tweaks features table in readme ([#2171](https://github.com/lycheeverse/lychee/pull/2171))
+- Use hints for root-relative links error ([#2197](https://github.com/lycheeverse/lychee/pull/2197))
+- Merge pull request #2207 from lycheeverse/dependabot/cargo/dependencies-db312993ac
+- Credit NLnet ([#2200](https://github.com/lycheeverse/lychee/pull/2200))
+- Don't unwrap events
+- Extract methods & better error handling
+- *(deps)* bump the dependencies group across 1 directory with 7 updates
+- move basic auth credentials out of Request  ([#2164](https://github.com/lycheeverse/lychee/pull/2164))
+- *(deps)* bump the dependencies group with 2 updates
+- Update changelogs for v0.24.2 ([#2180](https://github.com/lycheeverse/lychee/pull/2180))
+
 ## [0.24.2](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.24.1...lychee-lib-v0.24.2) - 2026-04-30
 
 ### Added
