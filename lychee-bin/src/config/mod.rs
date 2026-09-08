@@ -9,6 +9,7 @@
 pub(crate) mod header;
 pub(crate) mod loaders;
 pub(crate) mod output;
+mod schema;
 pub(crate) mod tls;
 
 pub(crate) use header::*;
@@ -208,6 +209,7 @@ pub(crate) struct Config {
 
     /// Verbose program output
     #[clap(flatten)]
+    #[schemars(with = "Option<schema::Verbosity>")]
     verbose: Option<Verbosity>,
 
     /// Do not show progress bar.
@@ -233,7 +235,7 @@ pub(crate) struct Config {
     ///
     /// [default: md,markdown,mdx,qmd,rmd,mkd,mkdn,mdwn,mdown,mkdown,html,htm,css,txt,xml]
     #[arg(long, verbatim_doc_comment)]
-    #[schemars(with = "String")]
+    #[schemars(with = "Option<Vec<String>>")]
     extensions: Option<FileExtensions>,
 
     /// Parse input sources without a recognised file type by using the given
@@ -262,7 +264,7 @@ pub(crate) struct Config {
     /// [default: 1d]
     #[arg(long, value_parser = humantime::parse_duration)]
     #[serde(default, with = "humantime_serde")]
-    #[schemars(with = "String")]
+    #[schemars(with = "Option<String>")]
     max_cache_age: Option<Duration>,
 
     /// A list of status codes that will be ignored from the cache
@@ -280,7 +282,7 @@ pub(crate) struct Config {
     /// comma-separated list of excluded status codes. This example will not cache results
     /// with a status code of 429, 500 and 501.
     #[arg(long, verbatim_doc_comment)]
-    #[schemars(with = "String")]
+    #[schemars(with = "Option<schema::StatusCodeSelector>")]
     cache_exclude_status: Option<StatusCodeSelector>,
 
     /// Don't perform any link checking.
@@ -299,7 +301,7 @@ pub(crate) struct Config {
     ///
     /// [default: wayback]
     #[arg(long, value_parser = PossibleValuesParser::new(Archive::VARIANTS).map(|s| s.parse::<Archive>().unwrap()))]
-    #[schemars(with = "String")]
+    #[schemars(with = "Option<schema::Archive>")]
     archive: Option<Archive>,
 
     /// Suggest link replacements for broken links, using a web archive.
@@ -355,7 +357,7 @@ pub(crate) struct Config {
     ///   --host-request-interval 1s     # Conservative for rate-limited APIs
     #[arg(long, value_parser = humantime::parse_duration, verbatim_doc_comment)]
     #[serde(default, with = "humantime_serde")]
-    #[schemars(with = "String")]
+    #[schemars(with = "Option<String>")]
     pub(crate) host_request_interval: Option<Duration>,
 
     /// Number of threads to utilize.
@@ -494,7 +496,10 @@ pub(crate) struct Config {
     )]
     #[serde(default)]
     #[serde(deserialize_with = "deserialize_headers")]
-    #[schemars(with = "std::collections::HashMap<String, String>")]
+    #[schemars(
+        with = "std::collections::HashMap<String, String>",
+        default = "schema::empty_string_map"
+    )]
     header: Vec<(String, String)>,
 
     /// A List of accepted status codes for valid links
@@ -514,7 +519,7 @@ pub(crate) struct Config {
     ///
     /// [default: 100..=103,200..=299]
     #[arg(short, long, verbatim_doc_comment)]
-    #[schemars(with = "String")]
+    #[schemars(with = "Option<schema::StatusCodeSelector>")]
     accept: Option<StatusCodeSelector>,
 
     /// Accept timed out requests and return exit code 0
@@ -572,7 +577,7 @@ pub(crate) struct Config {
     /// [default: get]
     // Using `-X` as a short param similar to curl
     #[arg(short = 'X', long)]
-    #[schemars(with = "String")]
+    #[schemars(with = "Option<schema::Methods>")]
     method: Option<Methods>,
 
     /// Base URL to use when resolving relative URLs in local files. If specified,
@@ -600,7 +605,7 @@ pub(crate) struct Config {
         value_parser = parse_base_info,
         verbatim_doc_comment
     )]
-    #[schemars(with = "String")]
+    #[schemars(with = "Option<String>")]
     pub(crate) base_url: Option<BaseInfo>,
 
     /// Root directory to use when checking absolute links in local files. This option is
@@ -620,12 +625,12 @@ pub(crate) struct Config {
 
     /// Basic authentication support. E.g. `http://example.com username:password`
     #[arg(long)]
-    #[schemars(with = "Vec<String>")]
+    #[schemars(with = "Option<Vec<schema::BasicAuthSelector>>")]
     pub(crate) basic_auth: Option<Vec<BasicAuthSelector>>,
 
     /// GitHub API token to use when checking github.com links, to avoid rate limiting
     #[arg(long, env = "GITHUB_TOKEN", hide_env_values = true)]
-    #[schemars(with = "String")]
+    #[schemars(with = "Option<String>")]
     pub(crate) github_token: Option<SecretString>,
 
     /// Skip missing input files (default is to error if they don't exist)
@@ -718,13 +723,13 @@ pub(crate) struct Config {
     /// esac
     /// ```
     #[arg(short, long, value_name = "COMMAND", verbatim_doc_comment)]
-    #[schemars(with = "String")]
+    #[schemars(with = "Option<schema::Preprocessor>")]
     pub(crate) preprocess: Option<Preprocessor>,
 
     /// Host-specific configurations from config file
     #[arg(skip)]
     #[serde(default)]
-    #[schemars(with = "std::collections::HashMap<String, serde_json::Value>")]
+    #[schemars(with = "std::collections::HashMap<String, schema::HostConfig>")]
     pub(crate) hosts: HostConfigs,
 }
 
