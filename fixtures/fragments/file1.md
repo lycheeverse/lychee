@@ -34,6 +34,11 @@ Explicit fragment links are also supported.
 
 [Custom fragment id in file2](file2.md#custom-id)
 
+{#block-heading-id}
+## Block Heading Attribute
+
+[Link to block heading attribute](#block-heading-id)
+
 # Kebab Case Fragment
 
 [Link to kebab-case fragment](#kebab-case-fragment)
