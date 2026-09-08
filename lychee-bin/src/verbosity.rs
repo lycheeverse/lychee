@@ -1,6 +1,5 @@
 use log::Level;
 use log::LevelFilter;
-use schemars::JsonSchema;
 use serde::Deserialize;
 use std::str::FromStr;
 
@@ -14,7 +13,7 @@ use std::str::FromStr;
 /// - `-v` show info
 /// - `-vv` show debug
 /// - `-vvv` show trace
-#[derive(clap::Args, Debug, Default, Clone, PartialEq, Eq, JsonSchema)]
+#[derive(clap::Args, Debug, Default, Clone, PartialEq, Eq)]
 #[command(arg_required_else_help = true)]
 pub(crate) struct Verbosity {
     /// Pass many times for more log output

@@ -184,24 +184,32 @@ fn render_section(title: &str, content: &str, buffer: &mut Vec<u8>) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::{config_schema, man_page};
+    use crate::config::Config;
     use crate::generate::{CONTRIBUTOR_THANK_NOTE, EXIT_CODE_SECTION};
-    use anyhow::Result;
+    use anyhow::{Result, bail};
+    use serde_json::{Value, json};
+
+    fn config_schema_value() -> Result<Value> {
+        Ok(serde_json::from_str(&config_schema()?)?)
+    }
+
+    fn toml_to_json(config: &str) -> Result<Value> {
+        let config: toml::Value = toml::from_str(config)?;
+        Ok(serde_json::to_value(config)?)
+    }
 
     #[test]
     fn test_config_schema() -> Result<()> {
-        let schema: serde_json::Value = serde_json::from_str(&config_schema()?)?;
+        let schema = config_schema_value()?;
 
-        // The schema describes the config file (i.e. the `Config` type).
+        assert!(jsonschema::draft202012::meta::is_valid(&schema));
         assert_eq!(schema["title"], "Config");
-
-        // `deny_unknown_fields` on `Config` should forbid unknown keys.
         assert_eq!(schema["additionalProperties"], false);
+        assert!(schema.get("required").is_none());
+        assert_eq!(schema["properties"]["header"]["default"], json!({}));
 
-        // A few representative options should be present, including their
-        // documentation lifted from the doc comments.
         let properties = &schema["properties"];
         assert!(properties["max_retries"].is_object());
-        assert!(properties["accept"].is_object());
         assert!(
             properties["timeout"]["description"]
                 .as_str()
@@ -209,11 +217,91 @@ mod tests {
                 .contains("timeout")
         );
 
-        // Enum options should expose their allowed values.
         let modes = schema["$defs"]["StatsFormat"]["enum"]
             .as_array()
             .expect("StatsFormat should be represented as an enum");
         assert!(modes.iter().any(|value| value == "json"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_config_schema_accepts_supported_config_forms() -> Result<()> {
+        let schema = config_schema_value()?;
+        let validator = jsonschema::draft202012::new(&schema)?;
+        let configs = [
+            ("empty config", ""),
+            (
+                "example config",
+                include_str!("../../../lychee.example.toml"),
+            ),
+            (
+                "custom deserializers",
+                r#"
+verbose = "Warning"
+extensions = ["md", "html"]
+cache_exclude_status = [429, "500.."]
+archive = "wayback"
+accept = 200
+method = ["head", "get"]
+base_url = "https://example.com"
+basic_auth = ["example.com user:password"]
+github_token = "secret"
+preprocess = { command = "preprocess.sh", ignored = true }
+
+[hosts."example.com"]
+concurrency = 2
+request_interval = "100ms"
+headers = { Accept = "text/html" }
+"#,
+            ),
+        ];
+
+        for (name, config) in configs {
+            if let Err(error) = toml::from_str::<Config>(config) {
+                bail!("{name} should deserialize as Config: {error}");
+            }
+
+            let instance = toml_to_json(config)?;
+            if let Err(error) = validator.validate(&instance) {
+                bail!("{name} should match the generated schema: {error}");
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_config_schema_rejects_unsupported_config_forms() -> Result<()> {
+        let schema = config_schema_value()?;
+        let validator = jsonschema::draft202012::new(&schema)?;
+        let configs = [
+            ("unknown root option", "unknown = true"),
+            (
+                "unknown host option",
+                "[hosts.\"example.com\"]\nunknown = true",
+            ),
+            ("unsupported archive", "archive = \"unknown\""),
+            ("unsupported verbosity", "verbose = \"loud\""),
+            ("empty method list", "method = []"),
+            ("empty method string", "method = \"\""),
+            ("status below minimum", "accept = 42"),
+            ("status string below minimum", "accept = \"42\""),
+            ("malformed basic auth", "basic_auth = [\"user:password\"]"),
+        ];
+
+        for (name, config) in configs {
+            assert!(
+                toml::from_str::<Config>(config).is_err(),
+                "{name} should not deserialize as Config"
+            );
+
+            let instance = toml_to_json(config)?;
+            assert!(
+                !validator.is_valid(&instance),
+                "{name} should not match the generated schema"
+            );
+        }
 
         Ok(())
     }
