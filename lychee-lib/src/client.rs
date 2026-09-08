@@ -13,7 +13,7 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
-use crate::{BasicAuthExtractor, remap::Remap};
+use crate::{BasicAuthExtractor, ExcludeReason, remap::Remap};
 use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use http::{
@@ -566,12 +566,14 @@ impl Client {
         let start = std::time::Instant::now(); // Measure check time
         let remap = self.remap(&mut uri)?.inspect(|r| debug!("Remapping {r}"));
 
-        let (status, redirects) = match uri.scheme() {
-            _ if self.is_excluded(&uri) => (Status::Excluded, None),
-            _ if uri.is_tel() => (Status::Excluded, None), // We don't check tel: URIs
-            _ if uri.is_file() => (self.check_file(&uri).await, None),
-            _ if uri.is_mail() => (self.check_mail(&uri).await, None),
-            _ => self.check_website(&uri).await,
+        let (status, redirects) = if let Some(reason) = self.exclusion_reason(&uri) {
+            (Status::Excluded(reason), None)
+        } else {
+            match uri.scheme() {
+                _ if uri.is_file() => (self.check_file(&uri).await, None),
+                _ if uri.is_mail() => (self.check_mail(&uri).await, None),
+                _ => self.check_website(&uri).await,
+            }
         };
 
         Ok(Response::new(
@@ -614,6 +616,12 @@ impl Client {
     #[must_use]
     pub fn is_excluded(&self, uri: &Uri) -> bool {
         self.filter.is_excluded(uri)
+    }
+
+    /// Returns why the given `uri` should be ignored from checking.
+    #[must_use]
+    pub fn exclusion_reason(&self, uri: &Uri) -> Option<ExcludeReason> {
+        self.filter.exclusion_reason(uri)
     }
 
     /// Checks the given URI of a website.
@@ -678,7 +686,7 @@ mod tests {
 
     use super::ClientBuilder;
     use crate::{
-        BasicAuthExtractor, ErrorKind, Redirect, Redirects, Request, Status, Uri,
+        BasicAuthExtractor, ErrorKind, ExcludeReason, Redirect, Redirects, Request, Status, Uri,
         chain::{ChainResult, Handler, RequestChain},
         remap::{Remap, Remaps},
     };
@@ -1077,7 +1085,7 @@ mod tests {
         #[async_trait]
         impl Handler<Request, Status> for ExampleHandler {
             async fn handle(&mut self, _: Request) -> ChainResult<Request, Status> {
-                ChainResult::Done(Status::Excluded)
+                ChainResult::Done(Status::Excluded(ExcludeReason::RequestChain))
             }
         }
 
@@ -1091,6 +1099,6 @@ mod tests {
 
         let result = client.check("http://example.com");
         let res = result.await.unwrap();
-        assert_eq!(res.status(), &Status::Excluded);
+        assert_eq!(res.status(), &Status::Excluded(ExcludeReason::RequestChain));
     }
 }

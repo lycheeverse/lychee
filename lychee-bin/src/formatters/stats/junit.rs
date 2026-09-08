@@ -115,8 +115,8 @@ mod tests {
             <system-out>https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | Rejected status code: 404 Not Found</system-out>
         </testcase>
         <testcase name="Excluded https://excluded.org/" time="0.042" file="https://example.com/">
-            <skipped message="https://excluded.org/ | This is due to your &apos;exclude&apos; values"/>
-            <system-out>https://excluded.org/ | This is due to your &apos;exclude&apos; values</system-out>
+            <skipped message="https://excluded.org/ | Excluded by pattern: `excluded\.org`"/>
+            <system-out>https://excluded.org/ | Excluded by pattern: `excluded\.org`</system-out>
         </testcase>
         <testcase name="Successful https://success.org/" time="1.000" file="https://example.com/">
             <system-out>https://success.org/</system-out>
@@ -151,7 +151,9 @@ mod tests {
             source.clone(),
             HashSet::from([ResponseBody {
                 uri: "https://excluded.org".try_into().unwrap(),
-                status: Status::Excluded,
+                status: Status::Excluded(lychee_lib::ExcludeReason::Pattern(
+                    r"excluded\.org".to_owned(),
+                )),
                 redirects: None,
                 remap: None,
                 span: None,

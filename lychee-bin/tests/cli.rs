@@ -977,6 +977,29 @@ mod cli {
             .stdout(contains("4 Excluded"));
     }
 
+    #[test]
+    fn test_exclude_reasons() {
+        cargo_bin_cmd!()
+            .arg("--verbose")
+            .arg("--no-progress")
+            .arg("--exclude")
+            .arg(r"wikipedia\.org")
+            .arg("--exclude")
+            .arg(r"example\.com")
+            .arg("-")
+            .write_stdin(
+                "https://en.wikipedia.org/wiki/Static_program_analysis\nmailto:test@example.com",
+            )
+            .assert()
+            .success()
+            .stderr(contains(
+                "[EXCLUDED] https://en.wikipedia.org/wiki/Static_program_analysis (at 1:1) | Excluded by pattern: `wikipedia\\.org`",
+            ))
+            .stderr(contains(
+                "[EXCLUDED] mailto:test@example.com (at 2:8) | Excluded: mail checking is disabled (use --include-mail to enable)",
+            ));
+    }
+
     #[tokio::test]
     async fn test_empty_config() {
         let mock_server = mock_server!(StatusCode::OK);
@@ -1612,7 +1635,7 @@ The config file should contain every possible key for documentation purposes."
                 "[IGNORED] {unsupported_url} (at 1:1) | Unsupported: Failed to create HTTP request client: builder error for url (slack://user)"
             )))
             .stderr(contains(format!(
-                "[EXCLUDED] {excluded_url} (at 2:1) | This is due to your 'exclude' values\n"
+                "[EXCLUDED] {excluded_url} (at 2:1) | Excluded by pattern: `{excluded_url}`\n"
             )));
 
         // The cache file should be empty, because the only checked URL is
@@ -2057,7 +2080,7 @@ The config file should contain every possible key for documentation purposes."
                 "url": "https://bbb.com/",
                 "status": {
                   "text": "Excluded",
-                  "details": "This is due to your 'exclude' values"
+                  "details": "Excluded by pattern: `bbb`"
                 },
                 "remap": {
                     "new": {

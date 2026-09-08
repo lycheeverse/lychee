@@ -15,7 +15,7 @@ pub type Excludes = regex_filter::RegexFilter;
 /// You can exclude paths and files based on regex patterns.
 pub type PathExcludes = regex_filter::RegexFilter;
 
-use crate::Uri;
+use crate::{ExcludeReason, Uri};
 
 /// These domains are explicitly defined by RFC 2606, section 3 Reserved Example
 /// Second Level Domain Names for describing example cases and should not be
@@ -192,20 +192,51 @@ impl Filter {
         matches!(self.includes, Some(ref includes) if includes.is_match(input))
     }
 
-    #[inline]
-    fn is_excludes_match(&self, input: &str) -> bool {
-        matches!(self.excludes, Some(ref excludes) if excludes.is_match(input))
+    /// The reason the IP address of `uri` is excluded, if it is
+    ///
+    /// Mirrors [`Self::is_ip_excluded`], but reports which of the address
+    /// ranges matched so the corresponding flag can be named.
+    fn ip_reason(&self, uri: &Uri) -> Option<ExcludeReason> {
+        // Only reached for URIs with an IP host, so `host_ip` is always `Some`
+        let address = || uri.host_ip().map(|ip| ip.to_string()).unwrap_or_default();
+
+        if self.exclude_loopback_ips && uri.is_loopback() {
+            return Some(ExcludeReason::LoopbackIp(address()));
+        }
+        if self.exclude_private_ips && uri.is_private() {
+            return Some(ExcludeReason::PrivateIp(address()));
+        }
+        if self.exclude_link_local_ips && uri.is_link_local() {
+            return Some(ExcludeReason::LinkLocalIp(address()));
+        }
+        None
     }
 
-    /// Determine whether a given [`Uri`] should be excluded.
+    /// The reason for the first user-provided exclude pattern matching `input`,
+    /// if there is one
+    #[inline]
+    fn pattern_reason(&self, input: &str) -> Option<ExcludeReason> {
+        self.excludes
+            .as_ref()
+            .and_then(|excludes| excludes.matching_pattern(input))
+            .map(|pattern| ExcludeReason::Pattern(pattern.to_owned()))
+    }
+
+    /// Determine why a given [`Uri`] should be excluded, or `None` if it should
+    /// be checked.
     ///
     /// # Details
     ///
     /// 1. If any of the following conditions are met, the URI is excluded:
-    ///   - If it's a mail address and it's not configured to include mail addresses.
-    ///   - If the IP address belongs to a type that is configured to exclude.
-    ///   - If the host belongs to a type that is configured to exclude.
-    ///   - If the scheme of URI is not the allowed scheme.
+    ///    - If the scheme of URI is not the allowed scheme.
+    ///    - If the host belongs to a type that is configured to exclude.
+    ///    - If the IP address belongs to a type that is configured to exclude.
+    ///    - If it's a mail address and it's not configured to include mail addresses.
+    ///    - If it's a telephone link.
+    ///    - If the domain is a reserved example domain or a known unsupported
+    ///      domain. A matching user-provided exclude pattern is reported in
+    ///      preference to the built-in reason, because that is the rule the user
+    ///      can act on.
     /// 2. Decide whether the URI is *presumably included* or *explicitly included*:
     ///    - When both excludes and includes rules are empty, it's *presumably included* unless
     ///      it's a known false positive.
@@ -215,58 +246,81 @@ impl Filter {
     ///    - When excludes rules is empty, but includes rules doesn't match the URI, it's
     ///      *presumably excluded*.
     ///    - When the excludes rules matches the URI, it's *explicitly excluded*.
-    ///    - When the excludes rules matches the URI, it's *explicitly excluded*.
     #[must_use]
-    pub fn is_excluded(&self, uri: &Uri) -> bool {
-        // Skip mail address, specific IP, specific host and scheme
-        if self.is_scheme_excluded(uri)
-            || self.is_host_excluded(uri)
-            || self.is_ip_excluded(uri)
-            || self.is_mail_excluded(uri)
-            || uri.is_tel()
-            || is_example_domain(uri)
-            || is_unsupported_domain(uri)
-        {
-            return true;
+    pub fn exclusion_reason(&self, uri: &Uri) -> Option<ExcludeReason> {
+        if self.is_scheme_excluded(uri) {
+            return Some(ExcludeReason::Scheme(uri.scheme().to_owned()));
+        }
+        if self.is_host_excluded(uri) {
+            return Some(ExcludeReason::Host(
+                uri.domain().unwrap_or_default().to_owned(),
+            ));
+        }
+        if let Some(reason) = self.ip_reason(uri) {
+            return Some(reason);
+        }
+        if self.is_mail_excluded(uri) {
+            return Some(ExcludeReason::Mail);
+        }
+        if uri.is_tel() {
+            return Some(ExcludeReason::Telephone);
         }
 
         let input = uri.as_str();
 
+        let builtin_domain_reason = if is_example_domain(uri) {
+            Some(ExcludeReason::ExampleDomain)
+        } else if is_unsupported_domain(uri) {
+            Some(ExcludeReason::UnsupportedDomain)
+        } else {
+            None
+        };
+        if let Some(builtin) = builtin_domain_reason {
+            // Built-in domain rules exclude the URI either way. Still prefer
+            // reporting a matching user-provided pattern, which makes the
+            // configured rule visible without changing include precedence.
+            if self.is_includes_match(input) {
+                return Some(builtin);
+            }
+            return Some(self.pattern_reason(input).unwrap_or(builtin));
+        }
+
         if self.is_includes_empty() {
             if self.is_excludes_empty() {
-                // Both excludes and includes rules are empty:
-                // *Presumably included* unless it's a false positive
-                return is_false_positive(input);
+                return is_false_positive(input).then_some(ExcludeReason::FalsePositive);
             }
         } else if self.is_includes_match(input) {
-            // *Explicitly included* (Includes take precedence over excludes)
-            return false;
+            return None;
         }
 
-        // Exclude well-known false-positives
-        // Performed after checking includes to allow user-overwrites
-        if is_false_positive(input)
-                // Previous checks imply input is not explicitly included.
-                // If exclude rules are empty, then *presumably excluded*
-                || self.is_excludes_empty()
-                // If exclude rules match input, then *explicitly excluded*
-                || self.is_excludes_match(input)
-        {
-            return true;
+        if is_false_positive(input) {
+            return Some(ExcludeReason::FalsePositive);
         }
+        if self.is_excludes_empty() {
+            return Some(ExcludeReason::NotIncluded);
+        }
+        self.pattern_reason(input)
+    }
 
-        false
+    /// Determine whether a given [`Uri`] should be excluded.
+    ///
+    /// See [`Self::exclusion_reason`] for the rules that are applied, and to
+    /// find out *why* a URI is excluded.
+    #[must_use]
+    pub fn is_excluded(&self, uri: &Uri) -> bool {
+        self.exclusion_reason(uri).is_some()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use reqwest::Url;
+    use std::collections::HashSet;
     use test_utils::{mail, website};
     use url::Host;
 
     use super::{Excludes, Filter, Includes};
-    use crate::Uri;
+    use crate::{ExcludeReason, Uri};
 
     // Note: the standard library, as of Rust stable 1.47.0, does not expose
     // "link-local" or "private" IPv6 checks. However, one might argue
@@ -418,6 +472,167 @@ mod tests {
         assert!(!filter.is_excluded(&website!("http://bar.dev")));
         assert!(filter.is_excluded(&mail!("foo@bar.dev")));
     }
+
+    #[test]
+    fn test_exclusion_reason() {
+        let excludes = Excludes::new([r"example\.com", r"https://example"]).unwrap();
+        let filter = Filter {
+            excludes: Some(excludes),
+            ..Filter::default()
+        };
+
+        assert_eq!(
+            filter.exclusion_reason(&website!("https://example.com")),
+            Some(ExcludeReason::Pattern(r"example\.com".to_owned()))
+        );
+        assert_eq!(
+            filter.exclusion_reason(&mail!("test@example.com")),
+            Some(ExcludeReason::Mail)
+        );
+        assert_eq!(
+            filter.exclusion_reason(&website!("https://other.org")),
+            None
+        );
+    }
+
+    #[test]
+    fn test_exclusion_reason_scheme() {
+        let filter = Filter {
+            schemes: HashSet::from(["https".to_string()]),
+            ..Filter::default()
+        };
+
+        assert_eq!(
+            filter.exclusion_reason(&website!("http://foo.org")),
+            Some(ExcludeReason::Scheme("http".to_owned()))
+        );
+        assert_eq!(filter.exclusion_reason(&website!("https://foo.org")), None);
+    }
+
+    #[test]
+    fn test_exclusion_reason_host() {
+        let filter = Filter {
+            exclude_loopback_ips: true,
+            ..Filter::default()
+        };
+
+        assert_eq!(
+            filter.exclusion_reason(&website!("http://localhost/foo")),
+            Some(ExcludeReason::Host("localhost".to_owned()))
+        );
+    }
+
+    #[test]
+    fn test_exclusion_reason_ips_name_the_matching_range() {
+        let filter = Filter {
+            exclude_loopback_ips: true,
+            exclude_private_ips: true,
+            exclude_link_local_ips: true,
+            ..Filter::default()
+        };
+
+        assert_eq!(
+            filter.exclusion_reason(&website!(V4_LOOPBACK)),
+            Some(ExcludeReason::LoopbackIp("127.0.0.1".to_owned()))
+        );
+        assert_eq!(
+            filter.exclusion_reason(&website!(V6_LOOPBACK)),
+            Some(ExcludeReason::LoopbackIp("::1".to_owned()))
+        );
+        assert_eq!(
+            filter.exclusion_reason(&website!(V4_PRIVATE_CLASS_C)),
+            Some(ExcludeReason::PrivateIp("192.168.0.1".to_owned()))
+        );
+        assert_eq!(
+            filter.exclusion_reason(&website!(V4_LINK_LOCAL_1)),
+            Some(ExcludeReason::LinkLocalIp("169.254.0.1".to_owned()))
+        );
+    }
+
+    #[test]
+    fn test_exclusion_reason_ips_only_report_enabled_ranges() {
+        // A private IP is not excluded when only loopback IPs are excluded
+        let filter = Filter {
+            exclude_loopback_ips: true,
+            ..Filter::default()
+        };
+
+        assert_eq!(filter.exclusion_reason(&website!(V4_PRIVATE_CLASS_A)), None);
+    }
+
+    #[test]
+    fn test_exclusion_reason_telephone() {
+        let filter = Filter::default();
+        let uri = Uri::try_from("tel:+1234567890").unwrap();
+
+        assert_eq!(
+            filter.exclusion_reason(&uri),
+            Some(ExcludeReason::Telephone)
+        );
+    }
+
+    #[test]
+    fn test_exclusion_reason_false_positive() {
+        let filter = Filter::default();
+
+        assert_eq!(
+            filter.exclusion_reason(&website!("https://ogp.me/ns#")),
+            Some(ExcludeReason::FalsePositive)
+        );
+    }
+
+    #[test]
+    fn test_exclusion_reason_not_included() {
+        let filter = Filter {
+            includes: Some(Includes::new([r"foo\.org"]).unwrap()),
+            ..Filter::default()
+        };
+
+        assert_eq!(
+            filter.exclusion_reason(&website!("https://bar.org")),
+            Some(ExcludeReason::NotIncluded)
+        );
+        assert_eq!(filter.exclusion_reason(&website!("https://foo.org")), None);
+    }
+
+    #[test]
+    fn test_exclusion_reason_unsupported_domain() {
+        let filter = Filter::default();
+
+        assert_eq!(
+            filter.exclusion_reason(&website!("https://twitter.com/lycheeverse")),
+            Some(ExcludeReason::UnsupportedDomain)
+        );
+    }
+
+    /// A user-provided pattern is reported in preference to a built-in domain
+    /// rule, because that is the rule the user can act on. Includes still take
+    /// precedence over the user's excludes.
+    ///
+    /// Note: this exercises the same branch as reserved example domains, which
+    /// cannot be tested here because `EXAMPLE_DOMAINS` is empty under `cfg(test)`.
+    #[test]
+    fn test_exclusion_reason_prefers_user_pattern_over_builtin_domain() {
+        let filter = Filter {
+            excludes: Some(Excludes::new([r"twitter\.com"]).unwrap()),
+            ..Filter::default()
+        };
+        assert_eq!(
+            filter.exclusion_reason(&website!("https://twitter.com/lycheeverse")),
+            Some(ExcludeReason::Pattern(r"twitter\.com".to_owned()))
+        );
+
+        let filter = Filter {
+            includes: Some(Includes::new([r"twitter\.com"]).unwrap()),
+            excludes: Some(Excludes::new([r"twitter\.com"]).unwrap()),
+            ..Filter::default()
+        };
+        assert_eq!(
+            filter.exclusion_reason(&website!("https://twitter.com/lycheeverse")),
+            Some(ExcludeReason::UnsupportedDomain)
+        );
+    }
+
     #[test]
     fn test_exclude_include_regex() {
         let includes = Includes::new([r"foo.example.com"]).unwrap();

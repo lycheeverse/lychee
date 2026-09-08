@@ -13,7 +13,7 @@ impl ResponseFormatter for TaskFormatter {
 mod task_tests {
     use super::*;
     use http::StatusCode;
-    use lychee_lib::{ErrorKind, Redirect, Redirects, Status, Uri};
+    use lychee_lib::{ErrorKind, ExcludeReason, Redirect, Redirects, Status, Uri};
     use test_utils::mock_response_body;
 
     #[test]
@@ -42,10 +42,13 @@ mod task_tests {
     #[test]
     fn test_format_response_with_excluded_status() {
         let formatter = TaskFormatter;
-        let body = mock_response_body!(Status::Excluded, "https://example.com/not-checked");
+        let body = mock_response_body!(
+            Status::Excluded(ExcludeReason::Pattern("example\\.com".to_owned())),
+            "https://example.com/not-checked"
+        );
         assert_eq!(
             formatter.format_response(&body),
-            "- [ ] [EXCLUDED] https://example.com/not-checked | This is due to your 'exclude' values"
+            "- [ ] [EXCLUDED] https://example.com/not-checked | Excluded by pattern: `example\\.com`"
         );
     }
 

@@ -90,7 +90,7 @@ impl ResponseStats {
             Status::Error(_) | Status::RequestError(_) => self.errors += 1,
             Status::UnknownStatusCode(_) | Status::UnknownMailStatus(_) => self.unknown += 1,
             Status::Timeout(_) => self.timeouts += 1,
-            Status::Excluded => self.excludes += 1,
+            Status::Excluded(_) => self.excludes += 1,
             Status::Unsupported(_) => self.unsupported += 1,
             Status::Cached(cache_status) => {
                 self.cached += 1;
@@ -204,7 +204,9 @@ mod tests {
     }
 
     fn dummy_excluded() -> Response {
-        mock_response(Status::Excluded)
+        mock_response(Status::Excluded(lychee_lib::ExcludeReason::Pattern(
+            r"excluded\.org".to_owned(),
+        )))
     }
 
     fn dummy_unsupported() -> Response {

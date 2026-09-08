@@ -36,6 +36,17 @@ impl RegexFilter {
         self.regex.is_match(input)
     }
 
+    /// Returns the first regular expression that matches the input.
+    #[must_use]
+    pub fn matching_pattern(&self, input: &str) -> Option<&str> {
+        self.regex
+            .matches(input)
+            .iter()
+            .next()
+            .and_then(|index| self.regex.patterns().get(index))
+            .map(String::as_str)
+    }
+
     #[inline]
     #[must_use]
     /// Whether there were no regular expressions defined
@@ -47,5 +58,21 @@ impl RegexFilter {
 impl From<RegexSet> for RegexFilter {
     fn from(regex: RegexSet) -> Self {
         Self { regex }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RegexFilter;
+
+    #[test]
+    fn finds_first_matching_pattern() {
+        let filter = RegexFilter::new([r"example\.com", r"https://example"]).unwrap();
+
+        assert_eq!(
+            filter.matching_pattern("https://example.com"),
+            Some(r"example\.com")
+        );
+        assert_eq!(filter.matching_pattern("https://other.org"), None);
     }
 }

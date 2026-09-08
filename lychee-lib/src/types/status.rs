@@ -16,6 +16,82 @@ const ICON_ERROR: &str = "✗";
 const ICON_TIMEOUT: &str = "⧖";
 const ICON_CACHED: &str = "↻";
 
+/// The reason why a resource was excluded from checking.
+#[derive(Debug, Hash, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ExcludeReason {
+    /// A user-provided exclude pattern matched the resource.
+    Pattern(String),
+    /// Mail checking is disabled.
+    Mail,
+    /// The URI scheme is not among the accepted schemes.
+    Scheme(String),
+    /// The host is excluded.
+    Host(String),
+    /// The IP address is in the loopback range.
+    LoopbackIp(String),
+    /// The IP address is in a private range.
+    PrivateIp(String),
+    /// The IP address is in the link-local range.
+    LinkLocalIp(String),
+    /// Telephone links are not checked.
+    Telephone,
+    /// Reserved example domains are not checked.
+    ExampleDomain,
+    /// The domain is not supported.
+    UnsupportedDomain,
+    /// The resource is a known false positive.
+    FalsePositive,
+    /// No user-provided include pattern matched the resource.
+    NotIncluded,
+    /// Mail checking support is not enabled in this build.
+    MailFeatureDisabled,
+    /// A request chain excluded the resource.
+    RequestChain,
+}
+
+impl Display for ExcludeReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Pattern(pattern) => write!(f, "Excluded by pattern: `{pattern}`"),
+            Self::Mail => {
+                f.write_str("Excluded: mail checking is disabled (use --include-mail to enable)")
+            }
+            Self::Scheme(scheme) => {
+                write!(
+                    f,
+                    "Excluded: scheme `{scheme}` is not among the accepted schemes"
+                )
+            }
+            Self::Host(host) => write!(
+                f,
+                "Excluded: host `{host}` resolves to a loopback address (use --exclude-loopback=false to check it)"
+            ),
+            Self::LoopbackIp(addr) => write!(
+                f,
+                "Excluded: `{addr}` is a loopback IP address (use --exclude-loopback=false to check it)"
+            ),
+            Self::PrivateIp(addr) => write!(
+                f,
+                "Excluded: `{addr}` is a private IP address (use --exclude-private=false to check it)"
+            ),
+            Self::LinkLocalIp(addr) => write!(
+                f,
+                "Excluded: `{addr}` is a link-local IP address (use --exclude-link-local=false to check it)"
+            ),
+            Self::Telephone => f.write_str("Excluded: telephone links are not checked"),
+            Self::ExampleDomain => f.write_str("Excluded: example domains are not checked"),
+            Self::UnsupportedDomain => f.write_str("Excluded: domain is not supported"),
+            Self::FalsePositive => f.write_str("Excluded: known false positive"),
+            Self::NotIncluded => f.write_str("Excluded: no include pattern matched"),
+            Self::MailFeatureDisabled => {
+                f.write_str("Excluded: mail checking support is not enabled in this build")
+            }
+            Self::RequestChain => f.write_str("Excluded by request chain"),
+        }
+    }
+}
+
 /// Response status of the request.
 #[allow(variant_size_differences)]
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -35,7 +111,7 @@ pub enum Status {
     /// mail servers (blocklisting) or your ISP (port filtering).
     UnknownMailStatus(String),
     /// Resource was excluded from checking
-    Excluded,
+    Excluded(ExcludeReason),
     /// The request type is currently not supported,
     /// for example when the URL scheme is `slack://`.
     /// See <https://github.com/lycheeverse/lychee/issues/199>
@@ -56,7 +132,7 @@ impl Display for Status {
             Status::Error(e) => write!(f, "{e}"),
             Status::RequestError(e) => write!(f, "{e}"),
             Status::Cached(status) => write!(f, "{status}"),
-            Status::Excluded => f.write_str("Excluded"),
+            Status::Excluded(_) => f.write_str("Excluded"),
         }
     }
 }
@@ -142,7 +218,7 @@ impl Status {
             Status::RequestError(e) => e.error().details(),
             Status::UnknownMailStatus(reason) => reason.clone(),
             Status::Timeout(_) => "Request timed out".into(),
-            Status::Excluded => "This is due to your 'exclude' values".into(),
+            Status::Excluded(reason) => reason.to_string(),
             Status::Unsupported(_) | Status::Cached(_) | Status::UnknownStatusCode(_) => {
                 self.to_string()
             }
@@ -175,7 +251,7 @@ impl Status {
     pub const fn is_excluded(&self) -> bool {
         matches!(
             self,
-            Status::Excluded | Status::Cached(CacheStatus::Excluded)
+            Status::Excluded(_) | Status::Cached(CacheStatus::Excluded)
         )
     }
 
@@ -213,7 +289,7 @@ impl Status {
         match self {
             Status::Ok(_) => ICON_OK,
             Status::UnknownStatusCode(_) | Status::UnknownMailStatus(_) => ICON_UNKNOWN,
-            Status::Excluded => ICON_EXCLUDED,
+            Status::Excluded(_) => ICON_EXCLUDED,
             Status::Error(_) | Status::RequestError(_) => ICON_ERROR,
             Status::Timeout(_) => ICON_TIMEOUT,
             Status::Unsupported(_) => ICON_UNSUPPORTED,
@@ -246,7 +322,7 @@ impl Status {
         match self {
             Status::Ok(code) | Status::UnknownStatusCode(code) => code.as_u16().to_string(),
             Status::UnknownMailStatus(_) => "UNKNOWN".to_string(),
-            Status::Excluded => "EXCLUDED".to_string(),
+            Status::Excluded(_) => "EXCLUDED".to_string(),
             Status::Error(e) => match e {
                 ErrorKind::RejectedStatusCode(code) => code.as_u16().to_string(),
                 ErrorKind::ReadResponseBody(e) | ErrorKind::BuildRequestClient(e) => {
@@ -300,8 +376,80 @@ impl From<ErrorKind> for Status {
 
 #[cfg(test)]
 mod tests {
-    use crate::{CacheStatus, ErrorKind, Status};
+    use crate::{CacheStatus, ErrorKind, ExcludeReason, Status};
     use http::StatusCode;
+
+    /// The rendered reason is what users see for every excluded link, so pin
+    /// down the wording of every variant.
+    ///
+    /// This also covers the variants that cannot be reached from the filter
+    /// unit tests: `ExampleDomain` (the example domain set is empty under
+    /// `cfg(test)`) and `MailFeatureDisabled` (only produced when the
+    /// `email-check` feature is off).
+    #[test]
+    fn test_exclude_reason_messages() {
+        let cases = [
+            (
+                ExcludeReason::Pattern(r"example\.com".to_owned()),
+                r"Excluded by pattern: `example\.com`",
+            ),
+            (
+                ExcludeReason::Mail,
+                "Excluded: mail checking is disabled (use --include-mail to enable)",
+            ),
+            (
+                ExcludeReason::Scheme("http".to_owned()),
+                "Excluded: scheme `http` is not among the accepted schemes",
+            ),
+            (
+                ExcludeReason::Host("localhost".to_owned()),
+                "Excluded: host `localhost` resolves to a loopback address (use --exclude-loopback=false to check it)",
+            ),
+            (
+                ExcludeReason::LoopbackIp("127.0.0.1".to_owned()),
+                "Excluded: `127.0.0.1` is a loopback IP address (use --exclude-loopback=false to check it)",
+            ),
+            (
+                ExcludeReason::PrivateIp("192.168.0.1".to_owned()),
+                "Excluded: `192.168.0.1` is a private IP address (use --exclude-private=false to check it)",
+            ),
+            (
+                ExcludeReason::LinkLocalIp("169.254.0.1".to_owned()),
+                "Excluded: `169.254.0.1` is a link-local IP address (use --exclude-link-local=false to check it)",
+            ),
+            (
+                ExcludeReason::Telephone,
+                "Excluded: telephone links are not checked",
+            ),
+            (
+                ExcludeReason::ExampleDomain,
+                "Excluded: example domains are not checked",
+            ),
+            (
+                ExcludeReason::UnsupportedDomain,
+                "Excluded: domain is not supported",
+            ),
+            (
+                ExcludeReason::FalsePositive,
+                "Excluded: known false positive",
+            ),
+            (
+                ExcludeReason::NotIncluded,
+                "Excluded: no include pattern matched",
+            ),
+            (
+                ExcludeReason::MailFeatureDisabled,
+                "Excluded: mail checking support is not enabled in this build",
+            ),
+            (ExcludeReason::RequestChain, "Excluded by request chain"),
+        ];
+
+        for (reason, expected) in cases {
+            assert_eq!(reason.to_string(), expected);
+            // The reason is what ends up in the report and in JSON output
+            assert_eq!(Status::Excluded(reason).details(), expected);
+        }
+    }
 
     #[test]
     fn test_status_serialization() {
@@ -358,7 +506,7 @@ mod tests {
         );
         assert_eq!(Status::Timeout(None).code(), None);
         assert_eq!(Status::Cached(CacheStatus::Error(None)).code(), None);
-        assert_eq!(Status::Excluded.code(), None);
+        assert_eq!(Status::Excluded(ExcludeReason::Mail).code(), None);
         assert_eq!(
             Status::Unsupported(ErrorKind::InvalidStatusCode(999)).code(),
             None

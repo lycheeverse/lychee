@@ -112,7 +112,7 @@ impl RetryExt for Status {
             | Status::RequestError(_)
             | Status::UnknownStatusCode(_)
             | Status::UnknownMailStatus(_)
-            | Status::Excluded
+            | Status::Excluded(_)
             | Status::Unsupported(_)
             | Status::Cached(_) => false,
         }
