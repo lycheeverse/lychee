@@ -1270,6 +1270,7 @@ This convention also simplifies our default value testing."
                         "very secret".into(),
                     )]))
                     .unwrap(),
+                    accept: None,
                 },
             )]),
             ..Default::default()
@@ -1286,6 +1287,7 @@ This convention also simplifies our default value testing."
                         "there".into(),
                     )]))
                     .unwrap(),
+                    accept: None,
                 },
             )]),
             ..Default::default()
@@ -1303,7 +1305,8 @@ This convention also simplifies our default value testing."
                         ("password".into(), "very secret".into()),
                         ("hi".into(), "there".into()),
                     ]))
-                    .unwrap()
+                    .unwrap(),
+                    accept: None,
                 }
             )])
         );

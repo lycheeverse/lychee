@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::collections::hash_map::Iter;
 use std::time::Duration;
 
+use crate::StatusCodeSelector;
 use crate::ratelimit::HostKey;
 
 /// Default number of concurrent requests per host
@@ -128,6 +129,14 @@ pub struct HostConfig {
     #[serde(deserialize_with = "deserialize_headers")]
     #[serde(serialize_with = "serialize_headers")]
     pub headers: HeaderMap,
+
+    /// Accepted status codes for this host.
+    ///
+    /// When set, this fully replaces the global `accept` set for this host
+    /// (it is not merged with it), consistent with how `concurrency` and
+    /// `request_interval` override their global defaults.
+    #[serde(default)]
+    pub accept: Option<StatusCodeSelector>,
 }
 
 impl Default for HostConfig {
@@ -136,6 +145,7 @@ impl Default for HostConfig {
             concurrency: None,
             request_interval: None,
             headers: HeaderMap::new(),
+            accept: None,
         }
     }
 }
@@ -166,6 +176,7 @@ impl HostConfig {
             concurrency: self.concurrency.or(other.concurrency),
             request_interval: self.request_interval.or(other.request_interval),
             headers: self.headers,
+            accept: self.accept.or(other.accept),
         }
     }
 }
@@ -205,6 +216,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn test_default_rate_limit_config() {
@@ -230,12 +242,41 @@ mod tests {
             concurrency: Some(5),
             request_interval: Some(Duration::from_millis(500)),
             headers: HeaderMap::new(),
+            accept: None,
         };
         assert_eq!(host_config.effective_concurrency(&global_config), 5);
         assert_eq!(
             host_config.effective_request_interval(&global_config),
             Duration::from_millis(500)
         );
+    }
+
+    #[test]
+    fn test_host_config_merge_accept_precedence() {
+        let a = StatusCodeSelector::from_str("200").unwrap();
+        let b = StatusCodeSelector::from_str("429").unwrap();
+
+        // self=Some + other=Some -> self wins.
+        let merged = HostConfig {
+            accept: Some(a.clone()),
+            ..HostConfig::default()
+        }
+        .merge(HostConfig {
+            accept: Some(b.clone()),
+            ..HostConfig::default()
+        });
+        assert_eq!(merged.accept, Some(a));
+
+        // self=None + other=Some -> other fills in.
+        let merged = HostConfig::default().merge(HostConfig {
+            accept: Some(b.clone()),
+            ..HostConfig::default()
+        });
+        assert_eq!(merged.accept, Some(b));
+
+        // both None -> None.
+        let merged = HostConfig::default().merge(HostConfig::default());
+        assert_eq!(merged.accept, None);
     }
 
     #[test]
@@ -262,6 +303,7 @@ mod tests {
             concurrency: Some(5),
             request_interval: Some(Duration::from_millis(500)),
             headers,
+            accept: None,
         };
 
         let toml = toml::to_string(&host_config).unwrap();
@@ -275,5 +317,28 @@ mod tests {
         assert_eq!(deserialized.headers.len(), 2);
         assert!(deserialized.headers.contains_key("authorization"));
         assert!(deserialized.headers.contains_key("user-agent"));
+    }
+
+    #[test]
+    fn test_accept_deserialization() {
+        // Mirrors the per-host TOML shape: `[hosts."example.com"] accept = [200, 429]`
+        let host_config: HostConfig = toml::from_str("accept = [200, 429]").unwrap();
+        let selector = host_config.accept.expect("accept should be set");
+        assert!(selector.contains(200));
+        assert!(selector.contains(429));
+        assert!(!selector.contains(404));
+    }
+
+    #[test]
+    fn test_accept_serialization_round_trip() {
+        let host_config = HostConfig {
+            accept: Some(StatusCodeSelector::from_str("200..=204,429").unwrap()),
+            ..HostConfig::default()
+        };
+
+        let toml = toml::to_string(&host_config).unwrap();
+        let deserialized: HostConfig = toml::from_str(&toml).unwrap();
+
+        assert_eq!(deserialized.accept, host_config.accept);
     }
 }

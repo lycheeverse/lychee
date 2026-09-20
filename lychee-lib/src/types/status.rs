@@ -99,28 +99,17 @@ impl Status {
     /// Create a status object from a cached status (from a previous run of
     /// lychee) and the set of accepted status codes.
     ///
-    /// The set of accepted status codes can change between runs,
-    /// necessitating more complex logic than just using the cached status.
-    ///
-    /// Note that the accepted status codes are not of type `StatusCode`,
-    /// because they are provided by the user and can be invalid according to
-    /// the HTTP spec and IANA, but the user might still want to accept them.
+    /// Reevaluate cached HTTP codes against the current accept set, which can
+    /// change between runs. Cached statuses without an HTTP code are preserved.
     #[must_use]
     pub fn from_cache_status(s: CacheStatus, accepted: &HashSet<StatusCode>) -> Self {
         match s {
-            CacheStatus::Ok(code) => {
-                if matches!(s, CacheStatus::Ok(_)) || accepted.contains(&code) {
-                    return Self::Cached(CacheStatus::Ok(code));
+            CacheStatus::Ok(code) | CacheStatus::Error(Some(code)) => {
+                if accepted.contains(&code) {
+                    Self::Cached(CacheStatus::Ok(code))
+                } else {
+                    Self::Cached(CacheStatus::Error(Some(code)))
                 }
-                Self::Cached(CacheStatus::Error(Some(code)))
-            }
-            CacheStatus::Error(code) => {
-                if let Some(code) = code
-                    && accepted.contains(&code)
-                {
-                    return Self::Cached(CacheStatus::Ok(code));
-                }
-                Self::Cached(CacheStatus::Error(code))
             }
             _ => Self::Cached(s),
         }
@@ -300,6 +289,8 @@ impl From<ErrorKind> for Status {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use crate::{CacheStatus, ErrorKind, Status};
     use http::StatusCode;
 
@@ -362,6 +353,43 @@ mod tests {
         assert_eq!(
             Status::Unsupported(ErrorKind::InvalidStatusCode(999)).code(),
             None
+        );
+    }
+
+    #[rstest::rstest]
+    #[case::keep_success(CacheStatus::Ok(StatusCode::OK), true)]
+    #[case::reject_success(CacheStatus::Ok(StatusCode::OK), false)]
+    #[case::accept_error(CacheStatus::Error(Some(StatusCode::OK)), true)]
+    #[case::keep_error(CacheStatus::Error(Some(StatusCode::OK)), false)]
+    fn test_cached_http_status_uses_current_accept_set(
+        #[case] cached: CacheStatus,
+        #[case] accept_ok: bool,
+    ) {
+        let accepted = if accept_ok {
+            HashSet::from([StatusCode::OK])
+        } else {
+            HashSet::new()
+        };
+        let expected = if accept_ok {
+            CacheStatus::Ok(StatusCode::OK)
+        } else {
+            CacheStatus::Error(Some(StatusCode::OK))
+        };
+
+        assert_eq!(
+            Status::from_cache_status(cached, &accepted),
+            Status::Cached(expected)
+        );
+    }
+
+    #[rstest::rstest]
+    #[case(CacheStatus::Error(None))]
+    #[case(CacheStatus::Excluded)]
+    #[case(CacheStatus::Unsupported)]
+    fn test_cached_status_without_code_is_preserved(#[case] cached: CacheStatus) {
+        assert_eq!(
+            Status::from_cache_status(cached, &HashSet::from([StatusCode::OK])),
+            Status::Cached(cached)
         );
     }
 

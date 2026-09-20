@@ -1,7 +1,7 @@
 use std::{collections::HashSet, fmt::Display, hash::BuildHasher, str::FromStr, sync::LazyLock};
 
 use http::StatusCode;
-use serde::{Deserialize, de::Visitor};
+use serde::{Deserialize, Serialize, Serializer, de::Visitor};
 use thiserror::Error;
 
 use crate::{StatusRangeError, types::accept::StatusRange};
@@ -117,6 +117,17 @@ impl<S: BuildHasher + Default> From<StatusCodeSelector> for HashSet<StatusCode, 
             .into_iter()
             .flat_map(<HashSet<StatusCode>>::from)
             .collect()
+    }
+}
+
+impl Serialize for StatusCodeSelector {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // Serialize as the `Display` string (e.g. `200..=299,429`), which
+        // round-trips through the `FromStr`-based deserializer.
+        serializer.serialize_str(&self.to_string())
     }
 }
 
