@@ -42,6 +42,9 @@ impl WikilinkIndex {
             .follow_links(false)
             .into_iter()
             .filter_map(Result::ok)
+            // Only files can be link targets, and a directory entry would
+            // overwrite the same-named file in the index.
+            .filter(|entry| entry.file_type().is_file())
         {
             if let Some(filename) = entry.path().file_name() {
                 self.filenames
