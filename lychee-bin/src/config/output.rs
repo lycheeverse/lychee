@@ -4,12 +4,15 @@
 //! such as color modes and output formats (e.g. JSON, Compact, Detailed).
 
 use anyhow::{Error, Result, anyhow};
+use schemars::JsonSchema;
 use serde::Deserialize;
 use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString, VariantNames};
 
 /// The format to use for the final status report
-#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, VariantNames, PartialEq)]
+#[derive(
+    Debug, Deserialize, Default, Clone, Display, EnumIter, VariantNames, PartialEq, JsonSchema,
+)]
 #[non_exhaustive]
 #[strum(serialize_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
@@ -42,7 +45,16 @@ impl FromStr for StatsFormat {
 /// This decides over whether to use color,
 /// emojis, or plain text for the output.
 #[derive(
-    Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq,
+    Debug,
+    Deserialize,
+    Default,
+    Clone,
+    Display,
+    EnumIter,
+    EnumString,
+    VariantNames,
+    PartialEq,
+    JsonSchema,
 )]
 #[non_exhaustive]
 pub(crate) enum OutputMode {
