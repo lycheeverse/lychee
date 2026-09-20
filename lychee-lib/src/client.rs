@@ -962,7 +962,7 @@ mod tests {
     async fn test_max_redirects() {
         let mock_server = wiremock::MockServer::start().await;
 
-        let redirect_uri = format!("{}/redirect", &mock_server.uri());
+        let redirect_uri = format!("{}/redirect", mock_server.uri());
         let redirect = wiremock::ResponseTemplate::new(StatusCode::PERMANENT_REDIRECT)
             .insert_header("Location", redirect_uri.as_str());
 

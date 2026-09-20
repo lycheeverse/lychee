@@ -117,7 +117,7 @@ a
 {#review-multiple-first} {#review-multiple-second}
 ## Review Multiple Groups Heading
 
-[Link to nonexistent first review multiple-group attribute](#review-multiple-first)
+[Link to first review multiple-group attribute](#review-multiple-first)
 [Link to nonexistent second review multiple-group attribute](#review-multiple-second)
 [Link to heading after review multiple-group attributes](#review-multiple-groups-heading)
 

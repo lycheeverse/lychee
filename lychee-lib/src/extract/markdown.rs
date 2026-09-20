@@ -277,14 +277,15 @@ fn raw_uri(dest_url: &CowStr<'_>, span: RawUriSpan) -> Vec<RawUri> {
 /// `## Frag 1 {#frag-2}` would generate two fragments.
 ///
 /// Preceding `#id` attributes follow a subset of `MyST`'s [block attributes]: a
-/// single-line brace group before an ATX or Setext heading, optionally separated
-/// by blank lines. Literal code, escaped braces, and surrounding paragraph text
-/// do not declare IDs. Headings inside blockquotes are supported too.
+/// single-line attribute block before an ATX or Setext heading, optionally
+/// separated by blank lines. Literal code and escaped braces do not declare IDs.
+/// Headings inside blockquotes are supported too.
 ///
-/// This is not a full `MyST` attribute parser: stacked groups, `id=value`, comments,
-/// and attributes on non-heading blocks are not supported. Nested braces and
-/// multiple groups on one line are deliberately rejected, including cases that
-/// mdit-py-plugins 0.6.1 accepts by ignoring trailing input.
+/// Like mdit-py-plugins 0.6.1, we require the line to start and end with braces,
+/// but only interpret the first group; trailing groups or text are ignored.
+/// Within that group, the last `#id` wins and quoted values are skipped.
+/// This is not a full `MyST` attribute parser: groups stacked on separate lines,
+/// `id=value`, comments, and attributes on non-heading blocks are not supported.
 ///
 /// [heading attribute]: https://github.com/pulldown-cmark/pulldown-cmark/blob/94e7011a22a235e3abc5c5d6f3615192a6b1e42b/pulldown-cmark/specs/heading_attrs.txt
 /// [block attributes]: https://mdit-py-plugins.readthedocs.io/en/latest/#mdit_py_plugins.attrs.attrs_block_plugin
@@ -387,27 +388,40 @@ fn extract_block_heading_id(text: &str) -> Option<HeadingId> {
     // https://github.com/executablebooks/mdit-py-plugins/blob/da70e05b7630c38047d1921ef21d1aadc34c1ea9/mdit_py_plugins/attrs/parse.py#L60-L81
     let mut quoted = false;
     let mut escaped = false;
-    let mut invalid_syntax = false;
-    let id = inner
-        .split(|character: char| {
-            if escaped {
-                escaped = false;
-            } else if quoted && character == '\\' {
-                escaped = true;
-            } else if character == '"' {
-                quoted = !quoted;
-            } else if !quoted && matches!(character, '{' | '}' | '%') {
-                invalid_syntax = true;
-            }
-            character.is_whitespace() && !quoted
-        })
-        .filter(|attribute| attribute.starts_with('#') && attribute.len() > 1)
-        .last();
+    let mut attribute_start = 0;
+    let mut id = None;
 
-    if quoted || invalid_syntax {
-        return None;
+    // Restore the stripped closing delimiter so the last token is handled too.
+    for (index, character) in inner
+        .char_indices()
+        .chain(std::iter::once((inner.len(), '}')))
+    {
+        if escaped {
+            escaped = false;
+        } else if quoted && character == '\\' {
+            escaped = true;
+        } else if character == '"' {
+            quoted = !quoted;
+        } else if !quoted {
+            match character {
+                '{' | '%' => return None,
+                c if c.is_whitespace() || c == '}' => {
+                    let attribute = &inner[attribute_start..index];
+                    if attribute.starts_with('#') && attribute.len() > 1 {
+                        id = Some(attribute);
+                    }
+                    if c == '}' {
+                        // MyST stops at the first group, ignoring trailing input.
+                        // https://github.com/executablebooks/mdit-py-plugins/blob/da70e05b7630c38047d1921ef21d1aadc34c1ea9/mdit_py_plugins/attrs/index.py#L212-L219
+                        return id.and_then(|attribute| HeadingId::try_from(attribute).ok());
+                    }
+                    attribute_start = index + c.len_utf8();
+                }
+                _ => {}
+            }
+        }
     }
-    id.and_then(|attribute| HeadingId::try_from(attribute).ok())
+    None
 }
 
 /// Remove exactly one outer pair of braces, leaving the contents unchanged.
@@ -485,7 +499,15 @@ mod tests {
     #[case::multiline_lf("{.class\n#foo}", None)]
     #[case::multiline_crlf("{.class\r\n#foo}", None)]
     #[case::multiple_blocks("{#first}\n{#second}", None)]
-    #[case::multiple_groups("{ #first } { #second }", None)]
+    #[case::multiple_groups("{ #first } { #second }", Some("first"))]
+    #[case::adjacent_groups("{#first}{#second}", Some("first"))]
+    #[case::last_id_in_first_group("{#first #second} {#third}", Some("second"))]
+    #[case::trailing_text_before_final_brace("{#first} ignored}", Some("first"))]
+    #[case::trailing_text_without_final_brace("{#first} ignored", None)]
+    #[case::ignored_malformed_group(r#"{#first} {title="unclosed}"#, Some("first"))]
+    #[case::quoted_brace_before_group(r#"{#first title="}"} {#second}"#, Some("first"))]
+    #[case::escaped_quote_before_group(r#"{#first title="a \" }"} {#second}"#, Some("first"))]
+    #[case::empty_first_group("{} {#second}", None)]
     #[case::between_empty_groups("{} #between-empty-sets {}", None)]
     #[case::nested_spaced("{{ #double-braced }}", None)]
     #[case::nested_tight("{{#double-braced-no-space}}", None)]
@@ -502,7 +524,7 @@ mod tests {
     #[case::quoted_syntax_after_escaped_quote(r#"{#real title="a \" {%}"}"#, Some("real"))]
     #[case::unquoted_percent_after_value(r#"{#real title="ok" % comment %}"#, None)]
     #[case::unquoted_opening_brace_after_value(r#"{#real title="ok" {}"#, None)]
-    #[case::unquoted_closing_brace_after_value(r#"{#real title="ok" }}"#, None)]
+    #[case::extra_closing_brace_after_value(r#"{#real title="ok" }}"#, Some("real"))]
     fn test_extract_block_heading_id(#[case] input: &str, #[case] expected: Option<&str>) {
         let actual = extract_block_heading_id(input).map(HeadingId::into_string);
         assert_eq!(actual.as_deref(), expected);
@@ -593,7 +615,7 @@ or inline like `https://bar.org` for instance.
     }
 
     // Cases from https://github.com/lycheeverse/lychee/pull/2250#pullrequestreview-4606456065.
-    // Unlike mdit-py-plugins 0.6.1, trailing brace groups are deliberately rejected.
+    // Expectations follow mdit-py-plugins 0.6.1, including ignored trailing groups.
     #[rstest]
     #[case::spaces("{ #spaces-around }\n# a", &["a", "spaces-around"])]
     #[case::text_before("a {#text-before}\n# a", &["a"])]
@@ -604,7 +626,8 @@ or inline like `https://bar.org` for instance.
     #[case::inline_code("`{#inside-code-inline}`\n# a", &["a"])]
     #[case::emphasis("*{#inside-bold}*\n# a", &["a"])]
     #[case::blockquote("> {#inside-quote}\n> # a", &["a", "inside-quote"])]
-    #[case::multiple_groups("{ #multiple-attributes } { #multiple-attributes2 }\n# a", &["a"])]
+    #[case::multiple_groups("{ #multiple-attributes } { #multiple-attributes2 }\n# a", &["a", "multiple-attributes"])]
+    #[case::multiple_groups_setext("{#first} {#second}\nHeading\n=======", &["heading", "first"])]
     #[case::between_empty_groups("{} #between-empty-sets {}\n# a", &["a"])]
     #[case::nested_spaced("{{ #double-braced }}\n# a", &["a"])]
     #[case::nested_tight("{{#double-braced-no-space}}\n# a", &["a"])]
