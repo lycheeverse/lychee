@@ -14,14 +14,14 @@ pub(crate) fn extract_xml<S: SpanProvider>(input: &str, span_provider: &S) -> Ve
     loop {
         match reader.read_event() {
             Ok(Event::Start(element)) => match element.name().as_ref() {
-                b"loc" /* sitemap */ | b"link" /* RSS */ => {
+                "loc" /* sitemap */ | "link" /* RSS */ => {
                      if let Some(raw_uri) = extract_uri_without_attribute(&element, span_provider, &mut reader ) {
                          uris.push(raw_uri);
                      }
                 },
                 _ => {}
             },
-            Ok(Event::Empty(element)) if element.name().as_ref() == b"link" => {
+            Ok(Event::Empty(element)) if element.name().as_ref() == "link" => {
                 uris.append(&mut extract_uris_from_href(
                     &element,
                     span_provider,
@@ -58,22 +58,20 @@ fn extract_uris_from_href<S: SpanProvider>(
     element
         .attributes()
         .flatten()
-        .filter(|attr| attr.key.as_ref() == b"href")
-        .filter_map(|attr| {
-            let text = std::str::from_utf8(attr.value.as_ref()).ok()?.to_string();
-            let element = std::str::from_utf8(element.name().as_ref())
-                .ok()?
-                .to_string();
+        .filter(|attr| attr.key.as_ref() == "href")
+        .map(|attr| {
+            let text = attr.value.into_owned();
+            let element = element.name().as_ref().to_string();
             let end_of_empty_tag = reader.buffer_position() as usize;
             // Span is a bit imprecise, as it points to the end of the element. However, quick_xml does not provide the position of attributes, so this is the best we can do.
             let span = span_provider.span(end_of_empty_tag);
 
-            Some(RawUri {
+            RawUri {
                 text,
                 element: Some(element),
                 attribute: Some("href".to_string()),
                 span,
-            })
+            }
         })
         .collect()
 }
@@ -95,11 +93,9 @@ fn extract_uri_without_attribute<S: SpanProvider>(
     let text = reader
         .read_text(element.name())
         .ok()?
-        .decode()
-        .ok()?
-        .as_ref()
-        .to_string();
-    let element = Some(String::from_utf8(element.name().as_ref().to_vec()).ok()?);
+        .into_inner()
+        .into_owned();
+    let element = Some(element.name().as_ref().to_string());
 
     Some(RawUri {
         text,
@@ -111,12 +107,34 @@ fn extract_uri_without_attribute<S: SpanProvider>(
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use crate::types::uri::raw::{SourceSpanProvider, span};
 
     use super::*;
 
     fn extract(input: &str) -> Vec<RawUri> {
         extract_xml(input, &SourceSpanProvider::from_input(input))
+    }
+
+    #[rstest]
+    #[case::sitemap("<loc>https://example.com/café</loc>", "https://example.com/café")]
+    #[case::atom(
+        r#"<link href="https://example.com/café" />"#,
+        "https://example.com/café"
+    )]
+    #[case::text_entities(
+        "<link>https://example.com/?a=1&amp;b=2</link>",
+        "https://example.com/?a=1&amp;b=2"
+    )]
+    #[case::attribute_entities(
+        r#"<link href="https://example.com/?a=1&amp;b=2" />"#,
+        "https://example.com/?a=1&amp;b=2"
+    )]
+    fn test_extract_preserves_raw_uri_text(#[case] input: &str, #[case] expected: &str) {
+        let uris = extract(input);
+        assert_eq!(uris.len(), 1);
+        assert_eq!(uris[0].text, expected);
     }
 
     #[test]
