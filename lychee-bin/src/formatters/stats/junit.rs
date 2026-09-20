@@ -29,7 +29,6 @@ impl StatsFormatter for Junit {
 
 /// Unfortunately there is no official specification of this format,
 /// but there is documentation available at <https://github.com/testmoapp/junitxml>.
-/// Note that using a library would be overkill in this case.
 fn junit_xml(stats: ResponseStats) -> Report {
     const NAME: &str = "lychee link check results";
     let mut report = Report::new(NAME);
@@ -45,11 +44,9 @@ fn junit_testcases(stats: ResponseStats) -> Vec<TestCase> {
     let failures = junit_testcases_group(
         stats.error_map,
         TestCaseStatus::non_success(NonSuccessKind::Failure),
-        "Failed",
     );
-    let skipped = junit_testcases_group(stats.excluded_map, TestCaseStatus::skipped(), "Excluded");
-    let successes =
-        junit_testcases_group(stats.success_map, TestCaseStatus::success(), "Successful");
+    let skipped = junit_testcases_group(stats.excluded_map, TestCaseStatus::skipped());
+    let successes = junit_testcases_group(stats.success_map, TestCaseStatus::success());
 
     [failures, skipped, successes].concat()
 }
@@ -57,13 +54,17 @@ fn junit_testcases(stats: ResponseStats) -> Vec<TestCase> {
 fn junit_testcases_group(
     map: HashMap<InputSource, HashSet<ResponseBody>>,
     status: TestCaseStatus,
-    reason: &str,
 ) -> Vec<TestCase> {
     map.into_iter()
         .flat_map(move |(source, b)| {
             let status = status.clone();
             b.into_iter().map(move |response| {
-                let name = format!("{reason} {}", response.uri);
+                // Identify the link occurrence, not its outcome, so CI can track
+                // the same test when a broken link is fixed.
+                let name = match response.span {
+                    Some(span) => format!("{source}:{span} - {}", response.uri),
+                    None => format!("{source} - {}", response.uri),
+                };
                 let mut testcase = TestCase::new(name, status.clone());
                 testcase.time = response.duration;
 
@@ -94,11 +95,16 @@ mod tests {
     };
 
     use http::StatusCode;
-    use lychee_lib::{InputSource, ResponseBody, Status};
+    use lychee_lib::{ErrorKind, InputSource, RawUriSpan, ResponseBody, Status};
     use pretty_assertions::assert_eq;
+    use rstest::rstest;
     use url::Url;
 
-    use crate::formatters::stats::{self, OutputStats, StatsFormatter, junit::Junit};
+    use crate::formatters::stats::{
+        self, OutputStats, ResponseStats, StatsFormatter, junit::Junit,
+    };
+
+    use super::junit_testcases;
 
     #[test]
     fn test_junit_formatter() {
@@ -110,20 +116,132 @@ mod tests {
             r#"<?xml version="1.0" encoding="UTF-8"?>
 <testsuites name="lychee link check results" tests="3" skipped="1" failures="1" errors="0">
     <testsuite name="lychee link check results" tests="3" skipped="1" errors="0" failures="1">
-        <testcase name="Failed https://github.com/mre/idiomatic-rust-doesnt-exist-man" time="1.000" file="https://example.com/" line="1">
+        <testcase name="https://example.com/:1:1 - https://github.com/mre/idiomatic-rust-doesnt-exist-man" time="1.000" file="https://example.com/" line="1">
             <failure message="https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | Rejected status code: 404 Not Found"/>
             <system-out>https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | Rejected status code: 404 Not Found</system-out>
         </testcase>
-        <testcase name="Excluded https://excluded.org/" time="0.042" file="https://example.com/">
+        <testcase name="https://example.com/ - https://excluded.org/" time="0.042" file="https://example.com/">
             <skipped message="https://excluded.org/ | This is due to your &apos;exclude&apos; values"/>
             <system-out>https://excluded.org/ | This is due to your &apos;exclude&apos; values</system-out>
         </testcase>
-        <testcase name="Successful https://success.org/" time="1.000" file="https://example.com/">
+        <testcase name="https://example.com/ - https://success.org/" time="1.000" file="https://example.com/">
             <system-out>https://success.org/</system-out>
         </testcase>
     </testsuite>
 </testsuites>
 "#
+        );
+    }
+
+    fn response(span: Option<RawUriSpan>, status: Status) -> ResponseBody {
+        ResponseBody {
+            uri: "https://example.com/link".try_into().unwrap(),
+            status,
+            redirects: None,
+            remap: None,
+            span,
+            duration: None,
+        }
+    }
+
+    fn span(line: usize, column: Option<usize>) -> RawUriSpan {
+        RawUriSpan {
+            line: line.try_into().unwrap(),
+            column: column.map(|value| value.try_into().unwrap()),
+        }
+    }
+
+    #[rstest]
+    #[case::without_position(None, "")]
+    #[case::with_position(Some(span(1, Some(1))), ":1:1")]
+    fn same_url_in_different_files_has_distinct_names(
+        #[case] position: Option<RawUriSpan>,
+        #[case] location: &str,
+    ) {
+        let stats = ResponseStats {
+            error_map: ["README.md", "guide.md"]
+                .into_iter()
+                .map(|path| {
+                    (
+                        InputSource::FsPath(path.into()),
+                        HashSet::from([response(
+                            position,
+                            Status::Error(ErrorKind::RejectedStatusCode(StatusCode::NOT_FOUND)),
+                        )]),
+                    )
+                })
+                .collect(),
+            ..Default::default()
+        };
+        let cases = junit_testcases(stats);
+        assert_eq!(cases.len(), 2);
+        let names: HashSet<_> = cases.iter().map(|case| case.name.to_string()).collect();
+
+        assert_eq!(
+            names,
+            HashSet::from([
+                format!("README.md{location} - https://example.com/link"),
+                format!("guide.md{location} - https://example.com/link"),
+            ])
+        );
+    }
+
+    #[test]
+    fn same_url_at_different_positions_has_distinct_names() {
+        let stats = ResponseStats {
+            success_map: HashMap::from([(
+                InputSource::FsPath("README.md".into()),
+                [
+                    span(1, Some(1)),
+                    span(1, Some(20)),
+                    span(2, Some(1)),
+                    span(3, None),
+                ]
+                .into_iter()
+                .map(|span| response(Some(span), Status::Ok(StatusCode::OK)))
+                .collect(),
+            )]),
+            ..Default::default()
+        };
+        let cases = junit_testcases(stats);
+        assert_eq!(cases.len(), 4);
+        let names: HashSet<_> = cases.iter().map(|case| case.name.to_string()).collect();
+        assert_eq!(
+            names,
+            [
+                "README.md:1:1 - https://example.com/link",
+                "README.md:1:20 - https://example.com/link",
+                "README.md:2:1 - https://example.com/link",
+                "README.md:3 - https://example.com/link",
+            ]
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+        );
+    }
+
+    #[rstest]
+    #[case::success(Status::Ok(StatusCode::OK))]
+    #[case::failure(Status::Error(ErrorKind::RejectedStatusCode(StatusCode::NOT_FOUND)))]
+    #[case::excluded(Status::Excluded)]
+    fn testcase_name_does_not_depend_on_status(#[case] status: Status) {
+        let mut stats = ResponseStats::default();
+        let map = if status.is_success() {
+            &mut stats.success_map
+        } else if status.is_error() {
+            &mut stats.error_map
+        } else {
+            &mut stats.excluded_map
+        };
+        map.insert(
+            InputSource::FsPath("README.md".into()),
+            HashSet::from([response(Some(span(12, Some(3))), status)]),
+        );
+        let cases = junit_testcases(stats);
+        assert_eq!(cases.len(), 1);
+        assert_eq!(
+            cases[0].name.as_str(),
+            "README.md:12:3 - https://example.com/link"
         );
     }
 
