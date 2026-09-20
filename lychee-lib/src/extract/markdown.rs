@@ -380,9 +380,6 @@ fn extract_block_heading_id(text: &str) -> Option<HeadingId> {
         return None;
     }
     let inner = strip_braces(text)?;
-    if inner.contains(['{', '}', '%']) {
-        return None;
-    }
 
     // Keep quoted attribute values together so e.g. title="a #not-an-id"
     // cannot introduce an ID. MyST uses the last ID in an attribute group:
@@ -390,6 +387,7 @@ fn extract_block_heading_id(text: &str) -> Option<HeadingId> {
     // https://github.com/executablebooks/mdit-py-plugins/blob/da70e05b7630c38047d1921ef21d1aadc34c1ea9/mdit_py_plugins/attrs/parse.py#L60-L81
     let mut quoted = false;
     let mut escaped = false;
+    let mut invalid_syntax = false;
     let id = inner
         .split(|character: char| {
             if escaped {
@@ -398,13 +396,15 @@ fn extract_block_heading_id(text: &str) -> Option<HeadingId> {
                 escaped = true;
             } else if character == '"' {
                 quoted = !quoted;
+            } else if !quoted && matches!(character, '{' | '}' | '%') {
+                invalid_syntax = true;
             }
             character.is_whitespace() && !quoted
         })
         .filter(|attribute| attribute.starts_with('#') && attribute.len() > 1)
         .last();
 
-    if quoted {
+    if quoted || invalid_syntax {
         return None;
     }
     id.and_then(|attribute| HeadingId::try_from(attribute).ok())
@@ -495,6 +495,14 @@ mod tests {
     #[case::escaped_quote(r#"{#real title="a \" #not-an-id"}"#, Some("real"))]
     #[case::unclosed_quote(r#"{#real title="unclosed}"#, None)]
     #[case::unsupported_comment("{#real % #not-an-id %}", None)]
+    #[case::quoted_percent(r#"{#real title="100%"}"#, Some("real"))]
+    #[case::quoted_opening_brace(r#"{#real title="{"}"#, Some("real"))]
+    #[case::quoted_closing_brace(r#"{#real title="}"}"#, Some("real"))]
+    #[case::quoted_syntax_before_id(r#"{title="{#fake} 100%" #real}"#, Some("real"))]
+    #[case::quoted_syntax_after_escaped_quote(r#"{#real title="a \" {%}"}"#, Some("real"))]
+    #[case::unquoted_percent_after_value(r#"{#real title="ok" % comment %}"#, None)]
+    #[case::unquoted_opening_brace_after_value(r#"{#real title="ok" {}"#, None)]
+    #[case::unquoted_closing_brace_after_value(r#"{#real title="ok" }}"#, None)]
     fn test_extract_block_heading_id(#[case] input: &str, #[case] expected: Option<&str>) {
         let actual = extract_block_heading_id(input).map(HeadingId::into_string);
         assert_eq!(actual.as_deref(), expected);
