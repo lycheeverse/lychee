@@ -37,7 +37,7 @@ impl GitHubChecker {
         Self { api }
     }
 
-    /// Check GitHub URL shapes that should use provider-specific semantics
+    /// Check GitHub URLs that require provider-specific semantics
     /// before the generic website checker runs.
     pub(crate) async fn check_before_website(
         &self,
@@ -48,13 +48,18 @@ impl GitHubChecker {
             return None;
         }
 
-        let GitHubUrl::RepoReadme { owner, repo, ref_ } = GitHubUrl::parse(uri)? else {
+        let GitHubUrl::RepoReadme {
+            owner,
+            repo,
+            git_ref,
+        } = GitHubUrl::parse(uri)?
+        else {
             return None;
         };
 
         Some(
             self.api
-                .check_repo_readme(&owner, &repo, ref_.as_deref())
+                .check_repo_readme(&owner, &repo, git_ref.as_deref())
                 .await,
         )
     }

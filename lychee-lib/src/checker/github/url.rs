@@ -23,7 +23,7 @@ static GITHUB_RESERVED_OWNERS: LazyLock<HashSet<&'static str>> = LazyLock::new(|
     ])
 });
 
-/// GitHub URL shapes which lychee treats specially.
+/// GitHub URLs that require special handling.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum GitHubUrl {
     /// Repository root, e.g. `https://github.com/owner/repo`.
@@ -39,7 +39,8 @@ pub(crate) enum GitHubUrl {
     RepoReadme {
         owner: String,
         repo: String,
-        ref_: Option<String>,
+        /// Branch, tag, or commit; `None` selects the default branch.
+        git_ref: Option<String>,
     },
     /// Markdown blob URL with a non-line fragment, which can be checked via raw
     /// content and lychee's normal markdown fragment checker.
@@ -54,13 +55,13 @@ pub(crate) enum GitHubUrl {
 }
 
 impl GitHubUrl {
-    /// Parse a lychee URI into a supported GitHub URL shape.
+    /// Classify a lychee URI as a supported GitHub URL.
     #[must_use]
     pub(crate) fn parse(uri: &Uri) -> Option<Self> {
         Self::parse_url(&uri.url)
     }
 
-    /// Parse a URL into a supported GitHub URL shape.
+    /// Classify a URL as a supported GitHub URL.
     #[must_use]
     pub(crate) fn parse_url(url: &Url) -> Option<Self> {
         if url.domain()? != "github.com" {
@@ -79,11 +80,11 @@ impl GitHubUrl {
 
         match segments.as_slice() {
             [owner, repo] => Some(parse_repo(owner, repo, url.fragment())),
-            [owner, repo, "tree", ref_] if url.fragment() == Some("readme") => {
+            [owner, repo, "tree", git_ref] if url.fragment() == Some("readme") => {
                 Some(Self::RepoReadme {
                     owner: (*owner).to_owned(),
                     repo: strip_git_suffix(repo).to_owned(),
-                    ref_: Some((*ref_).to_owned()),
+                    git_ref: Some((*git_ref).to_owned()),
                 })
             }
             [owner, repo, "blob", rest @ ..] => Some(parse_blob(owner, repo, rest, url.fragment())),
@@ -96,6 +97,7 @@ impl GitHubUrl {
         }
     }
 
+    /// Return the owner and repository when this variant stores them.
     #[must_use]
     pub(crate) fn repo_parts(&self) -> Option<(&str, &str)> {
         match self {
@@ -113,7 +115,7 @@ fn parse_repo(owner: &str, repo: &str, fragment: Option<&str>) -> GitHubUrl {
         GitHubUrl::RepoReadme {
             owner: owner.to_owned(),
             repo: strip_git_suffix(repo).to_owned(),
-            ref_: None,
+            git_ref: None,
         }
     } else {
         GitHubUrl::Repo {
@@ -223,7 +225,7 @@ mod tests {
             Some(GitHubUrl::RepoReadme {
                 owner: "lycheeverse".to_owned(),
                 repo: "lychee".to_owned(),
-                ref_: None,
+                git_ref: None,
             })
         );
     }
@@ -235,7 +237,7 @@ mod tests {
             Some(GitHubUrl::RepoReadme {
                 owner: "lycheeverse".to_owned(),
                 repo: "lychee".to_owned(),
-                ref_: Some("main".to_owned()),
+                git_ref: Some("main".to_owned()),
             })
         );
     }

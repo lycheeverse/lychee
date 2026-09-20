@@ -10,9 +10,13 @@ use crate::{Result, Status, Uri, ratelimit::HostPool};
 const GITHUB_API_BASE_URL: &str = "https://api.github.com";
 const GITHUB_API_ACCEPT: &str = "application/vnd.github+json";
 
+/// Result of a repository lookup, including visibility for API fallback checks.
 #[derive(Debug)]
 pub(crate) struct RepoStatus {
+    /// HTTP or transport outcome, using the configured accepted status codes.
     pub(crate) status: Status,
+    /// Repository visibility, when an accepted response contains that metadata.
+    /// `None` means visibility is unknown, not that the repository is public.
     pub(crate) private: Option<bool>,
 }
 
@@ -61,6 +65,7 @@ impl GitHubApi {
         }
     }
 
+    /// Check repository access and retrieve its visibility when available.
     pub(crate) async fn check_repo(&self, owner: &str, repo: &str) -> RepoStatus {
         match self
             .get_repo_status(&format!("/repos/{owner}/{repo}"))
@@ -74,16 +79,18 @@ impl GitHubApi {
         }
     }
 
+    /// Check whether a repository has a README at the given branch, tag, or commit.
+    /// Omitting `git_ref` uses the repository's default branch.
     pub(crate) async fn check_repo_readme(
         &self,
         owner: &str,
         repo: &str,
-        ref_: Option<&str>,
+        git_ref: Option<&str>,
     ) -> Status {
         match self
             .get_status(
                 &format!("/repos/{owner}/{repo}/readme"),
-                ref_.map(|r| ("ref", r)),
+                git_ref.map(|r| ("ref", r)),
             )
             .await
         {
