@@ -269,8 +269,29 @@ mod tests {
         assert_eq!(pool.active_host_count(), 0);
     }
 
-    #[test]
-    fn test_accepted_status_codes() {
+    #[rstest::rstest]
+    #[case::file_without_host(
+        "file:///tmp/test.html",
+        StatusCodeSelector::default_accepted().into()
+    )]
+    #[case::mailto_without_host(
+        "mailto:test@example.com",
+        StatusCodeSelector::default_accepted().into()
+    )]
+    #[case::unconfigured_host(
+        "https://unconfigured.example/path",
+        StatusCodeSelector::default_accepted().into()
+    )]
+    #[case::host_without_override(
+        "https://default.example/path",
+        StatusCodeSelector::default_accepted().into()
+    )]
+    #[case::host_override(
+        "https://override.example/path",
+        HashSet::from([StatusCode::TOO_MANY_REQUESTS])
+    )]
+    #[case::empty_override("https://empty.example/path", HashSet::new())]
+    fn test_accepted_status_codes(#[case] url: &str, #[case] expected: HashSet<StatusCode>) {
         let global: HashSet<StatusCode> = StatusCodeSelector::default_accepted().into();
         let pool = HostPool::new(
             RateLimitConfig::default(),
@@ -295,20 +316,8 @@ mod tests {
             HashMap::new(),
         );
 
-        for (url, expected) in [
-            ("file:///tmp/test.html", global.clone()),
-            ("mailto:test@example.com", global.clone()),
-            ("https://unconfigured.example/path", global.clone()),
-            ("https://default.example/path", global.clone()),
-            (
-                "https://override.example/path",
-                HashSet::from([StatusCode::TOO_MANY_REQUESTS]),
-            ),
-            ("https://empty.example/path", HashSet::new()),
-        ] {
-            let url: Url = url.parse().unwrap();
-            assert_eq!(pool.accepted_status_codes(&url, &global), expected, "{url}");
-        }
+        let url: Url = url.parse().unwrap();
+        assert_eq!(pool.accepted_status_codes(&url, &global), expected, "{url}");
     }
 
     #[tokio::test]
