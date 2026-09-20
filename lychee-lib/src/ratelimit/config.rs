@@ -132,7 +132,7 @@ pub struct HostConfig {
 
     /// Accepted status codes for this host.
     ///
-    /// When set, this fully **replaces** the global `accept` set for this host
+    /// When set, this fully replaces the global `accept` set for this host
     /// (it is not merged with it), consistent with how `concurrency` and
     /// `request_interval` override their global defaults.
     #[serde(default)]

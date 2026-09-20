@@ -240,7 +240,6 @@ mod test {
     #[derive(Debug)]
     struct Add(usize);
 
-    #[allow(dead_code)] // work-around
     #[derive(Debug, PartialEq, Eq)]
     struct Result(usize);
 

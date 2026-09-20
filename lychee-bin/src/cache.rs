@@ -214,7 +214,7 @@ mod tests {
     };
 
     /// A per-host `accept` override must be applied when reinterpreting a cached
-    /// status, and it must be resolved from the *cache-key host* so a cross-host
+    /// status, and it must be resolved from the cache-key host so a cross-host
     /// cache hit is judged by that host's codes, not the global set.
     #[tokio::test]
     async fn test_cache_hit_uses_per_host_accept() {
