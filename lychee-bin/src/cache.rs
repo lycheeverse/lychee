@@ -161,7 +161,7 @@ fn cache_hit(
         // cache-key host. A per-host `accept` override replaces the global set;
         // resolving from the cache-key (post-remap) `Uri` ensures a cross-host
         // cache hit is judged by that host's codes, not the global ones.
-        let accept = client.host_pool().effective_accept(cache_key, accept);
+        let accept = client.host_pool().accepted_status_codes(cache_key, accept);
         Status::from_cache_status(value.status, &accept)
     };
 
@@ -271,14 +271,25 @@ mod tests {
         }
     }
 
-    /// The per-host `accept` override on a cache hit must be resolved from the
-    /// *cache-key* host (post-remap), not the original request host. Here the
-    /// request host (`request-host.com`) has no override and remaps to a
-    /// different cache-key host (`accepted-host.com`) which accepts 429. The
-    /// cached 429 is judged by the cache-key host's override, so it succeeds.
-    /// If resolution keyed off the request URL instead, this would fail.
     #[tokio::test]
-    async fn test_cache_hit_resolves_accept_from_cache_key_host() {
+    async fn test_cache_hit_accepts_error_using_cache_key_host() {
+        assert_cache_hit_uses_cache_key_host(
+            CacheStatus::Error(Some(StatusCode::TOO_MANY_REQUESTS)),
+            CacheStatus::Ok(StatusCode::TOO_MANY_REQUESTS),
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_cache_hit_rejects_success_using_cache_key_host() {
+        assert_cache_hit_uses_cache_key_host(
+            CacheStatus::Ok(StatusCode::OK),
+            CacheStatus::Error(Some(StatusCode::OK)),
+        )
+        .await;
+    }
+
+    async fn assert_cache_hit_uses_cache_key_host(cached: CacheStatus, expected: CacheStatus) {
         use lychee_lib::remap::Remaps;
 
         let host_cfg = HostConfig {
@@ -316,7 +327,7 @@ mod tests {
         cache.insert(
             cache_key,
             CacheValue {
-                status: CacheStatus::Error(Some(StatusCode::TOO_MANY_REQUESTS)),
+                status: cached,
                 timestamp: timestamp(),
             },
         );
@@ -326,11 +337,7 @@ mod tests {
             .handle(&client, &HashSet::new(), &accept, request, never)
             .await;
 
-        assert!(
-            response.status().is_success(),
-            "cached 429 must be judged by the cache-key host's override, got {:?}",
-            response.status()
-        );
+        assert_eq!(response.status(), &Status::Cached(expected));
     }
 
     #[test]

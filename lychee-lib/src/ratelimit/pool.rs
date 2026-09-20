@@ -94,24 +94,24 @@ impl HostPool {
             .map_err(ErrorKind::BuildRequestClient)
     }
 
-    /// Resolve the effective set of accepted status codes for the host of
-    /// `key` (a URL or URI).
+    /// Return the accepted status codes for the host of `key` (a URL or URI).
     ///
-    /// If the host has its own `accept` override it fully **replaces** the
-    /// `global` set; otherwise `global` is returned unchanged. Falls back to
-    /// `global` when `key` has no valid host.
+    /// A host override replaces `global`; an empty override accepts no codes.
+    /// Without an override or a valid host, return a clone of `global`.
     #[must_use]
-    pub fn effective_accept<K>(&self, key: K, global: &HashSet<StatusCode>) -> HashSet<StatusCode>
+    pub fn accepted_status_codes<K>(
+        &self,
+        key: K,
+        global: &HashSet<StatusCode>,
+    ) -> HashSet<StatusCode>
     where
         HostKey: TryFrom<K>,
     {
-        match HostKey::try_from(key) {
-            Ok(host_key) => self
-                .host_configs
-                .get(&host_key)
-                .map_or_else(|| global.clone(), |config| config.effective_accept(global)),
-            Err(_) => global.clone(),
-        }
+        HostKey::try_from(key)
+            .ok()
+            .and_then(|host_key| self.host_configs.get(&host_key))
+            .and_then(|config| config.accept.as_ref())
+            .map_or_else(|| global.clone(), |selector| selector.clone().into())
     }
 
     /// Get an existing host or create a new one for the given hostname
@@ -246,7 +246,8 @@ impl Default for HostPool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ratelimit::RateLimitConfig;
+    use crate::StatusCodeSelector;
+    use crate::ratelimit::{HostConfig, RateLimitConfig};
 
     use url::Url;
 
@@ -266,6 +267,48 @@ mod tests {
     fn test_host_pool_default() {
         let pool = HostPool::default();
         assert_eq!(pool.active_host_count(), 0);
+    }
+
+    #[test]
+    fn test_accepted_status_codes() {
+        let global: HashSet<StatusCode> = StatusCodeSelector::default_accepted().into();
+        let pool = HostPool::new(
+            RateLimitConfig::default(),
+            HostConfigs::from([
+                (HostKey::from("default.example"), HostConfig::default()),
+                (
+                    HostKey::from("override.example"),
+                    HostConfig {
+                        accept: Some("429".parse().unwrap()),
+                        ..HostConfig::default()
+                    },
+                ),
+                (
+                    HostKey::from("empty.example"),
+                    HostConfig {
+                        accept: Some(StatusCodeSelector::empty()),
+                        ..HostConfig::default()
+                    },
+                ),
+            ]),
+            Client::default(),
+            HashMap::new(),
+        );
+
+        for (url, expected) in [
+            ("file:///tmp/test.html", global.clone()),
+            ("mailto:test@example.com", global.clone()),
+            ("https://unconfigured.example/path", global.clone()),
+            ("https://default.example/path", global.clone()),
+            (
+                "https://override.example/path",
+                HashSet::from([StatusCode::TOO_MANY_REQUESTS]),
+            ),
+            ("https://empty.example/path", HashSet::new()),
+        ] {
+            let url: Url = url.parse().unwrap();
+            assert_eq!(pool.accepted_status_codes(&url, &global), expected, "{url}");
+        }
     }
 
     #[tokio::test]

@@ -147,7 +147,7 @@ impl WebsiteChecker {
                 // `accept` override fully replaces the global set.
                 let accepted = self
                     .host_pool
-                    .effective_accept(&request_url, &self.accepted);
+                    .accepted_status_codes(&request_url, &self.accepted);
                 let status = Status::new(&response, &accepted);
                 // when `accept=200,429`, `status_code=429` will be treated as success
                 // but we are not able the check the fragment since it's inapplicable.

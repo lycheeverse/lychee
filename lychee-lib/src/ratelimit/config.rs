@@ -1,7 +1,7 @@
-use http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
+use http::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::collections::hash_map::Iter;
-use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use crate::StatusCodeSelector;
@@ -164,18 +164,6 @@ impl HostConfig {
             .unwrap_or(global_config.request_interval)
     }
 
-    /// Get the effective set of accepted status codes.
-    ///
-    /// If this host defines its own `accept`, it fully **replaces** the global
-    /// set (no union). Otherwise the global set is used.
-    #[must_use]
-    pub fn effective_accept(&self, global: &HashSet<StatusCode>) -> HashSet<StatusCode> {
-        match &self.accept {
-            Some(selector) => selector.clone().into(),
-            None => global.clone(),
-        }
-    }
-
     #[must_use]
     pub(crate) fn merge(mut self, other: Self) -> Self {
         for (k, v) in other.headers {
@@ -261,25 +249,6 @@ mod tests {
             host_config.effective_request_interval(&global_config),
             Duration::from_millis(500)
         );
-    }
-
-    #[test]
-    fn test_host_config_effective_accept() {
-        let global: HashSet<StatusCode> = StatusCodeSelector::default_accepted().into();
-
-        // No per-host override: falls back to the global set.
-        let host_config = HostConfig::default();
-        assert_eq!(host_config.effective_accept(&global), global);
-
-        // Per-host override fully REPLACES the global set (no union).
-        let host_config = HostConfig {
-            accept: Some(StatusCodeSelector::from_str("429").unwrap()),
-            ..HostConfig::default()
-        };
-        let effective = host_config.effective_accept(&global);
-        assert_eq!(effective, HashSet::from([StatusCode::TOO_MANY_REQUESTS]));
-        // The global 200 is no longer accepted for this host.
-        assert!(!effective.contains(&StatusCode::OK));
     }
 
     #[test]
