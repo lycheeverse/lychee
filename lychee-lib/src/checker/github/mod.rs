@@ -2,7 +2,7 @@
 
 use std::{collections::HashSet, sync::Arc};
 
-use http::StatusCode;
+use http::{Method, StatusCode};
 use secrecy::SecretString;
 
 use crate::{ErrorKind, FragmentCheckerOptions, Status, Uri, ratelimit::HostPool};
@@ -37,17 +37,8 @@ impl GitHubChecker {
         Self { api }
     }
 
-    /// Check GitHub URLs that require provider-specific semantics
-    /// before the generic website checker runs.
-    pub(crate) async fn check_before_website(
-        &self,
-        uri: &Uri,
-        fragment_options: FragmentCheckerOptions,
-    ) -> Option<Status> {
-        if !fragment_options.check_anchor_fragments {
-            return None;
-        }
-
+    /// Check a GitHub README anchor through the API, or return `None` for other URLs.
+    pub(crate) async fn check_readme(&self, uri: &Uri) -> Option<Status> {
         let GitHubUrl::RepoReadme {
             owner,
             repo,
@@ -68,7 +59,13 @@ impl GitHubChecker {
     ///
     /// This keeps private repository checks working without leaving GitHub API
     /// details in the generic website checker.
-    pub(crate) async fn check_after_website_failure(&self, status: Status, uri: &Uri) -> Status {
+    pub(crate) async fn check_after_website_failure(
+        &self,
+        status: Status,
+        uri: &Uri,
+        method: &Method,
+        fragment_options: FragmentCheckerOptions,
+    ) -> Status {
         if status.is_success() {
             return status;
         }
@@ -78,6 +75,15 @@ impl GitHubChecker {
         };
 
         if matches!(url, GitHubUrl::Repo { .. }) && uri.url.fragment().is_some() {
+            return status;
+        }
+
+        // Repository access cannot establish that a README exists. Preserve the
+        // README endpoint's result instead of hiding it behind a repository lookup.
+        if matches!(url, GitHubUrl::RepoReadme { .. })
+            && method == Method::GET
+            && fragment_options.check_anchor_fragments
+        {
             return status;
         }
 

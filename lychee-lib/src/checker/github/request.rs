@@ -55,6 +55,7 @@ impl Handler<Request, Status> for GitHubRequestRewriter {
 mod tests {
     use http::Method;
     use reqwest::{Request, Url};
+    use rstest::rstest;
 
     use super::GitHubRequestRewriter;
 
@@ -66,59 +67,78 @@ mod tests {
         assert_eq!(modified.method(), Method::GET);
     }
 
-    #[test]
-    fn rewrites_github_markdown_blob_fragments_to_raw_content() {
-        let cases = [
-            (
-                "https://github.com/moby/docker-image-spec/blob/main/spec.md#terminology",
-                "https://raw.githubusercontent.com/moby/docker-image-spec/main/spec.md#terminology",
-            ),
-            (
-                "https://github.com/moby/docker-image-spec/blob/main/spec.markdown#terminology",
-                "https://raw.githubusercontent.com/moby/docker-image-spec/main/spec.markdown#terminology",
-            ),
-            (
-                "https://github.com/lycheeverse/lychee/blob/v0.15.0/README.md#features",
-                "https://raw.githubusercontent.com/lycheeverse/lychee/v0.15.0/README.md#features",
-            ),
-        ];
-
-        for (origin, expected) in cases {
-            assert_rewrite(origin, expected);
-        }
+    #[rstest]
+    #[case::markdown(
+        "https://github.com/moby/docker-image-spec/blob/main/spec.md#terminology",
+        "https://raw.githubusercontent.com/moby/docker-image-spec/main/spec.md#terminology"
+    )]
+    #[case::markdown_extension(
+        "https://github.com/moby/docker-image-spec/blob/main/spec.markdown#terminology",
+        "https://raw.githubusercontent.com/moby/docker-image-spec/main/spec.markdown#terminology"
+    )]
+    #[case::tag(
+        "https://github.com/lycheeverse/lychee/blob/v0.15.0/README.md#features",
+        "https://raw.githubusercontent.com/lycheeverse/lychee/v0.15.0/README.md#features"
+    )]
+    fn rewrites_github_markdown_blob_fragments_to_raw_content(
+        #[case] origin: &str,
+        #[case] expected: &str,
+    ) {
+        assert_rewrite(origin, expected);
     }
 
-    #[test]
-    fn leaves_github_markdown_blob_without_fragment_untouched() {
-        let url = "https://github.com/moby/docker-image-spec/blob/main/spec.md";
-        assert_rewrite(url, url);
+    #[rstest]
+    #[case::single_line(
+        "https://github.com/lycheeverse/lychee/blob/master/README.md#L10",
+        "https://github.com/lycheeverse/lychee/blob/master/README.md"
+    )]
+    #[case::range(
+        "https://github.com/lycheeverse/lychee/blob/master/src/main.rs#L10-L20",
+        "https://github.com/lycheeverse/lychee/blob/master/src/main.rs"
+    )]
+    #[case::shorthand_range(
+        "https://github.com/lycheeverse/lychee/blob/master/src/lib.rs#L5-15",
+        "https://github.com/lycheeverse/lychee/blob/master/src/lib.rs"
+    )]
+    fn removes_github_line_number_fragments(#[case] origin: &str, #[case] expected: &str) {
+        assert_rewrite(origin, expected);
     }
 
-    #[test]
-    fn removes_github_line_number_fragments() {
-        let cases = [
-            (
-                "https://github.com/lycheeverse/lychee/blob/master/README.md#L10",
-                "https://github.com/lycheeverse/lychee/blob/master/README.md",
-            ),
-            (
-                "https://github.com/lycheeverse/lychee/blob/master/src/main.rs#L10-L20",
-                "https://github.com/lycheeverse/lychee/blob/master/src/main.rs",
-            ),
-            (
-                "https://github.com/lycheeverse/lychee/blob/master/src/lib.rs#L5-15",
-                "https://github.com/lycheeverse/lychee/blob/master/src/lib.rs",
-            ),
-        ];
-
-        for (origin, expected) in cases {
-            assert_rewrite(origin, expected);
-        }
+    #[rstest]
+    #[case::markdown(
+        "https://www.github.com/owner/repo/blob/main/README.md#readme",
+        "https://raw.githubusercontent.com/owner/repo/main/README.md#readme"
+    )]
+    #[case::line_number(
+        "https://www.github.com/owner/repo/blob/main/README.md#L1",
+        "https://www.github.com/owner/repo/blob/main/README.md"
+    )]
+    fn rewrites_www_github_ui_urls(#[case] origin: &str, #[case] expected: &str) {
+        assert_rewrite(origin, expected);
     }
 
-    #[test]
-    fn leaves_non_github_urls_untouched() {
-        let url = "https://endler.dev";
+    #[rstest]
+    fn leaves_raw_urls_untouched(
+        #[values(
+            "",
+            "main/README.md",
+            "blob/README.md",
+            "blob/main/README.md",
+            "tree/main"
+        )]
+        path: &str,
+        #[values("", "#readme", "#L1", "#terminology")] fragment: &str,
+    ) {
+        let url = format!("https://raw.githubusercontent.com/owner/repo/{path}{fragment}");
+        assert_rewrite(&url, &url);
+    }
+
+    #[rstest]
+    #[case::markdown_without_fragment(
+        "https://github.com/moby/docker-image-spec/blob/main/spec.md"
+    )]
+    #[case::non_github("https://endler.dev")]
+    fn leaves_other_urls_untouched(#[case] url: &str) {
         assert_rewrite(url, url);
     }
 }

@@ -24,7 +24,7 @@ pub(crate) struct WebsiteChecker {
     /// and return the first successful one.
     methods: Methods,
 
-    /// GitHub-specific checker used before and after the generic website path.
+    /// GitHub-specific README checks and API fallback.
     github_checker: GitHubChecker,
 
     /// The chain of plugins to be executed on each request.
@@ -126,8 +126,23 @@ impl WebsiteChecker {
         status
     }
 
+    async fn check_github_readme(&self, request: &Request) -> Option<Status> {
+        if request.method() != Method::GET || !self.fragment_checker_options.check_anchor_fragments
+        {
+            return None;
+        }
+
+        self.github_checker
+            .check_readme(&Uri::from(request.url().clone()))
+            .await
+    }
+
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
     async fn check_default(&self, request: Request) -> Status {
+        if let Some(status) = self.check_github_readme(&request).await {
+            return status;
+        }
+
         let method = request.method().clone();
         let request_url = request.url().clone();
         let check_request_fragments = self.fragment_checker_options.any_enabled()
@@ -214,15 +229,6 @@ impl WebsiteChecker {
     /// - The response status code is not accepted.
     /// - The URI cannot be converted to HTTPS.
     pub(crate) async fn check_website(&self, uri: &Uri) -> (Status, Option<Redirects>) {
-        if let Some(status) = self
-            .github_checker
-            .check_before_website(uri, self.fragment_checker_options)
-            .await
-        {
-            let redirects = self.redirect_history.resolve(&uri.url);
-            return (status, redirects);
-        }
-
         let credentials = self.basic_auth.matches(uri);
 
         let default_chain: RequestChain = Chain::new(vec![
@@ -316,7 +322,7 @@ impl WebsiteChecker {
         uri: &Uri,
         default_chain: &RequestChain,
     ) -> Status {
-        let request = match self.host_pool.build_request(method, uri) {
+        let request = match self.host_pool.build_request(method.clone(), uri) {
             Ok(request) => request,
             Err(e) => return e.into(),
         };
@@ -326,7 +332,7 @@ impl WebsiteChecker {
             .await;
 
         self.github_checker
-            .check_after_website_failure(status, uri)
+            .check_after_website_failure(status, uri, &method, self.fragment_checker_options)
             .await
     }
 }
@@ -398,10 +404,15 @@ mod tests {
     }
 
     fn checker_with_github_api(api_server: &MockServer) -> WebsiteChecker {
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .resolve("github.com", *api_server.address())
+            .build()
+            .unwrap();
         let host_pool = Arc::new(HostPool::new(
             RateLimitConfig::default(),
             HostConfigs::default(),
-            reqwest::Client::new(),
+            client,
             std::collections::HashMap::new(),
         ));
 
@@ -450,6 +461,175 @@ mod tests {
         assert!(status.is_success(), "expected success, got {status:?}");
     }
 
+    fn github_readme_uri(server: &MockServer) -> Uri {
+        Uri::try_from(format!(
+            "http://github.com:{}/lycheeverse/lychee#readme",
+            server.address().port()
+        ))
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_github_readme_head_does_not_check_fragments() {
+        let server = MockServer::start().await;
+        Mock::given(method_matcher("HEAD"))
+            .and(path_matcher("/lycheeverse/lychee"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(path_matcher("/repos/lycheeverse/lychee/readme"))
+            .respond_with(ResponseTemplate::new(404))
+            .expect(0)
+            .mount(&server)
+            .await;
+
+        let mut checker = checker_with_github_api(&server);
+        checker.methods = Method::HEAD.into();
+        let (status, _) = checker.check_website(&github_readme_uri(&server)).await;
+
+        assert!(status.is_success(), "expected HEAD success, got {status:?}");
+    }
+
+    #[tokio::test]
+    async fn test_github_readme_falls_back_from_head_to_get() {
+        let server = MockServer::start().await;
+        Mock::given(method_matcher("HEAD"))
+            .and(path_matcher("/lycheeverse/lychee"))
+            .respond_with(ResponseTemplate::new(405))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method_matcher("GET"))
+            .and(path_matcher("/repos/lycheeverse/lychee"))
+            .respond_with(ResponseTemplate::new(404))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method_matcher("GET"))
+            .and(path_matcher("/repos/lycheeverse/lychee/readme"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let mut checker = checker_with_github_api(&server);
+        checker.methods = Methods::from_str("head,get").unwrap();
+        let (status, _) = checker.check_website(&github_readme_uri(&server)).await;
+
+        assert!(
+            status.is_success(),
+            "expected GET fallback success, got {status:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_github_readme_respects_disabled_anchor_checks() {
+        let server = MockServer::start().await;
+        Mock::given(method_matcher("GET"))
+            .and(path_matcher("/lycheeverse/lychee"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(path_matcher("/repos/lycheeverse/lychee/readme"))
+            .respond_with(ResponseTemplate::new(404))
+            .expect(0)
+            .mount(&server)
+            .await;
+
+        let mut checker = checker_with_github_api(&server);
+        checker.fragment_checker_options.check_anchor_fragments = false;
+        let (status, _) = checker.check_website(&github_readme_uri(&server)).await;
+
+        assert!(
+            status.is_success(),
+            "expected website success, got {status:?}"
+        );
+    }
+
+    #[rstest::rstest]
+    #[case(0, 1, StatusCode::TOO_MANY_REQUESTS)]
+    #[case(1, 2, StatusCode::OK)]
+    #[tokio::test]
+    async fn test_github_readme_respects_retry_limit(
+        #[case] max_retries: u64,
+        #[case] expected_requests: u64,
+        #[case] expected_status: StatusCode,
+    ) {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let server = MockServer::start().await;
+        let attempts = AtomicUsize::new(0);
+        Mock::given(method_matcher("GET"))
+            .and(path_matcher("/repos/lycheeverse/lychee/readme"))
+            .respond_with(move |_: &wiremock::Request| {
+                let status = if attempts.fetch_add(1, Ordering::SeqCst) == 0 {
+                    429
+                } else {
+                    200
+                };
+                ResponseTemplate::new(status)
+            })
+            .expect(expected_requests)
+            .mount(&server)
+            .await;
+        Mock::given(path_matcher("/repos/lycheeverse/lychee"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(0)
+            .mount(&server)
+            .await;
+
+        let mut checker = checker_with_github_api(&server);
+        checker.max_retries = max_retries;
+        let (status, _) = checker.check_website(&github_readme_uri(&server)).await;
+
+        assert_eq!(status.code(), Some(expected_status));
+    }
+
+    #[tokio::test]
+    async fn test_github_missing_readme_is_not_hidden_by_repo_access() {
+        let server = MockServer::start().await;
+        Mock::given(path_matcher("/repos/lycheeverse/lychee/readme"))
+            .respond_with(ResponseTemplate::new(404))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(path_matcher("/repos/lycheeverse/lychee"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(0)
+            .mount(&server)
+            .await;
+
+        let mut checker = checker_with_github_api(&server);
+        checker.max_retries = 2;
+        let (status, _) = checker.check_website(&github_readme_uri(&server)).await;
+
+        assert_eq!(status.code(), Some(StatusCode::NOT_FOUND));
+    }
+
+    #[tokio::test]
+    async fn test_github_readme_enforces_https() {
+        let server = MockServer::start().await;
+        Mock::given(method_matcher("GET"))
+            .and(path_matcher("/repos/lycheeverse/lychee/readme"))
+            .respond_with(ResponseTemplate::new(200))
+            // The HTTPS check reuses the cached API response.
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let mut checker = checker_with_github_api(&server);
+        checker.require_https = true;
+        let uri = Uri::try_from("http://github.com/lycheeverse/lychee#readme").unwrap();
+        let (status, _) = checker.check_website(&uri).await;
+
+        assert_eq!(
+            status,
+            Status::Error(ErrorKind::InsecureURL(uri.to_https().unwrap()))
+        );
+    }
+
     #[tokio::test]
     async fn test_github_fallback_preserves_non_readme_repo_fragment_errors() {
         let api_server = MockServer::start().await;
@@ -460,7 +640,12 @@ mod tests {
 
         let status = checker
             .github_checker
-            .check_after_website_failure(failure, &uri)
+            .check_after_website_failure(
+                failure,
+                &uri,
+                &Method::GET,
+                checker.fragment_checker_options,
+            )
             .await;
 
         assert_eq!(
@@ -478,23 +663,32 @@ mod tests {
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "private": true,
             })))
-            .expect(1)
+            .expect(3)
             .mount(&api_server)
             .await;
 
-        let checker = checker_with_github_api(&api_server);
-        let uri =
-            Uri::try_from("https://github.com/lycheeverse/private/blob/master/missing.md").unwrap();
+        for url in [
+            "https://github.com/lycheeverse/private/blob/master/missing.md",
+            "https://www.github.com/lycheeverse/private/blob/master/missing.md",
+            "https://raw.githubusercontent.com/lycheeverse/private/master/missing.md",
+        ] {
+            let checker = checker_with_github_api(&api_server);
+            let uri = Uri::try_from(url).unwrap();
+            let status = checker
+                .github_checker
+                .check_after_website_failure(
+                    Status::Error(ErrorKind::RejectedStatusCode(StatusCode::NOT_FOUND)),
+                    &uri,
+                    &Method::GET,
+                    checker.fragment_checker_options,
+                )
+                .await;
 
-        let status = checker
-            .github_checker
-            .check_after_website_failure(
-                Status::Error(ErrorKind::RejectedStatusCode(StatusCode::NOT_FOUND)),
-                &uri,
-            )
-            .await;
-
-        assert!(status.is_success(), "expected success, got {status:?}");
+            assert!(
+                status.is_success(),
+                "expected success for {url}, got {status:?}"
+            );
+        }
     }
 
     #[tokio::test]
@@ -518,6 +712,8 @@ mod tests {
             .check_after_website_failure(
                 Status::Error(ErrorKind::RejectedStatusCode(StatusCode::NOT_FOUND)),
                 &uri,
+                &Method::GET,
+                checker.fragment_checker_options,
             )
             .await;
 

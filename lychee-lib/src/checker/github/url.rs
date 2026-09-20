@@ -64,9 +64,11 @@ impl GitHubUrl {
     /// Classify a URL as a supported GitHub URL.
     #[must_use]
     pub(crate) fn parse_url(url: &Url) -> Option<Self> {
-        if url.domain()? != "github.com" {
-            return None;
-        }
+        let is_raw = match url.domain()? {
+            "github.com" | "www.github.com" => false,
+            "raw.githubusercontent.com" => true,
+            _ => return None,
+        };
 
         let segments: Vec<_> = url
             .path_segments()?
@@ -79,6 +81,12 @@ impl GitHubUrl {
         }
 
         match segments.as_slice() {
+            // Raw paths contain refs and filenames, not GitHub UI routes.
+            [owner, repo, rest @ ..] if is_raw => Some(Self::RepoPath {
+                owner: (*owner).to_owned(),
+                repo: strip_git_suffix(repo).to_owned(),
+                path: rest.join("/"),
+            }),
             [owner, repo] => Some(parse_repo(owner, repo, url.fragment())),
             [owner, repo, "tree", git_ref] if url.fragment() == Some("readme") => {
                 Some(Self::RepoReadme {
@@ -193,6 +201,50 @@ mod tests {
                 repo: "lychee".to_owned(),
             })
         );
+    }
+
+    #[test]
+    fn parses_www_like_github() {
+        for path in [
+            "owner/repo",
+            "owner/repo.git",
+            "owner/repo#readme",
+            "owner/repo/tree/main#readme",
+            "owner/repo/blob/main/README.md",
+            "owner/repo/blob/main/README.md#readme",
+            "owner/repo/blob/main/README.md#L1",
+            "features/actions",
+        ] {
+            assert_eq!(
+                parse(&format!("https://www.github.com/{path}")),
+                parse(&format!("https://github.com/{path}")),
+                "{path}",
+            );
+        }
+    }
+
+    #[test]
+    fn parses_raw_paths_without_github_ui_conventions() {
+        for path in [
+            "",
+            "main/README.md",
+            "blob/README.md",
+            "blob/main/README.md",
+            "tree/main",
+        ] {
+            for fragment in ["", "#readme", "#L1", "#terminology"] {
+                let url = format!("https://raw.githubusercontent.com/owner/repo/{path}{fragment}");
+                assert_eq!(
+                    parse(&url),
+                    Some(GitHubUrl::RepoPath {
+                        owner: "owner".to_owned(),
+                        repo: "repo".to_owned(),
+                        path: path.to_owned(),
+                    }),
+                    "{url}",
+                );
+            }
+        }
     }
 
     #[test]
