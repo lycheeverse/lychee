@@ -93,7 +93,7 @@ mod verbosity;
 use crate::formatters::stats::{OutputStats, output_hints, output_statistics};
 use crate::{
     cache::Cache,
-    config::{Config, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE, LycheeOptions},
+    config::{Config, LYCHEE_IGNORE_FILE, LycheeOptions},
     formatters::duration::Duration,
     generate::generate,
 };
@@ -224,7 +224,7 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
     // Discard entire cache if it hasn't been updated since `max_cache_age`.
     // This is an optimization, which avoids iterating over the file and
     // checking the age of each entry.
-    match fs::metadata(LYCHEE_CACHE_FILE) {
+    match fs::metadata(cfg.cache_location()) {
         Err(_e) => {
             // No cache found; silently start with empty cache
             return None;
@@ -249,7 +249,7 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
     }
 
     let cache = Cache::load(
-        LYCHEE_CACHE_FILE,
+        cfg.cache_location(),
         max_cache_age.as_secs(),
         &cfg.cache_exclude_status(),
     );
@@ -428,7 +428,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         output_statistics(stats, &opts.config)?;
 
         if opts.config.cache() {
-            cache.store(LYCHEE_CACHE_FILE)?;
+            cache.store(opts.config.cache_location())?;
         }
 
         if let Some(cookie_jar) = cookie_jar.as_ref() {

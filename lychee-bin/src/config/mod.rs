@@ -275,6 +275,12 @@ pub(crate) struct Config {
     #[arg(long, verbatim_doc_comment)]
     cache_exclude_status: Option<StatusCodeSelector>,
 
+    /// Filesystem path used to store the on-disk request cache
+    ///
+    /// [default: .lycheecache]
+    #[arg(long, value_name = "PATH")]
+    cache_location: Option<PathBuf>,
+
     /// Don't perform any link checking.
     /// Instead, dump all the links extracted from inputs that would be checked
     #[arg(long, optional_bool_flag())]
@@ -821,6 +827,13 @@ impl Config {
         self.cache.unwrap_or(false)
     }
 
+    /// Filesystem path used to store the on-disk request cache
+    pub(crate) fn cache_location(&self) -> PathBuf {
+        self.cache_location
+            .clone()
+            .unwrap_or_else(|| PathBuf::from(LYCHEE_CACHE_FILE))
+    }
+
     pub(crate) fn dump(&self) -> bool {
         self.dump.unwrap_or(false)
     }
@@ -946,6 +959,7 @@ impl Config {
                 basic_auth,
                 cache,
                 cache_exclude_status,
+                cache_location,
                 cookie_jar,
                 default_extension,
                 dump,
@@ -1117,6 +1131,7 @@ This convention also simplifies our default value testing."
         check_default_values!(
             accept,
             archive,
+            cache_location,
             extensions,
             format,
             max_concurrency,

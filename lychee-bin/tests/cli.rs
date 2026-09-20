@@ -1386,6 +1386,58 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[tokio::test]
+    async fn test_cache_location_custom_path() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
+        let custom_cache = base_path.join("custom.cache");
+        let default_cache = base_path.join(LYCHEE_CACHE_FILE);
+
+        // Setup mock server
+        let mock_server_ok = mock_server!(StatusCode::OK);
+
+        // Create test file
+        let file_path = base_path.join("c.md");
+        let mut file = File::create(&file_path)?;
+        writeln!(file, "{}", mock_server_ok.uri().as_str())?;
+        file.sync_all()?;
+
+        // Run with a custom cache location
+        let mut cmd = cargo_bin_cmd!();
+        cmd.current_dir(base_path)
+            .arg(&file_path)
+            .arg("--no-progress")
+            .arg("--cache")
+            .arg("--cache-location")
+            .arg(&custom_cache);
+        cmd.assert().success();
+
+        // Wait for the cache file to be written
+        for _ in 0..20 {
+            if custom_cache.exists() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        assert!(
+            custom_cache.exists(),
+            "Cache was not written to the custom location"
+        );
+        assert!(
+            !default_cache.exists(),
+            "Default cache file should not be created when --cache-location is set"
+        );
+
+        let data = fs::read_to_string(&custom_cache)?;
+        assert!(
+            data.contains(&format!("{}/,200", mock_server_ok.uri())),
+            "Missing OK entry in custom cache file"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_lycheecache_exclude_custom_status_codes() -> Result<()> {
         let dir = tempfile::tempdir()?;
         let base_path = dir.path();
