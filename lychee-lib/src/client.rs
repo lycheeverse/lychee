@@ -375,8 +375,6 @@ impl ClientBuilder {
             client_map,
         );
 
-        let github_token = self.github_token;
-
         let filter = Filter {
             includes: self.includes.map(Into::into),
             excludes: self.excludes.map(Into::into),
@@ -395,7 +393,7 @@ impl ClientBuilder {
             redirect_history.clone(),
             self.max_retries,
             self.accepted,
-            github_token,
+            self.github_token,
             self.require_https,
             self.plugin_request_chain,
             self.fragment_checker_options,

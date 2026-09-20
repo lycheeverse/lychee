@@ -58,19 +58,12 @@ mod tests {
 
     use super::GitHubRequestRewriter;
 
-    #[derive(Debug)]
-    struct MockRequest(Request);
+    fn assert_rewrite(origin: &str, expected: &str) {
+        let request = Request::new(Method::GET, Url::parse(origin).unwrap());
+        let modified = GitHubRequestRewriter::apply(request);
 
-    impl MockRequest {
-        fn new(method: Method, url: Url) -> Self {
-            Self(Request::new(method, url))
-        }
-    }
-
-    impl PartialEq for MockRequest {
-        fn eq(&self, other: &Self) -> bool {
-            self.0.url() == other.0.url() && self.0.method() == other.0.method()
-        }
+        assert_eq!(modified.url(), &Url::parse(expected).unwrap());
+        assert_eq!(modified.method(), Method::GET);
     }
 
     #[test]
@@ -91,24 +84,14 @@ mod tests {
         ];
 
         for (origin, expected) in cases {
-            let request = Request::new(Method::GET, Url::parse(origin).unwrap());
-            let modified = GitHubRequestRewriter::apply(request);
-
-            assert_eq!(
-                MockRequest(modified),
-                MockRequest::new(Method::GET, Url::parse(expected).unwrap())
-            );
+            assert_rewrite(origin, expected);
         }
     }
 
     #[test]
     fn leaves_github_markdown_blob_without_fragment_untouched() {
-        let url =
-            Url::parse("https://github.com/moby/docker-image-spec/blob/main/spec.md").unwrap();
-        let request = Request::new(Method::GET, url.clone());
-        let modified = GitHubRequestRewriter::apply(request);
-
-        assert_eq!(MockRequest(modified), MockRequest::new(Method::GET, url));
+        let url = "https://github.com/moby/docker-image-spec/blob/main/spec.md";
+        assert_rewrite(url, url);
     }
 
     #[test]
@@ -129,22 +112,13 @@ mod tests {
         ];
 
         for (origin, expected) in cases {
-            let request = Request::new(Method::GET, Url::parse(origin).unwrap());
-            let modified = GitHubRequestRewriter::apply(request);
-
-            assert_eq!(
-                MockRequest(modified),
-                MockRequest::new(Method::GET, Url::parse(expected).unwrap())
-            );
+            assert_rewrite(origin, expected);
         }
     }
 
     #[test]
     fn leaves_non_github_urls_untouched() {
-        let url = Url::parse("https://endler.dev").unwrap();
-        let request = Request::new(Method::GET, url.clone());
-        let modified = GitHubRequestRewriter::apply(request);
-
-        assert_eq!(MockRequest(modified), MockRequest::new(Method::GET, url));
+        let url = "https://endler.dev";
+        assert_rewrite(url, url);
     }
 }
