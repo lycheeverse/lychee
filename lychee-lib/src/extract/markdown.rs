@@ -276,7 +276,18 @@ fn raw_uri(dest_url: &CowStr<'_>, span: RawUriSpan) -> Vec<RawUri> {
 /// **alongside** the other generated fragment. It means a single heading such as
 /// `## Frag 1 {#frag-2}` would generate two fragments.
 ///
+/// Preceding `#id` attributes follow a subset of `MyST`'s [block attributes]: a
+/// single-line brace group before an ATX or Setext heading, optionally separated
+/// by blank lines. Literal code, escaped braces, and surrounding paragraph text
+/// do not declare IDs. Headings inside blockquotes are supported too.
+///
+/// This is not a full `MyST` attribute parser: stacked groups, `id=value`, comments,
+/// and attributes on non-heading blocks are not supported. Nested braces and
+/// multiple groups on one line are deliberately rejected, including cases that
+/// mdit-py-plugins 0.6.1 accepts by ignoring trailing input.
+///
 /// [heading attribute]: https://github.com/pulldown-cmark/pulldown-cmark/blob/94e7011a22a235e3abc5c5d6f3615192a6b1e42b/pulldown-cmark/specs/heading_attrs.txt
+/// [block attributes]: https://mdit-py-plugins.readthedocs.io/en/latest/#mdit_py_plugins.attrs.attrs_block_plugin
 pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
     let mut in_heading = false;
     let mut in_paragraph = false;
@@ -369,10 +380,34 @@ fn extract_block_heading_id(text: &str) -> Option<HeadingId> {
         return None;
     }
     let inner = strip_braces(text)?;
+    if inner.contains(['{', '}', '%']) {
+        return None;
+    }
 
-    inner
-        .split_whitespace()
-        .find_map(|attribute| HeadingId::try_from(attribute).ok())
+    // Keep quoted attribute values together so e.g. title="a #not-an-id"
+    // cannot introduce an ID. MyST uses the last ID in an attribute group:
+    // its parser processes tokens in order, overwriting attributes["id"].
+    // https://github.com/executablebooks/mdit-py-plugins/blob/da70e05b7630c38047d1921ef21d1aadc34c1ea9/mdit_py_plugins/attrs/parse.py#L60-L81
+    let mut quoted = false;
+    let mut escaped = false;
+    let id = inner
+        .split(|character: char| {
+            if escaped {
+                escaped = false;
+            } else if quoted && character == '\\' {
+                escaped = true;
+            } else if character == '"' {
+                quoted = !quoted;
+            }
+            character.is_whitespace() && !quoted
+        })
+        .filter(|attribute| attribute.starts_with('#') && attribute.len() > 1)
+        .last();
+
+    if quoted {
+        return None;
+    }
+    id.and_then(|attribute| HeadingId::try_from(attribute).ok())
 }
 
 /// Remove exactly one outer pair of braces, leaving the contents unchanged.
@@ -435,7 +470,7 @@ mod tests {
     #[case::other_attributes("{.class #heading-id key=value}", Some("heading-id"))]
     #[case::whitespace(" \t{  #heading-id\t }\r\n", Some("heading-id"))]
     #[case::unicode("{#日本語}", Some("日本語"))]
-    #[case::first_id("{#first #second}", Some("first"))]
+    #[case::last_id("{#first #second}", Some("second"))]
     #[case::skip_empty_id("{# #valid}", Some("valid"))]
     #[case::empty_input("", None)]
     #[case::empty_attributes("{}", None)]
@@ -450,6 +485,16 @@ mod tests {
     #[case::multiline_lf("{.class\n#foo}", None)]
     #[case::multiline_crlf("{.class\r\n#foo}", None)]
     #[case::multiple_blocks("{#first}\n{#second}", None)]
+    #[case::multiple_groups("{ #first } { #second }", None)]
+    #[case::between_empty_groups("{} #between-empty-sets {}", None)]
+    #[case::nested_spaced("{{ #double-braced }}", None)]
+    #[case::nested_tight("{{#double-braced-no-space}}", None)]
+    #[case::quoted_value(r#"{#real title="a #not-an-id"}"#, Some("real"))]
+    #[case::quoted_value_before_id(r#"{title="a #not-an-id" #real}"#, Some("real"))]
+    #[case::quoted_value_without_id(r#"{title="a #not-an-id"}"#, None)]
+    #[case::escaped_quote(r#"{#real title="a \" #not-an-id"}"#, Some("real"))]
+    #[case::unclosed_quote(r#"{#real title="unclosed}"#, None)]
+    #[case::unsupported_comment("{#real % #not-an-id %}", None)]
     fn test_extract_block_heading_id(#[case] input: &str, #[case] expected: Option<&str>) {
         let actual = extract_block_heading_id(input).map(HeadingId::into_string);
         assert_eq!(actual.as_deref(), expected);
@@ -537,6 +582,31 @@ or inline like `https://bar.org` for instance.
 
         assert!(actual.contains("block-id"));
         assert!(actual.contains("heading-two"));
+    }
+
+    // Cases from https://github.com/lycheeverse/lychee/pull/2250#pullrequestreview-4606456065.
+    // Unlike mdit-py-plugins 0.6.1, trailing brace groups are deliberately rejected.
+    #[rstest]
+    #[case::spaces("{ #spaces-around }\n# a", &["a", "spaces-around"])]
+    #[case::text_before("a {#text-before}\n# a", &["a"])]
+    #[case::text_after("{#text-after} a\n# a", &["a"])]
+    #[case::line_before("a\n{#line-before}\n# a", &["a"])]
+    #[case::blank_line("{#line-between}\n\n# a", &["a", "line-between"])]
+    #[case::fenced_code("```\n{#inside-code-block}\n```\n# a", &["a"])]
+    #[case::inline_code("`{#inside-code-inline}`\n# a", &["a"])]
+    #[case::emphasis("*{#inside-bold}*\n# a", &["a"])]
+    #[case::blockquote("> {#inside-quote}\n> # a", &["a", "inside-quote"])]
+    #[case::multiple_groups("{ #multiple-attributes } { #multiple-attributes2 }\n# a", &["a"])]
+    #[case::between_empty_groups("{} #between-empty-sets {}\n# a", &["a"])]
+    #[case::nested_spaced("{{ #double-braced }}\n# a", &["a"])]
+    #[case::nested_tight("{{#double-braced-no-space}}\n# a", &["a"])]
+    #[case::multiline("{\n#across-lines\n}\n# a", &["a"])]
+    fn test_block_heading_attribute_review_cases(
+        #[case] markdown: &str,
+        #[case] expected: &[&str],
+    ) {
+        let expected = expected.iter().map(|id| (*id).to_string()).collect();
+        assert_eq!(extract_markdown_fragments(markdown), expected);
     }
 
     #[rstest]
