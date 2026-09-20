@@ -39,6 +39,32 @@ Explicit fragment links are also supported.
 
 [Link to block heading attribute](#block-heading-id)
 
+`{#code-attribute-id}`
+## Literal Code Attribute
+
+[Link to nonexistent code attribute](#code-attribute-id)
+[Link to heading after code attribute](#literal-code-attribute)
+
+\{#escaped-attribute-id}
+## Escaped Attribute
+
+[Link to nonexistent escaped attribute](#escaped-attribute-id)
+[Link to heading after escaped attribute](#escaped-attribute)
+
+{#setext-h1-id}
+Setext Level One
+===============
+
+[Link to Setext H1 attribute](#setext-h1-id)
+[Link to generated Setext H1 fragment](#setext-level-one)
+
+{#setext-h2-id}
+Setext Level Two
+---------------
+
+[Link to Setext H2 attribute](#setext-h2-id)
+[Link to generated Setext H2 fragment](#setext-level-two)
+
 # Kebab Case Fragment
 
 [Link to kebab-case fragment](#kebab-case-fragment)

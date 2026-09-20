@@ -287,7 +287,8 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
     // Explicit ID parsed from a standalone attribute paragraph immediately
     // before a heading, e.g. `{#custom-id}\n## Heading`.
     let mut heading_block_id: Option<HeadingId> = None;
-    let mut paragraph_text: Option<String> = None;
+    let mut paragraph_id: Option<HeadingId> = None;
+    let mut heading_text_start = 0;
     // Block attributes are emitted as the paragraph before the heading they
     // belong to, so keep one pending ID until the next block starts.
     let mut pending_heading_block_id: Option<HeadingId> = None;
@@ -295,16 +296,28 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
 
     let mut out = HashSet::new();
 
-    for event in Parser::new_ext(input, md_extensions()) {
+    for (event, range) in Parser::new_ext(input, md_extensions()).into_offset_iter() {
         match event {
             Event::Start(Tag::Heading { id, .. }) => {
                 heading_block_id = pending_heading_block_id.take();
+                heading_text_start = range.start;
+                // CommonMark includes a preceding attribute line in a Setext
+                // heading. Keep it out of the generated heading text.
+                if let Some((first_line, rest)) = input[range.clone()].split_once('\n')
+                    && rest.lines().nth(1).is_some()
+                    && let Some(block_id) = extract_block_heading_id(first_line)
+                {
+                    heading_block_id = Some(block_id);
+                    heading_text_start += first_line.len() + 1;
+                }
                 heading_id = id;
                 in_heading = true;
             }
             Event::Start(Tag::Paragraph) => {
                 pending_heading_block_id = None;
-                paragraph_text = Some(String::new());
+                // Inspect source, not decoded inline events: code spans and
+                // escaped braces must remain literal text.
+                paragraph_id = extract_block_heading_id(&input[range]);
                 in_paragraph = true;
             }
             Event::Start(_) if !in_heading && !in_paragraph => {
@@ -328,26 +341,13 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
                 in_heading = false;
             }
             Event::End(TagEnd::Paragraph) => {
-                pending_heading_block_id = paragraph_text
-                    .take()
-                    .and_then(|text| extract_block_heading_id(&text));
+                pending_heading_block_id = paragraph_id.take();
                 in_paragraph = false;
             }
-            Event::Text(text) | Event::Code(text) if in_heading => {
+            Event::Text(text) | Event::Code(text)
+                if in_heading && range.start >= heading_text_start =>
+            {
                 heading_text.push_str(&text);
-            }
-            Event::Text(text) | Event::Code(text) if in_paragraph => {
-                let keep_collecting = paragraph_text.as_ref().is_some_and(|text_buffer| {
-                    !text_buffer.is_empty() || text.trim_start().starts_with('{')
-                });
-
-                if keep_collecting {
-                    if let Some(paragraph_text) = &mut paragraph_text {
-                        paragraph_text.push_str(&text);
-                    }
-                } else {
-                    paragraph_text = None;
-                }
             }
 
             // An HTML node
@@ -364,11 +364,20 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
 }
 
 fn extract_block_heading_id(text: &str) -> Option<HeadingId> {
-    let inner = text.trim().strip_prefix('{')?.strip_suffix('}')?.trim();
+    let text = text.trim();
+    if text.lines().count() != 1 {
+        return None;
+    }
+    let inner = strip_braces(text)?;
 
     inner
         .split_whitespace()
         .find_map(|attribute| HeadingId::try_from(attribute).ok())
+}
+
+/// Remove exactly one outer pair of braces, leaving the contents unchanged.
+fn strip_braces(text: &str) -> Option<&str> {
+    text.strip_prefix('{')?.strip_suffix('}')
 }
 
 struct HeadingId(String);
@@ -395,11 +404,56 @@ impl TryFrom<&str> for HeadingId {
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
     use test_utils::load_fixture;
 
     use crate::types::uri::raw::span;
 
     use super::*;
+
+    #[rstest]
+    #[case::wrapped("{foo}", Some("foo"))]
+    #[case::missing_closing("{foo", None)]
+    #[case::missing_opening("foo}}", None)]
+    #[case::unwrapped("foo", None)]
+    #[case::empty_input("", None)]
+    #[case::empty_contents("{}", Some(""))]
+    #[case::opening_only("{", None)]
+    #[case::closing_only("}", None)]
+    #[case::reversed("}{", None)]
+    #[case::nested("{{foo}}", Some("{foo}"))]
+    #[case::extra_closing("{foo}}", Some("foo}"))]
+    #[case::whitespace_preserved("{ foo }", Some(" foo "))]
+    #[case::outer_whitespace(" {foo} ", None)]
+    #[case::unicode("{日本語}", Some("日本語"))]
+    fn test_strip_braces(#[case] input: &str, #[case] expected: Option<&str>) {
+        assert_eq!(strip_braces(input), expected);
+    }
+
+    #[rstest]
+    #[case::id("{#heading-id}", Some("heading-id"))]
+    #[case::other_attributes("{.class #heading-id key=value}", Some("heading-id"))]
+    #[case::whitespace(" \t{  #heading-id\t }\r\n", Some("heading-id"))]
+    #[case::unicode("{#日本語}", Some("日本語"))]
+    #[case::first_id("{#first #second}", Some("first"))]
+    #[case::skip_empty_id("{# #valid}", Some("valid"))]
+    #[case::empty_input("", None)]
+    #[case::empty_attributes("{}", None)]
+    #[case::empty_id("{#}", None)]
+    #[case::no_id("{.class key=value}", None)]
+    #[case::plain_text("{foo}", None)]
+    #[case::missing_closing("{#foo", None)]
+    #[case::missing_opening("#foo}}", None)]
+    #[case::unwrapped("#foo", None)]
+    #[case::code_span("`{#foo}`", None)]
+    #[case::escaped_brace(r"\{#foo}", None)]
+    #[case::multiline_lf("{.class\n#foo}", None)]
+    #[case::multiline_crlf("{.class\r\n#foo}", None)]
+    #[case::multiple_blocks("{#first}\n{#second}", None)]
+    fn test_extract_block_heading_id(#[case] input: &str, #[case] expected: Option<&str>) {
+        let actual = extract_block_heading_id(input).map(HeadingId::into_string);
+        assert_eq!(actual.as_deref(), expected);
+    }
 
     const MD_INPUT: &str = r#"
 # A Test
@@ -483,6 +537,44 @@ or inline like `https://bar.org` for instance.
 
         assert!(actual.contains("block-id"));
         assert!(actual.contains("heading-two"));
+    }
+
+    #[rstest]
+    #[case::code_span("`{#ghost}`")]
+    #[case::escaped_brace(r"\{#ghost}")]
+    #[case::emphasis("**{#ghost}**")]
+    #[case::link_label("[{#ghost}](target)")]
+    fn test_extract_fragments_from_preceding_heading_attributes_ignores_literals(
+        #[case] attribute: &str,
+    ) {
+        let markdown = format!("{attribute}\n## Heading\n");
+        let actual = extract_markdown_fragments(&markdown);
+        let expected = HashSet::from(["heading".to_string()]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[rstest]
+    fn test_extract_fragments_from_preceding_setext_heading_attributes(
+        #[values("=======", "-------")] underline: &str,
+        #[values("\n", "\r\n")] newline: &str,
+    ) {
+        let markdown = [
+            "{#block-id}",
+            "Heading *with* `code`",
+            underline,
+            "",
+            "## Heading with code",
+        ]
+        .join(newline);
+        let actual = extract_markdown_fragments(&markdown);
+        let expected = HashSet::from([
+            "block-id".to_string(),
+            "heading-with-code".to_string(),
+            "heading-with-code-1".to_string(),
+        ]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
