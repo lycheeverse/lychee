@@ -276,24 +276,72 @@ fn raw_uri(dest_url: &CowStr<'_>, span: RawUriSpan) -> Vec<RawUri> {
 /// **alongside** the other generated fragment. It means a single heading such as
 /// `## Frag 1 {#frag-2}` would generate two fragments.
 ///
+/// Preceding `#id` attributes follow a subset of `MyST`'s [block attributes]: a
+/// single-line attribute block before an ATX or Setext heading, optionally
+/// separated by blank lines. Literal code and escaped braces do not declare IDs.
+/// Headings inside blockquotes are supported too.
+///
+/// Like mdit-py-plugins 0.6.1, we require the line to start and end with braces,
+/// but only interpret the first group; trailing groups or text are ignored.
+/// Within that group, the last `#id` wins and quoted values are skipped.
+/// This is not a full `MyST` attribute parser: groups stacked on separate lines,
+/// `id=value`, comments, and attributes on non-heading blocks are not supported.
+///
 /// [heading attribute]: https://github.com/pulldown-cmark/pulldown-cmark/blob/94e7011a22a235e3abc5c5d6f3615192a6b1e42b/pulldown-cmark/specs/heading_attrs.txt
+/// [block attributes]: https://mdit-py-plugins.readthedocs.io/en/latest/#mdit_py_plugins.attrs.attrs_block_plugin
 pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
     let mut in_heading = false;
+    let mut in_paragraph = false;
     let mut heading_text = String::new();
+    // Explicit ID parsed from pulldown-cmark's inline heading attribute support,
+    // e.g. `## Heading {#custom-id}`.
     let mut heading_id: Option<CowStr<'_>> = None;
+    // Explicit ID parsed from a standalone attribute paragraph immediately
+    // before a heading, e.g. `{#custom-id}\n## Heading`.
+    let mut heading_block_id: Option<HeadingId> = None;
+    let mut paragraph_id: Option<HeadingId> = None;
+    let mut heading_text_start = 0;
+    // Block attributes are emitted as the paragraph before the heading they
+    // belong to, so keep one pending ID until the next block starts.
+    let mut pending_heading_block_id: Option<HeadingId> = None;
     let mut id_generator = GithubHeadingIdGenerator::new();
 
     let mut out = HashSet::new();
 
-    for event in Parser::new_ext(input, md_extensions()) {
+    for (event, range) in Parser::new_ext(input, md_extensions()).into_offset_iter() {
         match event {
             Event::Start(Tag::Heading { id, .. }) => {
+                heading_block_id = pending_heading_block_id.take();
+                heading_text_start = range.start;
+                // CommonMark includes a preceding attribute line in a Setext
+                // heading. Keep it out of the generated heading text.
+                if let Some((first_line, rest)) = input[range.clone()].split_once('\n')
+                    && rest.lines().nth(1).is_some()
+                    && let Some(block_id) = extract_block_heading_id(first_line)
+                {
+                    heading_block_id = Some(block_id);
+                    heading_text_start += first_line.len() + 1;
+                }
                 heading_id = id;
                 in_heading = true;
+            }
+            Event::Start(Tag::Paragraph) => {
+                pending_heading_block_id = None;
+                // Inspect source, not decoded inline events: code spans and
+                // escaped braces must remain literal text.
+                paragraph_id = extract_block_heading_id(&input[range]);
+                in_paragraph = true;
+            }
+            Event::Start(_) if !in_heading && !in_paragraph => {
+                pending_heading_block_id = None;
             }
             Event::End(TagEnd::Heading(_)) => {
                 if let Some(frag) = heading_id.take() {
                     out.insert(frag.to_string());
+                }
+
+                if let Some(frag) = heading_block_id.take() {
+                    out.insert(frag.into_string());
                 }
 
                 if !heading_text.is_empty() {
@@ -304,12 +352,19 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
 
                 in_heading = false;
             }
-            Event::Text(text) | Event::Code(text) if in_heading => {
+            Event::End(TagEnd::Paragraph) => {
+                pending_heading_block_id = paragraph_id.take();
+                in_paragraph = false;
+            }
+            Event::Text(text) | Event::Code(text)
+                if in_heading && range.start >= heading_text_start =>
+            {
                 heading_text.push_str(&text);
             }
 
             // An HTML node
             Event::Html(html) | Event::InlineHtml(html) => {
+                pending_heading_block_id = None;
                 out.extend(extract_html_fragments(&html));
             }
 
@@ -320,13 +375,178 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
     out
 }
 
+fn extract_block_heading_id(text: &str) -> Option<HeadingId> {
+    let text = text.trim();
+    if text.lines().count() != 1 {
+        return None;
+    }
+    let inner = strip_braces(text)?;
+    let attribute = find_heading_id_attribute(inner)?;
+    HeadingId::try_from(attribute).ok()
+}
+
+/// Find the last `#id` in the first group after removing the outer braces.
+fn find_heading_id_attribute(inner: &str) -> Option<&str> {
+    // Keep quoted attribute values together so e.g. title="a #not-an-id"
+    // cannot introduce an ID. MyST uses the last ID in an attribute group:
+    // its parser processes tokens in order, overwriting attributes["id"].
+    // https://github.com/executablebooks/mdit-py-plugins/blob/da70e05b7630c38047d1921ef21d1aadc34c1ea9/mdit_py_plugins/attrs/parse.py#L60-L81
+    let mut quoted = false;
+    let mut escaped = false;
+    let mut attribute_start = 0;
+    let mut id = None;
+
+    // Restore the stripped closing delimiter so the last token is handled too.
+    for (index, character) in inner
+        .char_indices()
+        .chain(std::iter::once((inner.len(), '}')))
+    {
+        if escaped {
+            escaped = false;
+        } else if quoted && character == '\\' {
+            escaped = true;
+        } else if character == '"' {
+            quoted = !quoted;
+        } else if !quoted {
+            match character {
+                '{' | '%' => return None,
+                c if c.is_whitespace() || c == '}' => {
+                    let attribute = &inner[attribute_start..index];
+                    if attribute.starts_with('#') && attribute.len() > 1 {
+                        id = Some(attribute);
+                    }
+                    if c == '}' {
+                        // MyST stops at the first group, ignoring trailing input.
+                        // https://github.com/executablebooks/mdit-py-plugins/blob/da70e05b7630c38047d1921ef21d1aadc34c1ea9/mdit_py_plugins/attrs/index.py#L212-L219
+                        return id;
+                    }
+                    attribute_start = index + c.len_utf8();
+                }
+                _ => {}
+            }
+        }
+    }
+    None
+}
+
+/// Remove exactly one outer pair of braces, leaving the contents unchanged.
+fn strip_braces(text: &str) -> Option<&str> {
+    text.strip_prefix('{')?.strip_suffix('}')
+}
+
+struct HeadingId(String);
+
+impl HeadingId {
+    fn into_string(self) -> String {
+        self.0
+    }
+}
+
+impl TryFrom<&str> for HeadingId {
+    type Error = ();
+
+    fn try_from(attribute: &str) -> Result<Self, Self::Error> {
+        let id = attribute.strip_prefix('#').ok_or(())?;
+
+        if id.is_empty() {
+            return Err(());
+        }
+
+        Ok(Self(id.to_string()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
     use test_utils::load_fixture;
 
     use crate::types::uri::raw::span;
 
     use super::*;
+
+    #[rstest]
+    #[case::last_id("#first #second", Some("#second"))]
+    #[case::first_group("#first} {#second", Some("#first"))]
+    #[case::quoted_id(r#"title="a #fake" #real"#, Some("#real"))]
+    #[case::quoted_brace(r#"#real title="}""#, Some("#real"))]
+    #[case::escaped_quote(r#"#real title="a \" }""#, Some("#real"))]
+    #[case::unclosed_quote(r#"#real title="unclosed"#, None)]
+    #[case::nested_group("{ #nested }", None)]
+    #[case::empty("", None)]
+    fn test_find_heading_id_attribute(#[case] inner: &str, #[case] expected: Option<&str>) {
+        assert_eq!(find_heading_id_attribute(inner), expected);
+    }
+
+    #[rstest]
+    #[case::wrapped("{foo}", Some("foo"))]
+    #[case::missing_closing("{foo", None)]
+    #[case::missing_opening("foo}}", None)]
+    #[case::unwrapped("foo", None)]
+    #[case::empty_input("", None)]
+    #[case::empty_contents("{}", Some(""))]
+    #[case::opening_only("{", None)]
+    #[case::closing_only("}", None)]
+    #[case::reversed("}{", None)]
+    #[case::nested("{{foo}}", Some("{foo}"))]
+    #[case::extra_closing("{foo}}", Some("foo}"))]
+    #[case::whitespace_preserved("{ foo }", Some(" foo "))]
+    #[case::outer_whitespace(" {foo} ", None)]
+    #[case::unicode("{日本語}", Some("日本語"))]
+    fn test_strip_braces(#[case] input: &str, #[case] expected: Option<&str>) {
+        assert_eq!(strip_braces(input), expected);
+    }
+
+    #[rstest]
+    #[case::id("{#heading-id}", Some("heading-id"))]
+    #[case::other_attributes("{.class #heading-id key=value}", Some("heading-id"))]
+    #[case::whitespace(" \t{  #heading-id\t }\r\n", Some("heading-id"))]
+    #[case::unicode("{#日本語}", Some("日本語"))]
+    #[case::last_id("{#first #second}", Some("second"))]
+    #[case::skip_empty_id("{# #valid}", Some("valid"))]
+    #[case::empty_input("", None)]
+    #[case::empty_attributes("{}", None)]
+    #[case::empty_id("{#}", None)]
+    #[case::no_id("{.class key=value}", None)]
+    #[case::plain_text("{foo}", None)]
+    #[case::missing_closing("{#foo", None)]
+    #[case::missing_opening("#foo}}", None)]
+    #[case::unwrapped("#foo", None)]
+    #[case::code_span("`{#foo}`", None)]
+    #[case::escaped_brace(r"\{#foo}", None)]
+    #[case::multiline_lf("{.class\n#foo}", None)]
+    #[case::multiline_crlf("{.class\r\n#foo}", None)]
+    #[case::multiple_blocks("{#first}\n{#second}", None)]
+    #[case::multiple_groups("{ #first } { #second }", Some("first"))]
+    #[case::adjacent_groups("{#first}{#second}", Some("first"))]
+    #[case::last_id_in_first_group("{#first #second} {#third}", Some("second"))]
+    #[case::trailing_text_before_final_brace("{#first} ignored}", Some("first"))]
+    #[case::trailing_text_without_final_brace("{#first} ignored", None)]
+    #[case::ignored_malformed_group(r#"{#first} {title="unclosed}"#, Some("first"))]
+    #[case::quoted_brace_before_group(r#"{#first title="}"} {#second}"#, Some("first"))]
+    #[case::escaped_quote_before_group(r#"{#first title="a \" }"} {#second}"#, Some("first"))]
+    #[case::empty_first_group("{} {#second}", None)]
+    #[case::between_empty_groups("{} #between-empty-sets {}", None)]
+    #[case::nested_spaced("{{ #double-braced }}", None)]
+    #[case::nested_tight("{{#double-braced-no-space}}", None)]
+    #[case::quoted_value(r#"{#real title="a #not-an-id"}"#, Some("real"))]
+    #[case::quoted_value_before_id(r#"{title="a #not-an-id" #real}"#, Some("real"))]
+    #[case::quoted_value_without_id(r#"{title="a #not-an-id"}"#, None)]
+    #[case::escaped_quote(r#"{#real title="a \" #not-an-id"}"#, Some("real"))]
+    #[case::unclosed_quote(r#"{#real title="unclosed}"#, None)]
+    #[case::unsupported_comment("{#real % #not-an-id %}", None)]
+    #[case::quoted_percent(r#"{#real title="100%"}"#, Some("real"))]
+    #[case::quoted_opening_brace(r#"{#real title="{"}"#, Some("real"))]
+    #[case::quoted_closing_brace(r#"{#real title="}"}"#, Some("real"))]
+    #[case::quoted_syntax_before_id(r#"{title="{#fake} 100%" #real}"#, Some("real"))]
+    #[case::quoted_syntax_after_escaped_quote(r#"{#real title="a \" {%}"}"#, Some("real"))]
+    #[case::unquoted_percent_after_value(r#"{#real title="ok" % comment %}"#, None)]
+    #[case::unquoted_opening_brace_after_value(r#"{#real title="ok" {}"#, None)]
+    #[case::extra_closing_brace_after_value(r#"{#real title="ok" }}"#, Some("real"))]
+    fn test_extract_block_heading_id(#[case] input: &str, #[case] expected: Option<&str>) {
+        let actual = extract_block_heading_id(input).map(HeadingId::into_string);
+        assert_eq!(actual.as_deref(), expected);
+    }
 
     const MD_INPUT: &str = r#"
 # A Test
@@ -395,6 +615,114 @@ or inline like `https://bar.org` for instance.
 
         let actual = extract_markdown_fragments(&md);
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_extract_fragments_from_preceding_heading_attributes() {
+        let markdown = r"
+# Attribute-list anchor test
+
+{#block-id}
+### Heading two
+";
+
+        let actual = extract_markdown_fragments(markdown);
+
+        assert!(actual.contains("block-id"));
+        assert!(actual.contains("heading-two"));
+    }
+
+    // Cases from https://github.com/lycheeverse/lychee/pull/2250#pullrequestreview-4606456065.
+    // Expectations follow mdit-py-plugins 0.6.1, including ignored trailing groups.
+    #[rstest]
+    #[case::spaces("{ #spaces-around }\n# a", &["a", "spaces-around"])]
+    #[case::text_before("a {#text-before}\n# a", &["a"])]
+    #[case::text_after("{#text-after} a\n# a", &["a"])]
+    #[case::line_before("a\n{#line-before}\n# a", &["a"])]
+    #[case::blank_line("{#line-between}\n\n# a", &["a", "line-between"])]
+    #[case::fenced_code("```\n{#inside-code-block}\n```\n# a", &["a"])]
+    #[case::inline_code("`{#inside-code-inline}`\n# a", &["a"])]
+    #[case::emphasis("*{#inside-bold}*\n# a", &["a"])]
+    #[case::blockquote("> {#inside-quote}\n> # a", &["a", "inside-quote"])]
+    #[case::multiple_groups("{ #multiple-attributes } { #multiple-attributes2 }\n# a", &["a", "multiple-attributes"])]
+    #[case::multiple_groups_setext("{#first} {#second}\nHeading\n=======", &["heading", "first"])]
+    #[case::between_empty_groups("{} #between-empty-sets {}\n# a", &["a"])]
+    #[case::nested_spaced("{{ #double-braced }}\n# a", &["a"])]
+    #[case::nested_tight("{{#double-braced-no-space}}\n# a", &["a"])]
+    #[case::multiline("{\n#across-lines\n}\n# a", &["a"])]
+    fn test_block_heading_attribute_review_cases(
+        #[case] markdown: &str,
+        #[case] expected: &[&str],
+    ) {
+        let expected = expected.iter().map(|id| (*id).to_string()).collect();
+        assert_eq!(extract_markdown_fragments(markdown), expected);
+    }
+
+    #[rstest]
+    #[case::code_span("`{#ghost}`")]
+    #[case::escaped_brace(r"\{#ghost}")]
+    #[case::emphasis("**{#ghost}**")]
+    #[case::link_label("[{#ghost}](target)")]
+    fn test_extract_fragments_from_preceding_heading_attributes_ignores_literals(
+        #[case] attribute: &str,
+    ) {
+        let markdown = format!("{attribute}\n## Heading\n");
+        let actual = extract_markdown_fragments(&markdown);
+        let expected = HashSet::from(["heading".to_string()]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[rstest]
+    fn test_extract_fragments_from_preceding_setext_heading_attributes(
+        #[values("=======", "-------")] underline: &str,
+        #[values("\n", "\r\n")] newline: &str,
+    ) {
+        let markdown = [
+            "{#block-id}",
+            "Heading *with* `code`",
+            underline,
+            "",
+            "## Heading with code",
+        ]
+        .join(newline);
+        let actual = extract_markdown_fragments(&markdown);
+        let expected = HashSet::from([
+            "block-id".to_string(),
+            "heading-with-code".to_string(),
+            "heading-with-code-1".to_string(),
+        ]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_extract_fragments_from_preceding_heading_attributes_ignores_non_heading_blocks() {
+        let markdown = r"
+{#not-a-heading-id}
+
+This paragraph consumes the pending block attribute.
+
+### Heading two
+";
+
+        let actual = extract_markdown_fragments(markdown);
+
+        assert!(!actual.contains("not-a-heading-id"));
+        assert!(actual.contains("heading-two"));
+    }
+
+    #[test]
+    fn test_extract_fragments_from_preceding_heading_attributes_ignores_missing_id() {
+        let markdown = r"
+{.class key=value #}
+### Heading two
+";
+
+        let actual = extract_markdown_fragments(markdown);
+
+        assert!(!actual.contains(""));
+        assert!(actual.contains("heading-two"));
     }
 
     #[test]

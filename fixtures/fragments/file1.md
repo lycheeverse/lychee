@@ -34,6 +34,119 @@ Explicit fragment links are also supported.
 
 [Custom fragment id in file2](file2.md#custom-id)
 
+{#block-heading-id}
+## Block Heading Attribute
+
+[Link to block heading attribute](#block-heading-id)
+
+`{#code-attribute-id}`
+## Literal Code Attribute
+
+[Link to nonexistent code attribute](#code-attribute-id)
+[Link to heading after code attribute](#literal-code-attribute)
+
+\{#escaped-attribute-id}
+## Escaped Attribute
+
+[Link to nonexistent escaped attribute](#escaped-attribute-id)
+[Link to heading after escaped attribute](#escaped-attribute)
+
+{#setext-h1-id}
+Setext Level One
+===============
+
+[Link to Setext H1 attribute](#setext-h1-id)
+[Link to generated Setext H1 fragment](#setext-level-one)
+
+{#setext-h2-id}
+Setext Level Two
+---------------
+
+[Link to Setext H2 attribute](#setext-h2-id)
+[Link to generated Setext H2 fragment](#setext-level-two)
+
+{ #review-spaces }
+# Review Spaces Heading
+
+[Link to spaced review attribute](#review-spaces)
+
+{#review-blank-line}
+
+## Review Blank Line Heading
+
+[Link to review attribute before blank line](#review-blank-line)
+
+> {#review-quote}
+> ## Review Quote
+
+[Link to quoted review attribute](#review-quote)
+
+a {#review-text-before}
+## Review Text Before Heading
+
+[Link to nonexistent review text-before attribute](#review-text-before)
+[Link to heading after review text-before attribute](#review-text-before-heading)
+
+{#review-text-after} a
+## Review Text After Heading
+
+[Link to nonexistent review text-after attribute](#review-text-after)
+[Link to heading after review text-after attribute](#review-text-after-heading)
+
+a
+{#review-line-before}
+## Review Line Before Heading
+
+[Link to nonexistent review line-before attribute](#review-line-before)
+[Link to heading after review line-before attribute](#review-line-before-heading)
+
+```
+{#review-code-block}
+```
+## Review Code Block Heading
+
+[Link to nonexistent review code-block attribute](#review-code-block)
+[Link to heading after review code-block attribute](#review-code-block-heading)
+
+*{#review-emphasis}*
+## Review Emphasis Heading
+
+[Link to nonexistent review emphasis attribute](#review-emphasis)
+[Link to heading after review emphasis attribute](#review-emphasis-heading)
+
+{#review-multiple-first} {#review-multiple-second}
+## Review Multiple Groups Heading
+
+[Link to first review multiple-group attribute](#review-multiple-first)
+[Link to nonexistent second review multiple-group attribute](#review-multiple-second)
+[Link to heading after review multiple-group attributes](#review-multiple-groups-heading)
+
+{} #review-between-empty {}
+## Review Between Empty Heading
+
+[Link to nonexistent review between-empty attribute](#review-between-empty)
+[Link to heading after review between-empty attribute](#review-between-empty-heading)
+
+{{ #review-double-spaced }}
+## Review Double Spaced Heading
+
+[Link to nonexistent review double-spaced attribute](#review-double-spaced)
+[Link to heading after review double-spaced attribute](#review-double-spaced-heading)
+
+{{#review-double-tight}}
+## Review Double Tight Heading
+
+[Link to nonexistent review double-tight attribute](#review-double-tight)
+[Link to heading after review double-tight attribute](#review-double-tight-heading)
+
+{
+#review-across-lines
+}
+## Review Across Lines Heading
+
+[Link to nonexistent review across-lines attribute](#review-across-lines)
+[Link to heading after review across-lines attribute](#review-across-lines-heading)
+
 # Kebab Case Fragment
 
 [Link to kebab-case fragment](#kebab-case-fragment)
