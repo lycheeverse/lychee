@@ -381,7 +381,12 @@ fn extract_block_heading_id(text: &str) -> Option<HeadingId> {
         return None;
     }
     let inner = strip_braces(text)?;
+    let attribute = find_heading_id_attribute(inner)?;
+    HeadingId::try_from(attribute).ok()
+}
 
+/// Find the last `#id` in the first group after removing the outer braces.
+fn find_heading_id_attribute(inner: &str) -> Option<&str> {
     // Keep quoted attribute values together so e.g. title="a #not-an-id"
     // cannot introduce an ID. MyST uses the last ID in an attribute group:
     // its parser processes tokens in order, overwriting attributes["id"].
@@ -413,7 +418,7 @@ fn extract_block_heading_id(text: &str) -> Option<HeadingId> {
                     if c == '}' {
                         // MyST stops at the first group, ignoring trailing input.
                         // https://github.com/executablebooks/mdit-py-plugins/blob/da70e05b7630c38047d1921ef21d1aadc34c1ea9/mdit_py_plugins/attrs/index.py#L212-L219
-                        return id.and_then(|attribute| HeadingId::try_from(attribute).ok());
+                        return id;
                     }
                     attribute_start = index + c.len_utf8();
                 }
@@ -459,6 +464,19 @@ mod tests {
     use crate::types::uri::raw::span;
 
     use super::*;
+
+    #[rstest]
+    #[case::last_id("#first #second", Some("#second"))]
+    #[case::first_group("#first} {#second", Some("#first"))]
+    #[case::quoted_id(r#"title="a #fake" #real"#, Some("#real"))]
+    #[case::quoted_brace(r#"#real title="}""#, Some("#real"))]
+    #[case::escaped_quote(r#"#real title="a \" }""#, Some("#real"))]
+    #[case::unclosed_quote(r#"#real title="unclosed"#, None)]
+    #[case::nested_group("{ #nested }", None)]
+    #[case::empty("", None)]
+    fn test_find_heading_id_attribute(#[case] inner: &str, #[case] expected: Option<&str>) {
+        assert_eq!(find_heading_id_attribute(inner), expected);
+    }
 
     #[rstest]
     #[case::wrapped("{foo}", Some("foo"))]
