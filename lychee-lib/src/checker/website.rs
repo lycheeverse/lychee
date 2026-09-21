@@ -11,7 +11,8 @@ use crate::{
     utils::fragment_checker::{FragmentChecker, FragmentInput},
 };
 use async_trait::async_trait;
-use http::{Method, StatusCode};
+use http::{Method, StatusCode, Version};
+use log::debug;
 use octocrab::Octocrab;
 use reqwest::{Request, header::CONTENT_TYPE};
 use std::{borrow::Cow, collections::HashSet, path::Path, sync::Arc, time::Duration};
@@ -111,13 +112,20 @@ impl WebsiteChecker {
     /// with an exponential backoff.
     /// Note that, in addition, there also is a host-specific backoff
     /// when host-specific rate limiting or errors are detected.
-    pub(crate) async fn retry_request(&self, request: Request) -> Status {
+    pub(crate) async fn retry_request(&self, mut request: Request) -> Status {
         let mut retries: u64 = 0;
         let mut wait_time = self.retry_wait_time;
         let mut status = self.check_default(clone_unwrap(&request)).await;
         while retries < self.max_retries {
             if status.is_success() || !status.should_retry() {
                 return status;
+            }
+            if status.is_http2_error() && request.version() != Version::HTTP_11 {
+                debug!(
+                    "HTTP/2 failed for {}; retrying over HTTP/1.1",
+                    request.url()
+                );
+                *request.version_mut() = Version::HTTP_11;
             }
             retries += 1;
             tokio::time::sleep(wait_time).await;
