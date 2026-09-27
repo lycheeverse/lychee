@@ -1,11 +1,16 @@
 use std::fmt::{self, Display};
 
 use super::{host_heading, status_summary};
-use crate::formatters::color::{NORMAL, color};
+use crate::config::OutputMode;
+use crate::formatters::{
+    color::{NORMAL, color},
+    icon,
+};
 use lychee_lib::ratelimit::HostStatsMap;
 
 pub(crate) struct CompactHostStats {
     pub(crate) host_stats: Option<HostStatsMap>,
+    pub(crate) mode: OutputMode,
 }
 
 impl Display for CompactHostStats {
@@ -14,7 +19,7 @@ impl Display for CompactHostStats {
             return Ok(());
         };
 
-        writeln!(f, "{}", host_heading("\n📊 ", host_stats))?;
+        writeln!(f, "\n{}", host_heading(icon(&self.mode, "📊 "), host_stats))?;
 
         let sorted_hosts = host_stats.sorted();
         let hostname_width = sorted_hosts

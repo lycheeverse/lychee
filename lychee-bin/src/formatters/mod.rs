@@ -16,6 +16,16 @@ fn supports_color() -> bool {
     supports_color::on(Stream::Stdout).is_some()
 }
 
+/// Returns `symbol` for use as a label prefix, or nothing in plain mode,
+/// which is meant for terminals that cannot render emoji.
+pub(crate) fn icon(mode: &OutputMode, symbol: &'static str) -> &'static str {
+    if *mode == OutputMode::Plain {
+        ""
+    } else {
+        symbol
+    }
+}
+
 /// Create a stats formatter based on the given format option
 pub(crate) fn get_stats_formatter(
     format: &StatsFormat,

@@ -1,10 +1,12 @@
 use std::fmt::{self, Display};
 
 use super::host_heading;
+use crate::{config::OutputMode, formatters::icon};
 use lychee_lib::ratelimit::HostStatsMap;
 
 pub(crate) struct DetailedHostStats {
     pub(crate) host_stats: Option<HostStatsMap>,
+    pub(crate) mode: OutputMode,
 }
 
 impl Display for DetailedHostStats {
@@ -13,7 +15,7 @@ impl Display for DetailedHostStats {
             return Ok(());
         };
 
-        let heading = host_heading("📊 ", host_stats);
+        let heading = host_heading(icon(&self.mode, "📊 "), host_stats);
         writeln!(f, "\n{heading}")?;
         writeln!(f, "{}", "-".repeat(heading.chars().count()))?;
 

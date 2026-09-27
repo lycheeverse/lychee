@@ -4,6 +4,7 @@ use crate::{
     formatters::{
         get_response_formatter,
         host_stats::DetailedHostStats,
+        icon,
         stats::{OutputStats, ResponseStats},
     },
 };
@@ -43,17 +44,19 @@ impl Display for DetailedResponseStats {
         let stats = &self.stats;
         let separator = "-".repeat(WIDTH + 1);
 
-        writeln!(f, "📝 Summary")?;
+        let label = |symbol, text| format!("{}{text}", icon(&self.mode, symbol));
+
+        writeln!(f, "{}", label("📝 ", "Summary"))?;
         writeln!(f, "{separator}")?;
-        write_stat(f, "🔍 Total", stats.total, true)?;
-        write_stat(f, "🔗 Unique", stats.unique, true)?;
-        write_stat(f, "✅ Successful", stats.successful, true)?;
-        write_stat(f, "⏳ Timeouts", stats.timeouts, true)?;
-        write_stat(f, "🔀 Redirected", stats.redirects, true)?;
-        write_stat(f, "👻 Excluded", stats.excludes, true)?;
-        write_stat(f, "❓ Unknown", stats.unknown, true)?;
-        write_stat(f, "🚫 Errors", stats.errors, true)?;
-        write_stat(f, "⛔ Unsupported", stats.unsupported, false)?;
+        write_stat(f, &label("🔍 ", "Total"), stats.total, true)?;
+        write_stat(f, &label("🔗 ", "Unique"), stats.unique, true)?;
+        write_stat(f, &label("✅ ", "Successful"), stats.successful, true)?;
+        write_stat(f, &label("⏳ ", "Timeouts"), stats.timeouts, true)?;
+        write_stat(f, &label("🔀 ", "Redirected"), stats.redirects, true)?;
+        write_stat(f, &label("👻 ", "Excluded"), stats.excludes, true)?;
+        write_stat(f, &label("❓ ", "Unknown"), stats.unknown, true)?;
+        write_stat(f, &label("🚫 ", "Errors"), stats.errors, true)?;
+        write_stat(f, &label("⛔ ", "Unsupported"), stats.unsupported, false)?;
 
         let response_formatter = get_response_formatter(&self.mode);
 
@@ -126,6 +129,7 @@ impl StatsFormatter for Detailed {
         };
         let host_stats = DetailedHostStats {
             host_stats: stats.host_stats,
+            mode: self.mode.clone(),
         };
 
         Ok(format!("{response_stats}\n{host_stats}"))
@@ -145,17 +149,17 @@ mod tests {
 
         assert_eq!(
             result,
-            "📝 Summary
+            "Summary
 ---------------------
-🔍 Total............5
-🔗 Unique...........5
-✅ Successful.......3
-⏳ Timeouts.........1
-🔀 Redirected.......1
-👻 Excluded.........0
-❓ Unknown..........0
-🚫 Errors...........1
-⛔ Unsupported......0
+Total..............5
+Unique.............5
+Successful.........3
+Timeouts...........1
+Redirected.........1
+Excluded...........0
+Unknown............0
+Errors.............1
+Unsupported........0
 
 Errors in https://example.com/
 [404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | Rejected status code: 404 Not Found
@@ -169,8 +173,8 @@ Redirects in https://example.com/
 https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
 
 
-📊 Per-host Statistics (1 domains, 5 requests)
----------------------------------------------
+Per-host Statistics (1 domains, 5 requests)
+-------------------------------------------
 
 Host: example.com
   Total requests: 5
@@ -182,6 +186,15 @@ Host: example.com
   Cache hits: 1, misses: 4
 "
         );
+    }
+
+    #[test]
+    fn test_detailed_formatter_emoji_mode_keeps_symbols() {
+        let formatter = Detailed::new(OutputMode::Emoji);
+        let result = formatter.format(get_dummy_stats()).unwrap();
+
+        assert!(result.starts_with("📝 Summary\n---------------------\n🔍 Total............5\n"));
+        assert!(result.contains("\n📊 Per-host Statistics (1 domains, 5 requests)\n"));
     }
 
     #[test]
@@ -222,17 +235,17 @@ Host: example.com
 
         assert_eq!(
             response_stats.to_string(),
-            "📝 Summary
+            "Summary
 ---------------------
-🔍 Total............1
-🔗 Unique...........1
-✅ Successful.......0
-⏳ Timeouts.........0
-🔀 Redirected.......0
-👻 Excluded.........0
-❓ Unknown..........0
-🚫 Errors...........0
-⛔ Unsupported......1
+Total..............1
+Unique.............1
+Successful.........0
+Timeouts...........0
+Redirected.........0
+Excluded...........0
+Unknown............0
+Errors.............0
+Unsupported........1
 
 Ignored in https://example.com/
 [IGNORED] https://example.com/ignored | Unsupported: URL is missing a hostname"
