@@ -2354,6 +2354,7 @@ dependencies = [
  "reqwest_cookie_store",
  "ring",
  "rlimit",
+ "rstest",
  "secrecy",
  "serde",
  "serde_json",
