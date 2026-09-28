@@ -1,6 +1,7 @@
-use std::fmt::{self, Display};
+use std::fmt::{self, Write};
 
-use super::{host_heading, status_summary};
+use super::{STATS_EMOJI, host_heading, status_summary};
+use crate::config::OutputMode;
 use crate::formatters::color::{NORMAL, color};
 use lychee_lib::ratelimit::HostStatsMap;
 
@@ -8,13 +9,18 @@ pub(crate) struct CompactHostStats {
     pub(crate) host_stats: Option<HostStatsMap>,
 }
 
-impl Display for CompactHostStats {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl CompactHostStats {
+    pub(crate) fn format(&self, mode: &OutputMode) -> Result<String, fmt::Error> {
+        let mut buf = String::new();
         let Some(host_stats) = &self.host_stats else {
-            return Ok(());
+            return Ok(buf);
         };
 
-        writeln!(f, "{}", host_heading("\n📊 ", host_stats))?;
+        buf.push('\n');
+        if *mode != OutputMode::Plain {
+            buf.push_str(STATS_EMOJI);
+        }
+        writeln!(buf, "{}", host_heading(host_stats))?;
 
         let sorted_hosts = host_stats.sorted();
         let hostname_width = sorted_hosts
@@ -29,15 +35,15 @@ impl Display for CompactHostStats {
             let cache_summary = stats.cache_summary();
 
             color!(
-                f,
+                buf,
                 NORMAL,
                 "  {hostname:<width$}  {:>6} reqs  {cache_summary:>12}    {status_summary}",
                 stats.total_requests,
                 width = hostname_width,
             )?;
-            writeln!(f)?;
+            writeln!(buf)?;
         }
 
-        Ok(())
+        Ok(buf)
     }
 }
