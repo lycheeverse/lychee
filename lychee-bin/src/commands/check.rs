@@ -16,7 +16,7 @@ use lychee_lib::archive::Archive;
 use lychee_lib::async_lib::stream::StreamExt as _;
 use lychee_lib::ratelimit::HostPool;
 use lychee_lib::{Client, ErrorKind, Request, Response};
-use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use crate::CommandParams;
 use crate::formatters::stats::ResponseStats;
@@ -60,7 +60,7 @@ pub(crate) async fn check(
 
     /* Input streams and channels (both initial and recursive) */
 
-    let (recursive_channel_send, recursive_channel_recv) = mpsc::channel(max_concurrency);
+    let (recursive_channel_send, recursive_channel_recv) = mpsc::unbounded_channel();
     let recursive_channel_send = RequestQueue(recursive_channel_send);
 
     // Split initial requests into: valid requests and request errors. Note that
@@ -91,7 +91,7 @@ pub(crate) async fn check(
     // once every `RequestQueue` handle has been dropped, closing the channel.
     let requests = futures::stream::select_with_strategy(
         valid_requests,
-        ReceiverStream::new(recursive_channel_recv),
+        UnboundedReceiverStream::new(recursive_channel_recv),
         |()| futures::stream::PollNext::Right, // Recursive requests consume memory, prefer those.
     );
 
@@ -130,7 +130,7 @@ pub(crate) async fn check(
     let all_done = recursive_uris.flat_map(stream::iter).for_each(
         async |(queue, req): (RequestQueue, Request)| {
             progress.inc_length(1);
-            queue.enqueue(req).await.unwrap_or_else(|e| {
+            queue.enqueue(req).unwrap_or_else(|e| {
                 warn!("unable to send recursive uri {:?} - channel closed?", e.0.1);
             });
         },
@@ -187,16 +187,16 @@ pub(crate) async fn check(
 /// Recursively discovered links are fed back in via [`RequestQueue::enqueue`],
 /// which moves the handle onto the child so it stays open.
 #[derive(Clone)]
-struct RequestQueue(mpsc::Sender<(RequestQueue, Request)>);
+struct RequestQueue(mpsc::UnboundedSender<(RequestQueue, Request)>);
 
 impl RequestQueue {
     /// Enqueues a recursively discovered request
-    async fn enqueue(
+    fn enqueue(
         &self,
         request: Request,
     ) -> Result<(), mpsc::error::SendError<(RequestQueue, Request)>> {
         let queue = self.clone();
-        self.0.send((queue, request)).await
+        self.0.send((queue, request))
     }
 }
 
