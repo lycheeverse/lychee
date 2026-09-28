@@ -41,6 +41,8 @@ mod cli {
 
         // should not deadlock, and all links should succeed.
         let _cmd = cargo_bin_cmd!()
+            // TODO: after recursion, change this to point to only the first HTML file rather than
+            // the whole directory.
             .arg(dir.path())
             .arg("--max-concurrency=1")
             .timeout(std::time::Duration::from_secs(3))
