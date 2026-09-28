@@ -1,29 +1,33 @@
-use std::fmt::{self, Display};
+use std::fmt::{self, Write};
 
-use super::host_heading;
-use crate::{config::OutputMode, formatters::icon};
+use super::{STATS_EMOJI, host_heading};
+use crate::config::OutputMode;
 use lychee_lib::ratelimit::HostStatsMap;
 
 pub(crate) struct DetailedHostStats {
     pub(crate) host_stats: Option<HostStatsMap>,
-    pub(crate) mode: OutputMode,
 }
 
-impl Display for DetailedHostStats {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl DetailedHostStats {
+    pub(crate) fn format(&self, mode: &OutputMode) -> Result<String, fmt::Error> {
+        let mut buf = String::new();
         let Some(host_stats) = &self.host_stats else {
-            return Ok(());
+            return Ok(buf);
         };
 
-        let heading = host_heading(icon(&self.mode, "📊 "), host_stats);
-        writeln!(f, "\n{heading}")?;
-        writeln!(f, "{}", "-".repeat(heading.chars().count()))?;
+        let mut heading = String::new();
+        if *mode != OutputMode::Plain {
+            heading.push_str(STATS_EMOJI);
+        }
+        heading.push_str(&host_heading(host_stats));
+        writeln!(buf, "\n{heading}")?;
+        writeln!(buf, "{}", "-".repeat(heading.chars().count()))?;
 
         for (hostname, stats) in host_stats.sorted() {
-            writeln!(f, "\nHost: {hostname}")?;
-            writeln!(f, "  Total requests: {}", stats.total_requests)?;
+            writeln!(buf, "\nHost: {hostname}")?;
+            writeln!(buf, "  Total requests: {}", stats.total_requests)?;
             writeln!(
-                f,
+                buf,
                 "  Successful: {} ({:.1}%)",
                 stats.successful_requests,
                 stats.success_rate() * 100.0
@@ -31,24 +35,24 @@ impl Display for DetailedHostStats {
 
             if stats.rate_limited > 0 {
                 writeln!(
-                    f,
+                    buf,
                     "  Rate limited: {} (429 Too Many Requests)",
                     stats.rate_limited
                 )?;
             }
             if stats.client_errors > 0 {
-                writeln!(f, "  Client errors (4xx): {}", stats.client_errors)?;
+                writeln!(buf, "  Client errors (4xx): {}", stats.client_errors)?;
             }
             if stats.server_errors > 0 {
-                writeln!(f, "  Server errors (5xx): {}", stats.server_errors)?;
+                writeln!(buf, "  Server errors (5xx): {}", stats.server_errors)?;
             }
             if stats.network_errors > 0 {
-                writeln!(f, "  Network errors: {}", stats.network_errors)?;
+                writeln!(buf, "  Network errors: {}", stats.network_errors)?;
             }
 
             if let Some(median_time) = stats.median_request_time() {
                 writeln!(
-                    f,
+                    buf,
                     "  Median response time: {:.0}ms",
                     median_time.as_millis()
                 )?;
@@ -56,15 +60,15 @@ impl Display for DetailedHostStats {
 
             let cache_hit_rate = stats.cache_hit_rate();
             if cache_hit_rate > 0.0 {
-                writeln!(f, "  Cache hit rate: {:.1}%", cache_hit_rate * 100.0)?;
+                writeln!(buf, "  Cache hit rate: {:.1}%", cache_hit_rate * 100.0)?;
                 writeln!(
-                    f,
+                    buf,
                     "  Cache hits: {}, misses: {}",
                     stats.cache_hits, stats.cache_misses
                 )?;
             }
         }
 
-        Ok(())
+        Ok(buf)
     }
 }

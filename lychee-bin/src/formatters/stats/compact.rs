@@ -12,7 +12,6 @@ use crate::formatters::{
     color::{BOLD_GREEN, BOLD_PINK, BOLD_YELLOW, DIM, NORMAL, color},
     get_response_formatter,
     host_stats::CompactHostStats,
-    icon,
     response::ResponseFormatter,
     stats::{OutputStats, ResponseStats},
 };
@@ -44,6 +43,8 @@ impl Display for CompactResponseStats {
             )?;
         }
 
+        let plain = self.mode == config::OutputMode::Plain;
+        let symbol = |emoji| if plain { "" } else { emoji };
         let response_formatter = get_response_formatter(&self.mode);
 
         for (source, responses) in super::sort_stats_iter(
@@ -55,21 +56,14 @@ impl Display for CompactResponseStats {
         ) {
             color!(f, BOLD_YELLOW, "[{}]:\n", source)?;
             write_responses(f, &*response_formatter, responses)?;
-            write_suggestions(f, stats, source, icon(&self.mode, "ℹ "))?;
+            write_suggestions(f, stats, source, symbol("ℹ "))?;
             writeln!(f)?;
         }
 
-        let mode = &self.mode;
-        color!(f, NORMAL, "{}{} Total", icon(mode, "🔍 "), stats.total)?;
+        color!(f, NORMAL, "{}{} Total", symbol("🔍 "), stats.total)?;
         color!(f, DIM, " (in {})", format_duration(stats.duration))?;
-        color!(f, NORMAL, " {}{} Unique", icon(mode, "🔗 "), stats.unique)?;
-        color!(
-            f,
-            BOLD_GREEN,
-            " {}{} OK",
-            icon(mode, "✅ "),
-            stats.successful
-        )?;
+        color!(f, NORMAL, " {}{} Unique", symbol("🔗 "), stats.unique)?;
+        color!(f, BOLD_GREEN, " {}{} OK", symbol("✅ "), stats.successful)?;
 
         let total_errors = stats.errors;
 
@@ -78,40 +72,22 @@ impl Display for CompactResponseStats {
             f,
             BOLD_PINK,
             " {}{} {}",
-            icon(mode, "🚫 "),
+            symbol("🚫 "),
             total_errors,
             err_str
         )?;
 
-        write_if_any(stats.unknown, icon(mode, "❓ "), "Unknown", &BOLD_PINK, f)?;
-        write_if_any(
-            stats.excludes,
-            icon(mode, "👻 "),
-            "Excluded",
-            &BOLD_YELLOW,
-            f,
-        )?;
-        write_if_any(
-            stats.timeouts,
-            icon(mode, "⏳ "),
-            "Timeouts",
-            &BOLD_YELLOW,
-            f,
-        )?;
+        write_if_any(stats.unknown, symbol("❓ "), "Unknown", &BOLD_PINK, f)?;
+        write_if_any(stats.excludes, symbol("👻 "), "Excluded", &BOLD_YELLOW, f)?;
+        write_if_any(stats.timeouts, symbol("⏳ "), "Timeouts", &BOLD_YELLOW, f)?;
         write_if_any(
             stats.unsupported,
-            icon(mode, "⛔ "),
+            symbol("⛔ "),
             "Unsupported",
             &BOLD_YELLOW,
             f,
         )?;
-        write_if_any(
-            stats.redirects,
-            icon(mode, "🔀 "),
-            "Redirects",
-            &BOLD_YELLOW,
-            f,
-        )?;
+        write_if_any(stats.redirects, symbol("🔀 "), "Redirects", &BOLD_YELLOW, f)?;
 
         Ok(())
     }
@@ -191,8 +167,8 @@ impl StatsFormatter for Compact {
         };
         let host_stats = CompactHostStats {
             host_stats: stats.host_stats,
-            mode: self.mode.clone(),
-        };
+        }
+        .format(&self.mode)?;
 
         Ok(format!("{response_stats}\n{host_stats}"))
     }

@@ -4,7 +4,6 @@ use crate::{
     formatters::{
         get_response_formatter,
         host_stats::DetailedHostStats,
-        icon,
         stats::{OutputStats, ResponseStats},
     },
 };
@@ -44,7 +43,14 @@ impl Display for DetailedResponseStats {
         let stats = &self.stats;
         let separator = "-".repeat(WIDTH + 1);
 
-        let label = |symbol, text| format!("{}{text}", icon(&self.mode, symbol));
+        let plain = self.mode == config::OutputMode::Plain;
+        let label = |symbol: &str, text: &str| {
+            if plain {
+                text.to_owned()
+            } else {
+                format!("{symbol}{text}")
+            }
+        };
 
         writeln!(f, "{}", label("📝 ", "Summary"))?;
         writeln!(f, "{separator}")?;
@@ -129,8 +135,8 @@ impl StatsFormatter for Detailed {
         };
         let host_stats = DetailedHostStats {
             host_stats: stats.host_stats,
-            mode: self.mode.clone(),
-        };
+        }
+        .format(&self.mode)?;
 
         Ok(format!("{response_stats}\n{host_stats}"))
     }

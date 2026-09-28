@@ -17,7 +17,7 @@ impl Display for MarkdownHostStats {
             return Ok(());
         };
 
-        writeln!(f, "{}", host_heading("\n## ", host_stats))?;
+        writeln!(f, "\n## {}", host_heading(host_stats))?;
         writeln!(f)?;
         writeln!(f, "{}", host_stats_table(host_stats))?;
 
