@@ -4,6 +4,7 @@ use super::CacheStatus;
 use crate::ErrorKind;
 use crate::RequestError;
 use crate::ratelimit::CacheableResponse;
+use crate::retry::is_http2_error;
 use http::StatusCode;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
@@ -94,6 +95,14 @@ impl Status {
         } else {
             Self::Error(ErrorKind::RejectedStatusCode(status))
         }
+    }
+
+    /// Returns `true` when the status wraps an HTTP/2 transport error.
+    pub(crate) fn is_http2_error(&self) -> bool {
+        let Status::Error(ErrorKind::NetworkRequest(error)) = self else {
+            return false;
+        };
+        is_http2_error(error)
     }
 
     /// Create a status object from a cached status (from a previous run of

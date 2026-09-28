@@ -1,8 +1,20 @@
-use std::io;
+use std::{error::Error, io};
 
 use http::StatusCode;
 
 use crate::{ErrorKind, Status};
+
+/// Returns `true` when the error chain contains an HTTP/2 transport error.
+pub(crate) fn is_http2_error(error: &(dyn Error + 'static)) -> bool {
+    let mut current = Some(error);
+    while let Some(error) = current {
+        if error.downcast_ref::<h2::Error>().is_some() {
+            return true;
+        }
+        current = error.source();
+    }
+    false
+}
 
 /// An extension trait to help determine if a given HTTP request
 /// is retryable.
@@ -28,7 +40,9 @@ impl RetryExt for reqwest::StatusCode {
 impl RetryExt for reqwest::Error {
     #[allow(clippy::if_same_then_else)]
     fn should_retry(&self) -> bool {
-        if self.is_timeout() {
+        if is_http2_error(self) {
+            true
+        } else if self.is_timeout() {
             true
         } else if self.is_connect() {
             false
@@ -147,7 +161,19 @@ fn get_source_error_type<T: std::error::Error + 'static>(
 mod tests {
     use http::StatusCode;
 
-    use super::RetryExt;
+    use super::{RetryExt, is_http2_error};
+
+    #[test]
+    fn identifies_http2_protocol_errors_by_type() {
+        let error = h2::Error::from(h2::Reason::PROTOCOL_ERROR);
+        assert!(is_http2_error(&error));
+    }
+
+    #[test]
+    fn ignores_unrelated_network_errors() {
+        let error = std::io::Error::other("connection reset by peer");
+        assert!(!is_http2_error(&error));
+    }
 
     #[test]
     fn test_should_retry() {
