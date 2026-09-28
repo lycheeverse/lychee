@@ -194,9 +194,9 @@ impl RequestQueue {
     fn enqueue(
         &self,
         request: Request,
-    ) -> Result<(), mpsc::error::SendError<(RequestQueue, Request)>> {
+    ) -> Result<(), Box<mpsc::error::SendError<(RequestQueue, Request)>>> {
         let queue = self.clone();
-        self.0.send((queue, request))
+        Ok(self.0.send((queue, request))?)
     }
 }
 
