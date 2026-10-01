@@ -336,6 +336,16 @@ fn underlying_io_error_kind(error: &Error) -> Option<io::ErrorKind> {
 async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs()?;
 
+    let recursion_domains = inputs
+        .iter()
+        .filter_map(|input| match &input.source {
+            lychee_lib::InputSource::RemoteUrl(url) => url
+                .host_str()
+                .map(|host| host.trim_end_matches('.').to_ascii_lowercase()),
+            _ => None,
+        })
+        .collect();
+
     // Hide the progress bar only when stdin is the sole input and it is
     // interactive (TTY).
     //
@@ -403,11 +413,15 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         collector
     };
 
-    let requests = collector.collect_links_from_file_types(inputs, opts.config.extensions());
+    let requests = collector
+        .clone()
+        .collect_links_from_file_types(inputs, opts.config.extensions());
     let params = CommandParams {
         client,
         cache,
+        collector,
         requests,
+        recursion_domains,
         cfg: opts.config.clone(),
         is_stdin_input,
     };
