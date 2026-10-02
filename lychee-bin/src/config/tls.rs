@@ -3,11 +3,22 @@
 //! Provides types for specifying minimum accepted TLS versions for network requests.
 
 use reqwest::tls;
+use schemars::JsonSchema;
 use serde::Deserialize;
 use strum::{Display, EnumIter, EnumString, VariantNames};
 
 #[derive(
-    Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq, Eq,
+    Debug,
+    Deserialize,
+    Default,
+    Clone,
+    Display,
+    EnumIter,
+    EnumString,
+    VariantNames,
+    PartialEq,
+    Eq,
+    JsonSchema,
 )]
 #[non_exhaustive]
 pub(crate) enum TlsVersion {
