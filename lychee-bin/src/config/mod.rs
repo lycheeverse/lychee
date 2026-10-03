@@ -109,6 +109,14 @@ impl From<FragmentMode> for FragmentCheckerOptions {
 /// in local files and websites. It supports Markdown and HTML and works with other file formats.
 ///
 /// lychee is powered by lychee-lib, the Rust library for link checking.
+///
+/// # Exit Codes
+///
+/// - 0 - success
+/// - 1 - general error
+/// - 2 - link-check failure
+/// - 3 - config file error
+// NOTE The exit codes above are defined in `src/main.rs::ExitCode`
 #[derive(Parser, Debug)]
 #[command(version, about, next_display_order = None)]
 pub(crate) struct LycheeOptions {
