@@ -68,7 +68,9 @@ pub(super) struct StatusRangeString(#[schemars(schema_with = "status_range_strin
 fn status_range_pattern() -> String {
     // The parser accepts leading zeros, e.g. "0200" means 200.
     let code = r"0*[1-9][0-9]{2}";
-    let range = format!(r"({code})?\.\.(=?{code})?");
+    // An exclusive upper endpoint of 1000 ends at status 999; =1000 is invalid.
+    let upper_endpoint = format!("(=?{code}|0*1000)");
+    let range = format!(r"({code})?\.\.{upper_endpoint}?");
     // This checks syntax, not endpoint ordering: "500..400" still needs to be
     // rejected by the parser. Encoding that comparison here would obscure the grammar.
     format!("({code}|{range})")
