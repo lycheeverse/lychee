@@ -50,7 +50,6 @@ impl InputResolver {
     ///
     /// Once an error is returned, resolution of that input source halts
     /// and no further `Ok(ResolvedInputSource)` will be produced.
-    #[must_use]
     pub fn resolve<'a>(
         input: &Input,
         file_extensions: FileExtensions,

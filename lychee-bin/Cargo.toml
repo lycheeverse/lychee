@@ -40,6 +40,7 @@ regex = "1.12.2"
 reqwest = "0.13.4"
 reqwest_cookie_store = { version = "0.10.0", features = ["serde"] }
 rlimit = "0.11.0"
+schemars = "1.0.4"
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
 # This is necessary for the homebrew build
@@ -60,8 +61,10 @@ quick-junit = "0.8.0"
 [dev-dependencies]
 assert_cmd = "2.2.2"
 cookie_store = "0.22.1"
+jsonschema = { version = "0.55.1", default-features = false }
 predicates = "3.1.4"
 pretty_assertions = "1.4.1"
+rstest = "0.27.0"
 tempfile = "3.27.0"
 test-utils = { path = "../test-utils" }
 tracing-subscriber = { version = "0.3.23", default-features = false, features = [

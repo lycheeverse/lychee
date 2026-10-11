@@ -1,0 +1,760 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Config",
+  "description": "The main configuration for lychee\n\nThis mirrors the structure of the `lychee.toml` configuration file. It is\nalso used to derive a JSON schema (see `lychee --generate config-schema`),\nwhich editors can use for autocompletion and validation of the config file.",
+  "type": "object",
+  "properties": {
+    "accept": {
+      "description": "A List of accepted status codes for valid links\n\nThe following accept range syntax is supported: `[start]..[[=]end]|code`.\nSome valid examples are:\n\n- 200 (accepts the 200 status code only)\n- ..204 (accepts any status code < 204)\n- ..=204 (accepts any status code <= 204)\n- 200..=204 (accepts any status code from 200 to 204 inclusive)\n- 200..205 (accepts any status code from 200 to 205 excluding 205, same as 200..=204)\n\nUse `lychee --accept '200..=204, 429, 500' <inputs>...` to provide a comma-\nseparated list of accepted status codes. This example will accept 200, 201,\n202, 203, 204, 429, and 500 as valid status codes.\n\n[default: 100..=103,200..=299]",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/StatusCodeSelector"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "accept_timeouts": {
+      "description": "Accept timed out requests and return exit code 0\nwhen encountering timeouts but not any other errors.",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "archive": {
+      "description": "Web archive to use to provide suggestions for `--suggest`.\n\n[default: wayback]",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Archive"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "base_url": {
+      "description": "Base URL to use when resolving relative URLs in local files. If specified,\nrelative links in local files are interpreted as being relative to the given\nbase URL.\n\nFor example, given a base URL of `https://example.com/dir/page`, the link `a`\nwould resolve to `https://example.com/dir/a` and the link `/b` would resolve\nto `https://example.com/b`. This behavior is not affected by the filesystem\npath of the file containing these links.\n\nNote that relative URLs without a leading slash become siblings of the base\nURL. If, instead, the base URL ended in a slash, the link would become a child\nof the base URL. For example, a base URL of `https://example.com/dir/page/` and\na link of `a` would resolve to `https://example.com/dir/page/a`.\n\nBasically, the base URL option resolves links as if the local files were hosted\nat the given base URL address.\n\nThe provided base URL value must either be a URL (with scheme) or an absolute path.\nNote that certain URL schemes cannot be used as a base, e.g., `data` and `mailto`.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "basic_auth": {
+      "description": "Basic authentication support. E.g. `http://example.com username:password`",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/definitions/BasicAuthSelector"
+      }
+    },
+    "cache": {
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "cache_exclude_status": {
+      "description": "A list of status codes that will be ignored from the cache\n\nThe following exclude range syntax is supported: `[start]..[[=]end]|code`. Some valid\nexamples are:\n\n- 429 (excludes the 429 status code only)\n- 500.. (excludes any status code >= 500)\n- ..100 (excludes any status code < 100)\n- 500..=599 (excludes any status code from 500 to 599 inclusive)\n- 500..600 (excludes any status code from 500 to 600 excluding 600, same as 500..=599)\n\nUse `lychee --cache-exclude-status '429, 500..502' <inputs>...` to provide a\ncomma-separated list of excluded status codes. This example will not cache results\nwith a status code of 429, 500 and 501.",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/StatusCodeSelector"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "cache_location": {
+      "description": "Filesystem path used to store the on-disk request cache\n\n[default: .lycheecache]",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cookie_jar": {
+      "description": "Read and write cookies using the given file. Cookies will be stored in the\ncookie jar and sent with requests. New cookies will be stored in the cookie jar\nand existing cookies will be updated.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "default_extension": {
+      "description": "Parse input sources without a recognised file type by using the given\nfile extension.\n\nThis affects how links are extracted from certain input sources. This\nis useful for stdin inputs, files without extensions, and files with\nunknown extensions.\n\nExamples:\n  --default-extension md\n  --default-extension html\n\nTo automatically append file extensions when locating files, see\n`--fallback-extensions`.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dump": {
+      "description": "Don't perform any link checking.\nInstead, dump all the links extracted from inputs that would be checked",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "dump_inputs": {
+      "description": "Don't perform any link extraction and checking.\nInstead, dump all input sources from which links would be collected",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "exclude": {
+      "description": "Exclude URLs and mail addresses from checking.\nThe values are treated as regular expressions.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "exclude_all_private": {
+      "description": "Exclude all private IPs from checking.\nEquivalent to `--exclude-private --exclude-link-local --exclude-loopback`",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "exclude_link_local": {
+      "description": "Exclude link-local IP address range from checking",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "exclude_loopback": {
+      "description": "Exclude loopback IP address range and localhost from checking",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "exclude_path": {
+      "description": "Exclude paths from getting checked.\nThe values are treated as regular expressions.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "exclude_private": {
+      "description": "Exclude private IP address ranges from checking",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "extensions": {
+      "description": "A list of file extensions. Files not matching the specified extensions are skipped.\n\nMultiple extensions can be separated by commas. Note that if you want to check filetypes,\nwhich have multiple extensions, e.g. HTML files with both .html and .htm extensions, you need to\nspecify both extensions explicitly.\nAn example is: `--extensions html,htm,php,asp,aspx,jsp,cgi`.\n\nThis is useful when the default extensions are not enough and you don't\nwant to provide a long list of inputs (e.g. file1.html, file2.md, etc.)\n\n[default: md,markdown,mdx,qmd,rmd,mkd,mkdn,mdwn,mdown,mkdown,html,htm,css,txt,xml]",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "fallback_extensions": {
+      "description": "When checking locally, attempts to locate missing files by trying the given\nfallback extensions. Multiple extensions can be separated by commas. Extensions\nwill be checked in order of appearance.\n\nThe path itself is tried first, then every extension appended to the full\nfile name, then every extension replacing an existing one. So `a.b` with\n`html,htm` is looked up as `a.b`, `a.b.html`, `a.b.htm`, `a.html`,\n`a.htm`. An existing extension containing ASCII whitespace is never\nreplaced, since replacing it could discard part of the file name.\n\nExample: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi\n\nNote: This option takes effect on `file://` URIs which do not exist and on\n      `file://` URIs pointing to directories which resolve to themself (by the\n      --index-files logic).",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "files_from": {
+      "description": "Read input filenames from the given file or stdin (if path is '-').\n\nThis is useful when you have a large number of inputs that would be\ncumbersome to specify on the command line directly.\n\nExamples:\n\n```text\nlychee --files-from list.txt\nfind . -name '*.md' | lychee --files-from -\necho 'README.md' | lychee --files-from -\n```\n\nFile Format:\n- Each line should contain one input (file path, URL, or glob pattern).\n- Lines starting with '#' are treated as comments and ignored.\n- Empty lines are also ignored.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "format": {
+      "description": "Output format of final status report\n\n[default: compact]",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/StatsFormat"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "generate": {
+      "description": "Generate special output (e.g. the man page) instead of performing link checking",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/GenerateMode"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "github_token": {
+      "description": "GitHub API token to use when checking github.com links, to avoid rate limiting",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "glob_ignore_case": {
+      "description": "Ignore case when expanding filesystem path glob inputs",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "header": {
+      "description": "Set custom header for requests.\n\nSome websites require custom headers to be passed in order to return valid responses.\nYou can specify custom headers in the format 'Name: Value'. For example, 'Accept: text/html'.\nThis is the same format that other tools like curl or wget use.\nMultiple headers can be specified by using the flag multiple times.\nThe specified headers are used for ALL requests.\nUse the `hosts` option to configure headers on a per-host basis.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {}
+    },
+    "hidden": {
+      "description": "Do not skip hidden directories and files.",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "host_concurrency": {
+      "description": "Default maximum concurrent requests per host (default: 10)\n\nThis limits the maximum amount of requests that are sent simultaneously\nto the same host. This helps to prevent overwhelming servers and\nrunning into rate-limits. Use the `hosts` option to configure this\non a per-host basis.\n\nExamples:\n  --host-concurrency 2   # Conservative for slow APIs\n  --host-concurrency 20  # Aggressive for fast APIs",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint",
+      "minimum": 0
+    },
+    "host_request_interval": {
+      "description": "Minimum interval between requests to the same host (default: 50ms)\n\nSets a baseline delay between consecutive requests to prevent\noverloading servers. The adaptive algorithm may increase this based\non server responses (rate limits, errors). Use the `hosts` option\nto configure this on a per-host basis.\n\nExamples:\n  --host-request-interval 50ms   # Fast for robust APIs\n  --host-request-interval 1s     # Conservative for rate-limited APIs",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "host_stats": {
+      "description": "Show per-host statistics at the end of the run",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "hosts": {
+      "description": "Host-specific configurations from config file",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/HostConfig"
+      }
+    },
+    "include": {
+      "description": "URLs to check (supports regex). Has preference over all excludes.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "include_fragments": {
+      "description": "Enable the checking of fragments in links.\n\nUse `none` to disable fragment checks, `anchor-only` for anchor fragments\nlike `#section`, `text-only` for text fragments like `#:~:text=example`,\nor `full` to check both.\n\nIf provided without a value, defaults to `anchor-only`.\n\nFragment checking does not work for every URL. In general, the target\ncontent needs to be Markdown or HTML and follow common conventions.\nAnchors that only appear after JavaScript execution may be missed, since\nlychee does not run a browser engine.",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/FragmentMode"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "include_mail": {
+      "description": "Also check email addresses",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "include_verbatim": {
+      "description": "Find links in verbatim sections like `pre`- and `code` blocks",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "include_wikilinks": {
+      "description": "Check WikiLinks in Markdown files, this requires specifying --base-url",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "index_files": {
+      "description": "When checking locally, resolves directory links to a separate index file.\nThe argument is a comma-separated list of index file names to search for. Index\nnames are relative to the link's directory and attempted in the order given.\n\nIf `--index-files` is specified, then at least one index file must exist in\norder for a directory link to be considered valid. Additionally, the special\nname `.` can be used in the list to refer to the directory itself.\n\nIf unspecified (the default behavior), index files are disabled and directory\nlinks are considered valid as long as the directory exists on disk.\n\nExample 1: `--index-files index.html,readme.md` looks for index.html or readme.md\n           and requires that at least one exists.\n\nExample 2: `--index-files index.html,.` will use index.html if it exists, but\n           still accept the directory link regardless.\n\nExample 3: `--index-files ''` will reject all directory links because there are\n           no valid index files. This will require every link to explicitly name\n           a file.\n\nNote: This option only takes effect on `file://` URIs which exist and point to a directory.",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "insecure": {
+      "description": "Proceed for server connections considered insecure (invalid TLS)",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "max_cache_age": {
+      "description": "Discard all cached requests older than this duration\n\n[default: 1d]",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "max_concurrency": {
+      "description": "Maximum number of concurrent network requests\n\n[default: 128]",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint",
+      "minimum": 1
+    },
+    "max_redirects": {
+      "description": "Maximum number of allowed redirects\n\n[default: 10]",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint",
+      "minimum": 0
+    },
+    "max_retries": {
+      "description": "Maximum number of retries per request\n\n[default: 3]",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint64",
+      "minimum": 0
+    },
+    "method": {
+      "description": "Request method(s)\n\nAccepts a single method or a comma-separated list. When multiple methods\nare given, lychee tries each one in order and returns the first success.\nThis is useful for servers that reject `HEAD` requests: `--method head,get`\nfalls back to `GET` when `HEAD` fails.\n\nNote: checking URL fragments requires the response body, which is only\nfetched for `GET` requests. When a link succeeds with a non-`GET` method\n(e.g. `HEAD`), its fragment is not checked.\n\n[default: get]",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Methods"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "min_tls": {
+      "description": "Minimum accepted TLS Version",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/TlsVersion"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "mode": {
+      "description": "Set the output display mode. Determines how results are presented in the terminal\n\n[default: color]",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/OutputMode"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "no_ignore": {
+      "description": "Do not skip files that would otherwise be ignored by\n'.gitignore', '.ignore', or the global ignore file.",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "no_progress": {
+      "description": "Do not show progress bar.\nThis is recommended for non-interactive shells (e.g. for continuous integration)",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "offline": {
+      "description": "Only check local files and block network requests.",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "output": {
+      "description": "Output file of status report",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "preprocess": {
+      "description": "Preprocess input files with the given command.\n\nFor each file input, this flag causes lychee to execute `COMMAND PATH` and process\nits standard output instead of the original contents of PATH. This allows you to\nconvert files that would otherwise not be understood by lychee. The preprocessor\nCOMMAND is only run on input files, not on standard input or URLs.\n\nTo invoke programs with custom arguments or to use multiple preprocessors, use a\nwrapper program such as a shell script. An example script looks like this:\n\n```bash\n#!/usr/bin/env bash\ncase \"$1\" in\n*.pdf)\n    exec pdftohtml -i -s -stdout \"$1\"\n    ;;\n*.odt|*.docx|*.epub|*.ipynb)\n    exec pandoc \"$1\" --to=html --wrap=none\n    ;;\n*)\n    # identity function, output input without changes\n    exec cat\n    ;;\nesac\n```",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Preprocessor"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "remap": {
+      "description": "Remap URI matching pattern to different URI",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "require_https": {
+      "description": "When HTTPS is available, treat HTTP links as errors",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "retry_wait_time": {
+      "description": "Minimum wait time in seconds between retries of failed requests\n\n[default: 1]",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint64",
+      "minimum": 0
+    },
+    "root_dir": {
+      "description": "Root directory to use when checking absolute links in local files. This option is\nrequired if absolute links appear in local files, otherwise those links will be\nflagged as errors. This must be an absolute path (i.e., one beginning with `/`).\n\nIf specified, absolute links in local files are resolved by prefixing the given\nroot directory to the requested absolute link. For example, with a root-dir of\n`/root/dir`, a link to `/page.html` would be resolved to `/root/dir/page.html`.\n\nThis option can be specified alongside `--base-url`. If both are given, an\nabsolute link is resolved by constructing a URL from three parts: the domain\nname specified in `--base-url`, followed by the `--root-dir` directory path,\nfollowed by the absolute link's own path.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "scheme": {
+      "description": "Only test links with the given schemes (e.g. https).\nOmit to check links with any other scheme.\nAt the moment, we support http, https, file, and mailto.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "skip_missing": {
+      "description": "Skip missing input files (default is to error if they don't exist)",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "suggest": {
+      "description": "Suggest link replacements for broken links, using a web archive.\nThe web archive can be specified with `--archive`",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "default": null
+    },
+    "threads": {
+      "description": "Number of threads to utilize.\nDefaults to number of cores available to the system",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint",
+      "minimum": 1
+    },
+    "timeout": {
+      "description": "Website timeout in seconds from connect to response finished\n\n[default: 20]",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint64",
+      "minimum": 0
+    },
+    "user_agent": {
+      "description": "User agent\n\n[default: lychee/x.y.z]",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "verbose": {
+      "description": "Verbose program output",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Verbosity"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "Archive": {
+      "description": "Archives supported in configuration files.",
+      "type": "string",
+      "enum": [
+        "wayback"
+      ]
+    },
+    "BasicAuthSelector": {
+      "description": "Basic-auth selectors use `<uri-regex> <username>:<password>` syntax.",
+      "type": "string",
+      "pattern": "^\\s*\\S+ [^:\\s]+:[^:\\s]+\\s*$"
+    },
+    "FragmentMode": {
+      "description": "Values for `--include-fragments` option, which controls how URL fragments are checked.",
+      "type": "string",
+      "enum": [
+        "none",
+        "anchor-only",
+        "text-only",
+        "full"
+      ]
+    },
+    "GenerateMode": {
+      "description": "What to generate when providing the --generate flag",
+      "oneOf": [
+        {
+          "description": "Generate roff used for the man page",
+          "type": "string",
+          "const": "man"
+        },
+        {
+          "description": "Generate a JSON schema for the configuration file",
+          "type": "string",
+          "const": "config-schema"
+        },
+        {
+          "description": "Generate shell completion for Bash",
+          "type": "string",
+          "const": "complete-bash"
+        },
+        {
+          "description": "Generate shell completion for Elvish",
+          "type": "string",
+          "const": "complete-elvish"
+        },
+        {
+          "description": "Generate shell completion for Fish",
+          "type": "string",
+          "const": "complete-fish"
+        },
+        {
+          "description": "Generate shell completion for PowerShell",
+          "type": "string",
+          "const": "complete-powershell"
+        },
+        {
+          "description": "Generate shell completion for Zsh",
+          "type": "string",
+          "const": "complete-zsh"
+        }
+      ]
+    },
+    "HostConfig": {
+      "description": "Per-host request settings accepted below the `hosts` table.",
+      "type": "object",
+      "properties": {
+        "accept": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/StatusCodeSelector"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "concurrency": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
+        "request_interval": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "HttpMethod": {
+      "type": "string",
+      "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$"
+    },
+    "HttpMethodsString": {
+      "type": "string",
+      "pattern": "^\\s*[!#$%&'*+.^_`|~0-9A-Za-z-]+(\\s*,\\s*[!#$%&'*+.^_`|~0-9A-Za-z-]+)*\\s*$"
+    },
+    "Methods": {
+      "description": "Request methods accept either a comma-separated string or a non-empty list.",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/HttpMethodsString"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/HttpMethod"
+          },
+          "minItems": 1
+        }
+      ]
+    },
+    "OutputMode": {
+      "description": "The different formatter modes\n\nThis decides over whether to use color,\nemojis, or plain text for the output.",
+      "oneOf": [
+        {
+          "description": "Plain text output.\n\nThis is the most basic output mode for terminals that do not support\ncolor or emojis. It can also be helpful for scripting or when you want\nto pipe the output to another program.",
+          "type": "string",
+          "const": "plain"
+        },
+        {
+          "description": "Colorful output.\n\nThis mode uses colors to highlight the status of the requests.\nIt is useful for terminals that support colors and you want to\nprovide a more visually appealing output.\n\nThis is the default output mode.",
+          "type": "string",
+          "const": "color"
+        },
+        {
+          "description": "Emoji output.\n\nThis mode uses emojis to represent the status of the requests.\nSome people may find this mode more intuitive and fun to use.",
+          "type": "string",
+          "const": "emoji"
+        },
+        {
+          "description": "Task output.\n\nThis mode uses Markdown-styled checkboxes to represent the status of the requests.\nSome people may find this mode more intuitive and useful for task tracking.",
+          "type": "string",
+          "const": "task"
+        }
+      ]
+    },
+    "Preprocessor": {
+      "description": "File-based preprocessor configuration.",
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "command"
+      ]
+    },
+    "StatsFormat": {
+      "description": "The format to use for the final status report",
+      "type": "string",
+      "enum": [
+        "compact",
+        "detailed",
+        "json",
+        "junit",
+        "markdown"
+      ]
+    },
+    "StatusCode": {
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 999,
+      "minimum": 100
+    },
+    "StatusCodeSelector": {
+      "description": "A status-code selector accepts a single integer, a selector string, or a\nmixed list of integers and selector strings.",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/StatusCode"
+        },
+        {
+          "$ref": "#/definitions/StatusCodeSelectorString"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/StatusCodeSelectorValue"
+          }
+        }
+      ]
+    },
+    "StatusCodeSelectorString": {
+      "type": "string",
+      "pattern": "^\\s*((0*[1-9][0-9]{2}|(0*[1-9][0-9]{2})?\\.\\.(=?0*[1-9][0-9]{2}|0*1000)?)(\\s*,\\s*(0*[1-9][0-9]{2}|(0*[1-9][0-9]{2})?\\.\\.(=?0*[1-9][0-9]{2}|0*1000)?))*)?\\s*$"
+    },
+    "StatusCodeSelectorValue": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/StatusCode"
+        },
+        {
+          "$ref": "#/definitions/StatusRangeString"
+        }
+      ]
+    },
+    "StatusRangeString": {
+      "type": "string",
+      "pattern": "^(0*[1-9][0-9]{2}|(0*[1-9][0-9]{2})?\\.\\.(=?0*[1-9][0-9]{2}|0*1000)?)$"
+    },
+    "TlsVersion": {
+      "type": "string",
+      "enum": [
+        "TLSv1_0",
+        "TLSv1_1",
+        "TLSv1_2",
+        "TLSv1_3"
+      ]
+    },
+    "Verbosity": {
+      "description": "Log levels accepted by the case-insensitive verbosity deserializer.",
+      "type": "string",
+      "pattern": "^([eE][rR][rR][oO][rR]|[wW][aA][rR][nN]|[wW][aA][rR][nN][iI][nN][gG]|[iI][nN][fF][oO]|[dD][eE][bB][uU][gG]|[tT][rR][aA][cC][eE])$"
+    }
+  }
+}

@@ -1560,14 +1560,19 @@ The config file should contain every possible key for documentation purposes."
         assert!(!data.contains(&format!("{}/,418", mock_server_teapot.uri())));
         assert!(!data.contains(&format!("{}/,500", mock_server_server_error.uri())));
 
-        // run again to verify cache behavior
-        // this time accept 418 and 500 as valid status codes
+        // Accept only 418 and 500 on the second run. The cached 200 must now
+        // be rejected, just as it would be for a fresh response.
         test_cmd
             .arg("--no-progress")
             .arg("--accept")
             .arg("418,500")
             .assert()
-            .success()
+            .failure()
+            .code(2)
+            .stderr(contains(format!(
+                "[200] {}/ (at 1:1) | Error (cached)",
+                mock_server_ok.uri()
+            )))
             .stderr(contains(format!(
                 "[418] {}/ (at 2:1) | 418 I'm a teapot",
                 mock_server_teapot.uri()
