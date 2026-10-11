@@ -232,6 +232,18 @@ mod tests {
         let configs = [
             ("empty config", ""),
             (
+                "basic auth with surrounding spaces",
+                r#"basic_auth = [" example.com user:password "]"#,
+            ),
+            (
+                "basic auth with surrounding tabs and newlines",
+                r#"basic_auth = ["\t\nexample.com user:password\r\n"]"#,
+            ),
+            (
+                "basic auth with surrounding Unicode whitespace",
+                r#"basic_auth = ["\u2003example.com user:password\u2003"]"#,
+            ),
+            (
                 "per-host status integer",
                 "[hosts.\"example.com\"]\naccept = 200",
             ),

@@ -81,7 +81,17 @@ pub(super) struct HttpMethod(#[schemars(regex(pattern = r"^[!#$%&'*+.^_`|~0-9A-Z
 /// Basic-auth selectors use `<uri-regex> <username>:<password>` syntax.
 #[derive(JsonSchema)]
 #[schemars(transparent)]
-pub(super) struct BasicAuthSelector(#[schemars(regex(pattern = r"^\S+ [^:\s]+:[^:\s]+$"))] String);
+pub(super) struct BasicAuthSelector(
+    // lychee currently accepts " example.com user:password " and strips the
+    // outer whitespace. That can silently change the password, since a trailing
+    // space could be part of it.
+    //
+    // Changing this behavior could break existing configs, however. For now,
+    // allow surrounding whitespace in the schema so editors don't reject an
+    // accepted config. If we change the parser, we should update this schema as
+    // well.
+    #[schemars(regex(pattern = r"^\s*\S+ [^:\s]+:[^:\s]+\s*$"))] String,
+);
 
 /// Archives supported in configuration files.
 #[derive(JsonSchema)]
