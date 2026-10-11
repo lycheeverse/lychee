@@ -343,6 +343,43 @@ headers = { Accept = "text/html" }
     }
 
     #[test]
+    fn test_verbosity_schema_matches_parser() -> Result<()> {
+        let schema = config_schema_value()?;
+        let validator = jsonschema::draft202012::new(&schema)?;
+        for (input, valid) in [
+            ("error", true),
+            ("warn", true),
+            ("warning", true),
+            ("info", true),
+            ("debug", true),
+            ("trace", true),
+            ("ERROR", true),
+            ("WARN", true),
+            ("WARNING", true),
+            ("INFO", true),
+            ("DEBUG", true),
+            ("TRACE", true),
+            ("Warning", true),
+            ("dEbUg", true),
+            ("", false),
+            ("off", false),
+            ("warnings", false),
+            ("info,debug", false),
+            (" info", false),
+            ("info ", false),
+        ] {
+            let config = json!({ "verbose": input });
+            assert_eq!(
+                serde_json::from_value::<Config>(config.clone()).is_ok(),
+                valid,
+                "parser: {config}"
+            );
+            assert_eq!(validator.is_valid(&config), valid, "schema: {config}");
+        }
+        Ok(())
+    }
+
+    #[test]
     fn test_status_selector_schema_matches_parser() -> Result<()> {
         let schema = config_schema_value()?;
         let validator = jsonschema::draft202012::new(&schema)?;

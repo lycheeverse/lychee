@@ -13,12 +13,26 @@ use std::collections::HashMap;
 /// Log levels accepted by the case-insensitive verbosity deserializer.
 #[derive(JsonSchema)]
 #[schemars(transparent)]
-pub(super) struct Verbosity(
-    #[schemars(regex(
-        pattern = "^([Ee][Rr][Rr][Oo][Rr]|[Ww][Aa][Rr][Nn]([Ii][Nn][Gg])?|[Ii][Nn][Ff][Oo]|[Dd][Ee][Bb][Uu][Gg]|[Tt][Rr][Aa][Cc][Ee])$"
-    ))]
-    String,
-);
+pub(super) struct Verbosity(#[schemars(schema_with = "verbosity_schema")] String);
+
+fn verbosity_schema(_: &mut SchemaGenerator) -> Schema {
+    let levels = ["error", "warn", "warning", "info", "debug", "trace"];
+    // This looks super wonky, but remember that JSON Schema enums are
+    // case-sensitive. So we spell out both ASCII cases so the pattern also
+    // works in editors without support for inline regex flags like `(?i)`.
+    let alternatives = levels
+        .iter()
+        .map(|level| {
+            level
+                .chars()
+                // The next line creates a character class for each character, e.g. "info" becomes "[iI][nN][fF][oO]".
+                .flat_map(|c| ['[', c, c.to_ascii_uppercase(), ']'])
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("|");
+    json_schema!({ "type": "string", "pattern": format!("^({alternatives})$") })
+}
 
 /// A status-code selector accepts a single integer, a selector string, or a
 /// mixed list of integers and selector strings.
