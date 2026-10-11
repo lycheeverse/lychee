@@ -60,8 +60,8 @@ quick-junit = "0.8.0"
 
 [dev-dependencies]
 assert_cmd = "2.2.2"
-jsonschema = { version = "0.55.1", default-features = false }
 cookie_store = "0.22.1"
+jsonschema = { version = "0.55.1", default-features = false }
 predicates = "3.1.4"
 pretty_assertions = "1.4.1"
 rstest = "0.27.0"
