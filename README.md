@@ -838,20 +838,34 @@ This is explained in more detail in [our documentation](https://lychee.cli.rs/re
 
 ### Configuration file schema
 
-lychee can emit a [JSON schema](https://json-schema.org/) for its configuration
-file:
+The generated [JSON schema](docs/schema.json) provides configuration key
+completion, hover documentation, and validation in compatible TOML editors such
+as [Taplo](https://taplo.tamasfe.dev/).
+
+Generate a schema matching your installed version of lychee:
 
 ```sh
 lychee --generate config-schema > lychee.schema.json
 ```
 
-The schema describes every available key (along with its documentation) and can
-be used by editors with a TOML language server such as
-[Taplo](https://taplo.tamasfe.dev/) to get autocompletion and validation for
-`lychee.toml`. For example, using a Taplo directive at the top of the file:
+Then add this directive at the top of `lychee.toml`. The path is relative to the
+config file:
 
 ```toml
 #:schema ./lychee.schema.json
+```
+
+Alternatively, reference the development schema directly:
+
+```toml
+#:schema https://raw.githubusercontent.com/lycheeverse/lychee/master/docs/schema.json
+```
+
+The schema is generated from the Rust configuration types. After changing them,
+regenerate it from the repository root:
+
+```sh
+cargo run --locked --bin lychee -- --generate config-schema > docs/schema.json
 ```
 
 ## Supported file formats

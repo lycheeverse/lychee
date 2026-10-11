@@ -111,11 +111,13 @@ pub(crate) fn generate(mode: &GenerateMode) -> Result<String> {
 
 /// Generate a JSON schema for the `lychee.toml` configuration file.
 ///
-/// The schema is derived from the [`Config`] type. It can be referenced from a
-/// config file via the `$schema` key (or a `taplo`/editor setting) to get
-/// autocompletion and validation while editing.
+/// The schema is derived from [`Config`]. Reference it with a Taplo
+/// `#:schema` directive or an editor setting for autocompletion and validation.
 fn config_schema() -> Result<String> {
-    let schema = schemars::schema_for!(Config);
+    // Draft 7 is widely supported by editors and recommended by SchemaStore.
+    let schema = schemars::generate::SchemaSettings::draft07()
+        .into_generator()
+        .into_root_schema_for::<Config>();
     Ok(serde_json::to_string_pretty(&schema)?)
 }
 
@@ -202,7 +204,8 @@ mod tests {
     fn test_config_schema() -> Result<()> {
         let schema = config_schema_value()?;
 
-        assert!(jsonschema::draft202012::meta::is_valid(&schema));
+        assert!(jsonschema::draft7::meta::is_valid(&schema));
+        assert_eq!(schema["$schema"], "http://json-schema.org/draft-07/schema#");
         assert_eq!(schema["title"], "Config");
         assert_eq!(schema["additionalProperties"], false);
         assert!(schema.get("required").is_none());
@@ -217,7 +220,7 @@ mod tests {
                 .contains("timeout")
         );
 
-        let modes = schema["$defs"]["StatsFormat"]["enum"]
+        let modes = schema["definitions"]["StatsFormat"]["enum"]
             .as_array()
             .expect("StatsFormat should be represented as an enum");
         assert!(modes.iter().any(|value| value == "json"));
@@ -226,9 +229,19 @@ mod tests {
     }
 
     #[test]
+    fn test_config_schema_up_to_date() -> Result<()> {
+        assert_eq!(
+            include_str!("../../../docs/schema.json").trim_end(),
+            config_schema()?,
+            "Regenerate from the repository root: cargo run --locked --bin lychee -- --generate config-schema > docs/schema.json"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn test_config_schema_accepts_supported_config_forms() -> Result<()> {
         let schema = config_schema_value()?;
-        let validator = jsonschema::draft202012::new(&schema)?;
+        let validator = jsonschema::draft7::new(&schema)?;
         let configs = [
             ("empty config", ""),
             (
@@ -302,7 +315,7 @@ headers = { Accept = "text/html" }
     #[test]
     fn test_config_schema_rejects_unsupported_config_forms() -> Result<()> {
         let schema = config_schema_value()?;
-        let validator = jsonschema::draft202012::new(&schema)?;
+        let validator = jsonschema::draft7::new(&schema)?;
         let configs = [
             ("unknown root option", "unknown = true"),
             (
@@ -345,7 +358,7 @@ headers = { Accept = "text/html" }
     #[test]
     fn test_verbosity_schema_matches_parser() -> Result<()> {
         let schema = config_schema_value()?;
-        let validator = jsonschema::draft202012::new(&schema)?;
+        let validator = jsonschema::draft7::new(&schema)?;
         for (input, valid) in [
             ("error", true),
             ("warn", true),
@@ -382,7 +395,7 @@ headers = { Accept = "text/html" }
     #[test]
     fn test_status_selector_schema_matches_parser() -> Result<()> {
         let schema = config_schema_value()?;
-        let validator = jsonschema::draft202012::new(&schema)?;
+        let validator = jsonschema::draft7::new(&schema)?;
         // A string can contain a whole selector; each list entry must be one range.
         for (input, selector_valid, range_valid) in [
             ("100", true, true),
@@ -426,7 +439,7 @@ headers = { Accept = "text/html" }
     #[test]
     fn test_status_selector_schema_leaves_range_ordering_to_parser() -> Result<()> {
         let schema = config_schema_value()?;
-        let validator = jsonschema::draft202012::new(&schema)?;
+        let validator = jsonschema::draft7::new(&schema)?;
         for accept in [json!("500..400"), json!(["500..400"])] {
             let config = json!({ "accept": accept });
             assert!(validator.is_valid(&config));
