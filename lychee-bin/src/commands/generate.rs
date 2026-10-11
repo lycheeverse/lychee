@@ -232,6 +232,22 @@ mod tests {
         let configs = [
             ("empty config", ""),
             (
+                "per-host status integer",
+                "[hosts.\"example.com\"]\naccept = 200",
+            ),
+            (
+                "per-host status selector string",
+                "[hosts.\"example.com\"]\naccept = \"200,429,500..\"",
+            ),
+            (
+                "per-host mixed status list",
+                "[hosts.\"example.com\"]\naccept = [200, \"429\", \"500..\"]",
+            ),
+            (
+                "per-host empty status list",
+                "[hosts.\"example.com\"]\naccept = []",
+            ),
+            (
                 "example config",
                 include_str!("../../../lychee.example.toml"),
             ),
@@ -287,6 +303,14 @@ headers = { Accept = "text/html" }
             ("empty method string", "method = \"\""),
             ("status below minimum", "accept = 42"),
             ("status string below minimum", "accept = \"42\""),
+            (
+                "per-host status below minimum",
+                "[hosts.\"example.com\"]\naccept = 42",
+            ),
+            (
+                "per-host status string below minimum",
+                "[hosts.\"example.com\"]\naccept = \"42\"",
+            ),
             ("malformed basic auth", "basic_auth = [\"user:password\"]"),
         ];
 

@@ -104,6 +104,7 @@ pub(super) struct HostConfig {
     request_interval: Option<String>,
     #[schemars(default)]
     headers: HashMap<String, String>,
+    accept: Option<StatusCodeSelector>,
 }
 
 pub(super) fn empty_string_map() -> HashMap<String, String> {
