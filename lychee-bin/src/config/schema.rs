@@ -7,7 +7,7 @@
 
 #![allow(dead_code)]
 
-use schemars::JsonSchema;
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use std::collections::HashMap;
 
 /// Log levels accepted by the case-insensitive verbosity deserializer.
@@ -44,18 +44,34 @@ pub(super) struct StatusCode(#[schemars(range(min = 100, max = 999))] u16);
 #[derive(JsonSchema)]
 #[schemars(transparent)]
 pub(super) struct StatusCodeSelectorString(
-    #[schemars(regex(
-        pattern = r"^\s*$|^\s*([1-9][0-9]{2}|([1-9][0-9]{2})?\.\.(=?[1-9][0-9]{2})?)(\s*,\s*([1-9][0-9]{2}|([1-9][0-9]{2})?\.\.(=?[1-9][0-9]{2})?))*\s*$"
-    ))]
-    String,
+    #[schemars(schema_with = "status_code_selector_string_schema")] String,
 );
 
 #[derive(JsonSchema)]
 #[schemars(transparent)]
-pub(super) struct StatusRangeString(
-    #[schemars(regex(pattern = r"^([1-9][0-9]{2}|([1-9][0-9]{2})?\.\.(=?[1-9][0-9]{2})?)$"))]
-    String,
-);
+pub(super) struct StatusRangeString(#[schemars(schema_with = "status_range_string_schema")] String);
+
+fn status_range_pattern() -> String {
+    // The parser accepts leading zeros, e.g. "0200" means 200.
+    let code = r"0*[1-9][0-9]{2}";
+    let range = format!(r"({code})?\.\.(=?{code})?");
+    // This checks syntax, not endpoint ordering: "500..400" still needs to be
+    // rejected by the parser. Encoding that comparison here would obscure the grammar.
+    format!("({code}|{range})")
+}
+
+fn status_range_string_schema(_: &mut SchemaGenerator) -> Schema {
+    let range = status_range_pattern();
+    json_schema!({ "type": "string", "pattern": format!("^{range}$") })
+}
+
+fn status_code_selector_string_schema(_: &mut SchemaGenerator) -> Schema {
+    let range = status_range_pattern();
+    let separator = r"\s*,\s*";
+    let list = format!("{range}({separator}{range})*");
+    // An empty selector is valid; whitespace is allowed around each list item.
+    json_schema!({ "type": "string", "pattern": format!(r"^\s*({list})?\s*$") })
+}
 
 /// Request methods accept either a comma-separated string or a non-empty list.
 #[derive(JsonSchema)]

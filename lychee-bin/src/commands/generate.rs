@@ -343,6 +343,62 @@ headers = { Accept = "text/html" }
     }
 
     #[test]
+    fn test_status_selector_schema_matches_parser() -> Result<()> {
+        let schema = config_schema_value()?;
+        let validator = jsonschema::draft202012::new(&schema)?;
+        // A string can contain a whole selector; each list entry must be one range.
+        for (input, selector_valid, range_valid) in [
+            ("100", true, true),
+            ("999", true, true),
+            ("0200", true, true),
+            ("200..204", true, true),
+            ("200..=204", true, true),
+            ("0200..=0204", true, true),
+            ("200..", true, true),
+            ("..204", true, true),
+            ("..=204", true, true),
+            ("..", true, true),
+            ("", true, false),
+            (" \t", true, false),
+            (" 200 ", true, false),
+            ("200, 429, 500..", true, false),
+            ("42", false, false),
+            ("1000", false, false),
+            ("200..=", false, false),
+            ("200...204", false, false),
+            ("200,", false, false),
+            (",200", false, false),
+            ("200,,429", false, false),
+        ] {
+            for (accept, valid) in [
+                (json!(input), selector_valid),
+                (json!([input]), range_valid),
+            ] {
+                let config = json!({ "accept": accept });
+                assert_eq!(
+                    serde_json::from_value::<Config>(config.clone()).is_ok(),
+                    valid,
+                    "parser: {config}"
+                );
+                assert_eq!(validator.is_valid(&config), valid, "schema: {config}");
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_status_selector_schema_leaves_range_ordering_to_parser() -> Result<()> {
+        let schema = config_schema_value()?;
+        let validator = jsonschema::draft202012::new(&schema)?;
+        for accept in [json!("500..400"), json!(["500..400"])] {
+            let config = json!({ "accept": accept });
+            assert!(validator.is_valid(&config));
+            assert!(serde_json::from_value::<Config>(config).is_err());
+        }
+        Ok(())
+    }
+
+    #[test]
     fn test_man_page() -> Result<()> {
         let roff = man_page()?;
 
