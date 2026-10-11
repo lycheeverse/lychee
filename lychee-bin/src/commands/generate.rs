@@ -10,10 +10,12 @@ use clap_mangen::{
     Man,
     roff::{Roff, roman},
 };
+use schemars::JsonSchema;
 use serde::Deserialize;
 use strum::{Display, EnumIter, EnumString, VariantNames};
 
 use crate::LycheeOptions;
+use crate::config::Config;
 
 const CONTRIBUTOR_THANK_NOTE: &str = "\n\nA huge thank you to all the wonderful contributors who helped make this project a success.";
 
@@ -71,13 +73,17 @@ const EXIT_CODE_SECTION: &str = "
 ";
 
 /// What to generate when providing the --generate flag
-#[derive(Debug, Deserialize, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq)]
+#[derive(
+    Debug, Deserialize, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq, JsonSchema,
+)]
 #[non_exhaustive]
 #[strum(serialize_all = "kebab-case")]
 #[serde(rename_all = "kebab-case")]
 pub(crate) enum GenerateMode {
     /// Generate roff used for the man page
     Man,
+    /// Generate a JSON schema for the configuration file
+    ConfigSchema,
     /// Generate shell completion for Bash
     CompleteBash,
     /// Generate shell completion for Elvish
@@ -94,12 +100,25 @@ pub(crate) enum GenerateMode {
 pub(crate) fn generate(mode: &GenerateMode) -> Result<String> {
     match mode {
         GenerateMode::Man => man_page(),
+        GenerateMode::ConfigSchema => config_schema(),
         GenerateMode::CompleteBash => shell_completion(Shell::Bash),
         GenerateMode::CompleteElvish => shell_completion(Shell::Elvish),
         GenerateMode::CompleteFish => shell_completion(Shell::Fish),
         GenerateMode::CompletePowershell => shell_completion(Shell::PowerShell),
         GenerateMode::CompleteZsh => shell_completion(Shell::Zsh),
     }
+}
+
+/// Generate a JSON schema for the `lychee.toml` configuration file.
+///
+/// The schema is derived from [`Config`]. Reference it with a Taplo
+/// `#:schema` directive or an editor setting for autocompletion and validation.
+fn config_schema() -> Result<String> {
+    // Draft 7 is widely supported by editors and recommended by SchemaStore.
+    let schema = schemars::generate::SchemaSettings::draft07()
+        .into_generator()
+        .into_root_schema_for::<Config>();
+    Ok(serde_json::to_string_pretty(&schema)?)
 }
 
 /// Generate shell completion for the given shell
@@ -166,9 +185,277 @@ fn render_section(title: &str, content: &str, buffer: &mut Vec<u8>) -> Result<()
 
 #[cfg(test)]
 mod tests {
-    use super::man_page;
+    use super::{config_schema, man_page};
+    use crate::config::Config;
     use crate::generate::{CONTRIBUTOR_THANK_NOTE, EXIT_CODE_SECTION};
-    use anyhow::Result;
+    use anyhow::{Result, bail};
+    use serde_json::{Value, json};
+
+    fn config_schema_value() -> Result<Value> {
+        Ok(serde_json::from_str(&config_schema()?)?)
+    }
+
+    fn toml_to_json(config: &str) -> Result<Value> {
+        let config: toml::Value = toml::from_str(config)?;
+        Ok(serde_json::to_value(config)?)
+    }
+
+    #[test]
+    fn test_config_schema() -> Result<()> {
+        let schema = config_schema_value()?;
+
+        assert!(jsonschema::draft7::meta::is_valid(&schema));
+        assert_eq!(schema["$schema"], "http://json-schema.org/draft-07/schema#");
+        assert_eq!(schema["title"], "Config");
+        assert_eq!(schema["additionalProperties"], false);
+        assert!(schema.get("required").is_none());
+        assert_eq!(schema["properties"]["header"]["default"], json!({}));
+
+        let properties = &schema["properties"];
+        assert!(properties["max_retries"].is_object());
+        assert!(
+            properties["timeout"]["description"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("timeout")
+        );
+
+        let modes = schema["definitions"]["StatsFormat"]["enum"]
+            .as_array()
+            .expect("StatsFormat should be represented as an enum");
+        assert!(modes.iter().any(|value| value == "json"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_config_schema_up_to_date() -> Result<()> {
+        assert_eq!(
+            include_str!("../../../docs/schema.json").trim_end(),
+            config_schema()?,
+            "Regenerate from the repository root: cargo run --locked --bin lychee -- --generate config-schema > docs/schema.json"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_config_schema_accepts_supported_config_forms() -> Result<()> {
+        let schema = config_schema_value()?;
+        let validator = jsonschema::draft7::new(&schema)?;
+        let configs = [
+            ("empty config", ""),
+            (
+                "basic auth with surrounding spaces",
+                r#"basic_auth = [" example.com user:password "]"#,
+            ),
+            (
+                "basic auth with surrounding tabs and newlines",
+                r#"basic_auth = ["\t\nexample.com user:password\r\n"]"#,
+            ),
+            (
+                "basic auth with surrounding Unicode whitespace",
+                r#"basic_auth = ["\u2003example.com user:password\u2003"]"#,
+            ),
+            (
+                "per-host status integer",
+                "[hosts.\"example.com\"]\naccept = 200",
+            ),
+            (
+                "per-host status selector string",
+                "[hosts.\"example.com\"]\naccept = \"200,429,500..\"",
+            ),
+            (
+                "per-host mixed status list",
+                "[hosts.\"example.com\"]\naccept = [200, \"429\", \"500..\"]",
+            ),
+            (
+                "per-host empty status list",
+                "[hosts.\"example.com\"]\naccept = []",
+            ),
+            (
+                "example config",
+                include_str!("../../../lychee.example.toml"),
+            ),
+            (
+                "custom deserializers",
+                r#"
+verbose = "Warning"
+extensions = ["md", "html"]
+cache_exclude_status = [429, "500.."]
+archive = "wayback"
+accept = 200
+method = ["head", "get"]
+base_url = "https://example.com"
+basic_auth = ["example.com user:password"]
+github_token = "secret"
+preprocess = { command = "preprocess.sh", ignored = true }
+
+[hosts."example.com"]
+concurrency = 2
+request_interval = "100ms"
+headers = { Accept = "text/html" }
+"#,
+            ),
+        ];
+
+        for (name, config) in configs {
+            if let Err(error) = toml::from_str::<Config>(config) {
+                bail!("{name} should deserialize as Config: {error}");
+            }
+
+            let instance = toml_to_json(config)?;
+            if let Err(error) = validator.validate(&instance) {
+                bail!("{name} should match the generated schema: {error}");
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_config_schema_rejects_unsupported_config_forms() -> Result<()> {
+        let schema = config_schema_value()?;
+        let validator = jsonschema::draft7::new(&schema)?;
+        let configs = [
+            ("unknown root option", "unknown = true"),
+            (
+                "unknown host option",
+                "[hosts.\"example.com\"]\nunknown = true",
+            ),
+            ("unsupported archive", "archive = \"unknown\""),
+            ("unsupported verbosity", "verbose = \"loud\""),
+            ("empty method list", "method = []"),
+            ("empty method string", "method = \"\""),
+            ("status below minimum", "accept = 42"),
+            ("status string below minimum", "accept = \"42\""),
+            (
+                "per-host status below minimum",
+                "[hosts.\"example.com\"]\naccept = 42",
+            ),
+            (
+                "per-host status string below minimum",
+                "[hosts.\"example.com\"]\naccept = \"42\"",
+            ),
+            ("malformed basic auth", "basic_auth = [\"user:password\"]"),
+        ];
+
+        for (name, config) in configs {
+            assert!(
+                toml::from_str::<Config>(config).is_err(),
+                "{name} should not deserialize as Config"
+            );
+
+            let instance = toml_to_json(config)?;
+            assert!(
+                !validator.is_valid(&instance),
+                "{name} should not match the generated schema"
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_verbosity_schema_matches_parser() -> Result<()> {
+        let schema = config_schema_value()?;
+        let validator = jsonschema::draft7::new(&schema)?;
+        for (input, valid) in [
+            ("error", true),
+            ("warn", true),
+            ("warning", true),
+            ("info", true),
+            ("debug", true),
+            ("trace", true),
+            ("ERROR", true),
+            ("WARN", true),
+            ("WARNING", true),
+            ("INFO", true),
+            ("DEBUG", true),
+            ("TRACE", true),
+            ("Warning", true),
+            ("dEbUg", true),
+            ("", false),
+            ("off", false),
+            ("warnings", false),
+            ("info,debug", false),
+            (" info", false),
+            ("info ", false),
+        ] {
+            let config = json!({ "verbose": input });
+            assert_eq!(
+                serde_json::from_value::<Config>(config.clone()).is_ok(),
+                valid,
+                "parser: {config}"
+            );
+            assert_eq!(validator.is_valid(&config), valid, "schema: {config}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_status_selector_schema_matches_parser() -> Result<()> {
+        let schema = config_schema_value()?;
+        let validator = jsonschema::draft7::new(&schema)?;
+        // A string can contain a whole selector; each list entry must be one range.
+        for (input, selector_valid, range_valid) in [
+            ("100", true, true),
+            ("999", true, true),
+            ("0200", true, true),
+            ("200..204", true, true),
+            ("200..=204", true, true),
+            ("0200..=0204", true, true),
+            ("200..1000", true, true),
+            ("..1000", true, true),
+            ("999..1000", true, true),
+            ("0200..01000", true, true),
+            ("200..", true, true),
+            ("..204", true, true),
+            ("..=204", true, true),
+            ("..", true, true),
+            ("", true, false),
+            (" \t", true, false),
+            (" 200 ", true, false),
+            ("200, 429, 500..", true, false),
+            ("42", false, false),
+            ("1000", false, false),
+            ("200..=1000", false, false),
+            ("..=1000", false, false),
+            ("200..=01000", false, false),
+            ("1000..", false, false),
+            ("200..1001", false, false),
+            ("200..=", false, false),
+            ("200...204", false, false),
+            ("200,", false, false),
+            (",200", false, false),
+            ("200,,429", false, false),
+        ] {
+            for (accept, valid) in [
+                (json!(input), selector_valid),
+                (json!([input]), range_valid),
+            ] {
+                let config = json!({ "accept": accept });
+                assert_eq!(
+                    serde_json::from_value::<Config>(config.clone()).is_ok(),
+                    valid,
+                    "parser: {config}"
+                );
+                assert_eq!(validator.is_valid(&config), valid, "schema: {config}");
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_status_selector_schema_leaves_range_ordering_to_parser() -> Result<()> {
+        let schema = config_schema_value()?;
+        let validator = jsonschema::draft7::new(&schema)?;
+        for accept in [json!("500..400"), json!(["500..400"])] {
+            let config = json!({ "accept": accept });
+            assert!(validator.is_valid(&config));
+            assert!(serde_json::from_value::<Config>(config).is_err());
+        }
+        Ok(())
+    }
 
     #[test]
     fn test_man_page() -> Result<()> {

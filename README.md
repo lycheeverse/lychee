@@ -561,7 +561,7 @@ Options:
       --generate <GENERATE>
           Generate special output (e.g. the man page) instead of performing link checking
 
-          [possible values: man, complete-bash, complete-elvish, complete-fish, complete-powershell, complete-zsh]
+          [possible values: man, config-schema, complete-bash, complete-elvish, complete-fish, complete-powershell, complete-zsh]
 
       --github-token <GITHUB_TOKEN>
           GitHub API token to use when checking github.com links, to avoid rate limiting
@@ -835,6 +835,38 @@ If the `--cache` flag is set, lychee will cache responses in a file called
 then the cache will be loaded on startup. This can greatly speed up future runs.
 Note that by default lychee will not store any data on disk.
 This is explained in more detail in [our documentation](https://lychee.cli.rs/recipes/caching/).
+
+### Configuration file schema
+
+The generated [JSON schema](docs/schema.json) provides configuration key
+completion, hover documentation, and validation in compatible TOML editors such
+as [Taplo](https://taplo.tamasfe.dev/).
+
+Generate a schema matching your installed version of lychee:
+
+```sh
+lychee --generate config-schema > lychee.schema.json
+```
+
+Then add this directive at the top of `lychee.toml`. The path is relative to the
+config file:
+
+```toml
+#:schema ./lychee.schema.json
+```
+
+Alternatively, reference the development schema directly:
+
+```toml
+#:schema https://raw.githubusercontent.com/lycheeverse/lychee/master/docs/schema.json
+```
+
+The schema is generated from the Rust configuration types. After changing them,
+regenerate it from the repository root:
+
+```sh
+cargo run --locked --bin lychee -- --generate config-schema > docs/schema.json
+```
 
 ## Supported file formats
 

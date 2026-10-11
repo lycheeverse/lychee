@@ -227,6 +227,7 @@ jobs:
           cp "$BIN" "$ARCHIVE"/
           cp README.md "$ARCHIVE"/
           cp docs/*.md "$ARCHIVE/docs/"
+          cp docs/schema.json "$ARCHIVE/docs/"
 
       - name: Generate man page (no emulation)
         if: matrix.qemu == ''
