@@ -547,7 +547,7 @@ mod tests {
         "#;
 
         let uris = extract_html(input, false);
-        assert!(uris.is_empty());
+        assert_eq!(uris, []);
     }
 
     #[test]
@@ -557,7 +557,7 @@ mod tests {
         "#;
 
         let uris = extract_html(input, false);
-        assert!(uris.is_empty());
+        assert_eq!(uris, []);
     }
 
     #[test]
@@ -567,7 +567,7 @@ mod tests {
         "#;
 
         let uris = extract_html(input, false);
-        assert!(uris.is_empty());
+        assert_eq!(uris, []);
     }
 
     #[test]
@@ -593,7 +593,7 @@ mod tests {
         "#;
 
         let uris = extract_html(input, false);
-        assert!(uris.is_empty());
+        assert_eq!(uris, []);
     }
 
     #[test]
@@ -603,7 +603,7 @@ mod tests {
         "#;
 
         let uris = extract_html(input, false);
-        assert!(uris.is_empty());
+        assert_eq!(uris, []);
     }
 
     #[test]
@@ -613,7 +613,7 @@ mod tests {
         "#;
 
         let uris = extract_html(input, false);
-        assert!(uris.is_empty());
+        assert_eq!(uris, []);
     }
 
     #[test]

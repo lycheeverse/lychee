@@ -173,7 +173,7 @@ mod tests {
 
     #[test]
     fn test_parse_no_value() {
-        assert!(parse("").is_empty());
+        assert_eq!(parse(""), [] as [&str; 0]);
     }
 
     #[test]

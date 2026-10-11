@@ -508,7 +508,7 @@ mod tests {
         "#;
 
         let uris = extract_html(HTML_INPUT, false);
-        assert!(uris.is_empty());
+        assert_eq!(uris, []);
     }
 
     #[test]
@@ -534,7 +534,7 @@ mod tests {
         <a href="https://foo.com" rel="nofollow">do not follow me</a>
         "#;
         let uris = extract_html(input, false);
-        assert!(uris.is_empty());
+        assert_eq!(uris, []);
     }
 
     #[test]
@@ -632,14 +632,14 @@ mod tests {
         </html>"#;
 
         let uris = extract_html(input, false);
-        assert!(uris.is_empty());
+        assert_eq!(uris, []);
     }
 
     #[test]
     fn test_email_false_positive() {
         let input = r#"<img srcset="v2@1.5x.png" alt="Wikipedia" width="200" height="183">"#;
         let uris = extract_html(input, false);
-        assert!(uris.is_empty());
+        assert_eq!(uris, []);
     }
 
     #[test]
@@ -679,7 +679,7 @@ mod tests {
         "#;
 
         let uris = extract_html(input, false);
-        assert!(uris.is_empty());
+        assert_eq!(uris, []);
     }
 
     #[test]
@@ -689,7 +689,7 @@ mod tests {
         "#;
 
         let uris = extract_html(input, false);
-        assert!(uris.is_empty());
+        assert_eq!(uris, []);
     }
 
     #[test]
@@ -699,7 +699,7 @@ mod tests {
         "#;
 
         let uris = extract_html(input, false);
-        assert!(uris.is_empty());
+        assert_eq!(uris, []);
     }
 
     #[test]
@@ -725,7 +725,7 @@ mod tests {
         "#;
 
         let uris = extract_html(input, false);
-        assert!(uris.is_empty());
+        assert_eq!(uris, []);
     }
 
     #[test]
@@ -735,7 +735,7 @@ mod tests {
         "#;
 
         let uris = extract_html(input, false);
-        assert!(uris.is_empty());
+        assert_eq!(uris, []);
     }
 
     #[test]
@@ -745,7 +745,7 @@ mod tests {
         "#;
 
         let uris = extract_html(input, false);
-        assert!(uris.is_empty());
+        assert_eq!(uris, []);
     }
 
     #[test]
