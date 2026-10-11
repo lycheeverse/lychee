@@ -803,7 +803,7 @@ $$
 $$
 ";
         let uris = extract_markdown(input, true, false);
-        assert!(uris.is_empty());
+        assert_eq!(uris, []);
     }
 
     #[test]
@@ -878,7 +878,7 @@ $$
     fn test_ignore_gitlab_toc() {
         let markdown = r"[[_TOC_]][TOC]";
         let uris = extract_markdown(markdown, true, true);
-        assert!(uris.is_empty());
+        assert_eq!(uris, []);
     }
 
     /// Don't extract the text of autolinks, as this is the link itself already.
@@ -1064,7 +1064,7 @@ Shortcut link: [link4]
 ";
 
         let uris = extract_markdown(markdown, true, true);
-        assert!(uris.is_empty());
+        assert_eq!(uris, []);
     }
 
     #[test]

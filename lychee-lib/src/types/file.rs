@@ -38,7 +38,6 @@ impl FileExtensions {
     }
 
     /// Returns an iterator of file extensions as strings.
-    #[must_use]
     pub fn iter(&self) -> <&Self as IntoIterator>::IntoIter {
         <&Self as IntoIterator>::into_iter(self)
     }
