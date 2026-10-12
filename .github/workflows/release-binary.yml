@@ -54,6 +54,23 @@ jobs:
         # Instead fail at the end of this workflow.
         if: ${{ github.repository == 'lycheeverse/lychee' }}
 
+  upload-schema:
+    needs: [create-release]
+    if: github.repository == 'lycheeverse/lychee'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.create-release.outputs.tag_name }}
+
+      - name: Upload configuration schema
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.create-release.outputs.tag_name }}
+        # Replace an existing schema.json so rerunning the workflow doesn't fail.
+        run: gh release upload "$RELEASE_TAG" docs/schema.json --clobber
+
   build-release:
     name: build-release
     needs: ["create-release"]
