@@ -2867,24 +2867,71 @@ The config file should contain every possible key for documentation purposes."
 
     #[tokio::test]
     async fn test_retry() {
-        let mock_server = wiremock::MockServer::start().await;
+        for status in [
+            StatusCode::TOO_MANY_REQUESTS,
+            StatusCode::REQUEST_TIMEOUT,
+            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::BAD_GATEWAY,
+            StatusCode::SERVICE_UNAVAILABLE,
+            StatusCode::GATEWAY_TIMEOUT,
+        ] {
+            let mock_server = wiremock::MockServer::start().await;
 
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .respond_with(ResponseTemplate::new(429))
-            .up_to_n_times(1)
-            .mount(&mock_server)
-            .await;
+            wiremock::Mock::given(wiremock::matchers::method("GET"))
+                .respond_with(ResponseTemplate::new(status))
+                .up_to_n_times(1)
+                .expect(1)
+                .mount(&mock_server)
+                .await;
 
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .respond_with(ResponseTemplate::new(200))
-            .mount(&mock_server)
-            .await;
+            wiremock::Mock::given(wiremock::matchers::method("GET"))
+                .respond_with(ResponseTemplate::new(200))
+                .expect(1)
+                .mount(&mock_server)
+                .await;
 
-        cargo_bin_cmd!()
-            .arg("-")
-            .write_stdin(mock_server.uri())
-            .assert()
-            .success();
+            cargo_bin_cmd!()
+                .arg("--max-retries=1")
+                .arg("--retry-wait-time=0")
+                .arg("-")
+                .write_stdin(mock_server.uri())
+                .assert()
+                .success();
+
+            mock_server.verify().await;
+        }
+    }
+
+    #[tokio::test]
+    async fn test_retry_boundaries() {
+        for (status, max_retries, accept, expected_requests, expected_exit) in [
+            (StatusCode::SERVICE_UNAVAILABLE, 1, None, 2, 2),
+            (StatusCode::NOT_FOUND, 3, None, 1, 2),
+            (StatusCode::SERVICE_UNAVAILABLE, 0, None, 1, 2),
+            (StatusCode::SERVICE_UNAVAILABLE, 3, Some("503"), 1, 0),
+        ] {
+            let mock_server = wiremock::MockServer::start().await;
+            wiremock::Mock::given(wiremock::matchers::method("GET"))
+                .respond_with(ResponseTemplate::new(status))
+                .expect(expected_requests)
+                .mount(&mock_server)
+                .await;
+
+            let mut command = cargo_bin_cmd!();
+            command
+                .arg(format!("--max-retries={max_retries}"))
+                .arg("--retry-wait-time=0");
+            if let Some(accept) = accept {
+                command.arg(format!("--accept={accept}"));
+            }
+            command
+                .arg("-")
+                .write_stdin(mock_server.uri())
+                .assert()
+                .code(expected_exit);
+
+            mock_server.verify().await;
+        }
     }
 
     #[tokio::test]

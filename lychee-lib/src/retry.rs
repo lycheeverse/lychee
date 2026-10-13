@@ -94,11 +94,10 @@ impl RetryExt for ErrorKind {
         }) = self.github_error()
         {
             source.should_retry()
+        } else if let Self::RejectedStatusCode(code) = self {
+            code.should_retry()
         } else {
-            matches!(
-                self,
-                Self::RejectedStatusCode(StatusCode::TOO_MANY_REQUESTS)
-            )
+            false
         }
     }
 }
@@ -147,6 +146,8 @@ fn get_source_error_type<T: std::error::Error + 'static>(
 mod tests {
     use http::StatusCode;
 
+    use crate::ErrorKind;
+
     use super::RetryExt;
 
     #[test]
@@ -155,5 +156,18 @@ mod tests {
         assert!(StatusCode::TOO_MANY_REQUESTS.should_retry());
         assert!(!StatusCode::FORBIDDEN.should_retry());
         assert!(StatusCode::INTERNAL_SERVER_ERROR.should_retry());
+    }
+
+    #[test]
+    fn test_rejected_transient_statuses_should_retry() {
+        for status in [
+            StatusCode::REQUEST_TIMEOUT,
+            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::SERVICE_UNAVAILABLE,
+        ] {
+            assert!(ErrorKind::RejectedStatusCode(status).should_retry());
+        }
+
+        assert!(!ErrorKind::RejectedStatusCode(StatusCode::NOT_FOUND).should_retry());
     }
 }
