@@ -8,9 +8,11 @@ pub(crate) use compact::CompactHostStats;
 pub(crate) use detailed::DetailedHostStats;
 pub(crate) use markdown::MarkdownHostStats;
 
-fn host_heading(prefix: &str, host_stats: &HostStatsMap) -> String {
+const STATS_EMOJI: &str = "📊 ";
+
+fn host_heading(host_stats: &HostStatsMap) -> String {
     format!(
-        "{prefix}Per-host Statistics ({hosts} domains, {requests} requests)",
+        "Per-host Statistics ({hosts} domains, {requests} requests)",
         hosts = host_stats.total_hosts(),
         requests = host_stats.total_requests(),
     )

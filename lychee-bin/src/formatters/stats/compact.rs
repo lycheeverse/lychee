@@ -43,6 +43,8 @@ impl Display for CompactResponseStats {
             )?;
         }
 
+        let plain = self.mode == config::OutputMode::Plain;
+        let symbol = |emoji| if plain { "" } else { emoji };
         let response_formatter = get_response_formatter(&self.mode);
 
         for (source, responses) in super::sort_stats_iter(
@@ -54,25 +56,38 @@ impl Display for CompactResponseStats {
         ) {
             color!(f, BOLD_YELLOW, "[{}]:\n", source)?;
             write_responses(f, &*response_formatter, responses)?;
-            write_suggestions(f, stats, source)?;
+            write_suggestions(f, stats, source, symbol("ℹ "))?;
             writeln!(f)?;
         }
 
-        color!(f, NORMAL, "🔍 {} Total", stats.total)?;
+        color!(f, NORMAL, "{}{} Total", symbol("🔍 "), stats.total)?;
         color!(f, DIM, " (in {})", format_duration(stats.duration))?;
-        color!(f, NORMAL, " 🔗 {} Unique", stats.unique)?;
-        color!(f, BOLD_GREEN, " ✅ {} OK", stats.successful)?;
+        color!(f, NORMAL, " {}{} Unique", symbol("🔗 "), stats.unique)?;
+        color!(f, BOLD_GREEN, " {}{} OK", symbol("✅ "), stats.successful)?;
 
         let total_errors = stats.errors;
 
         let err_str = if total_errors == 1 { "Error" } else { "Errors" };
-        color!(f, BOLD_PINK, " 🚫 {} {}", total_errors, err_str)?;
+        color!(
+            f,
+            BOLD_PINK,
+            " {}{} {}",
+            symbol("🚫 "),
+            total_errors,
+            err_str
+        )?;
 
-        write_if_any(stats.unknown, "❓", "Unknown", &BOLD_PINK, f)?;
-        write_if_any(stats.excludes, "👻", "Excluded", &BOLD_YELLOW, f)?;
-        write_if_any(stats.timeouts, "⏳", "Timeouts", &BOLD_YELLOW, f)?;
-        write_if_any(stats.unsupported, "⛔", "Unsupported", &BOLD_YELLOW, f)?;
-        write_if_any(stats.redirects, "🔀", "Redirects", &BOLD_YELLOW, f)?;
+        write_if_any(stats.unknown, symbol("❓ "), "Unknown", &BOLD_PINK, f)?;
+        write_if_any(stats.excludes, symbol("👻 "), "Excluded", &BOLD_YELLOW, f)?;
+        write_if_any(stats.timeouts, symbol("⏳ "), "Timeouts", &BOLD_YELLOW, f)?;
+        write_if_any(
+            stats.unsupported,
+            symbol("⛔ "),
+            "Unsupported",
+            &BOLD_YELLOW,
+            f,
+        )?;
+        write_if_any(stats.redirects, symbol("🔀 "), "Redirects", &BOLD_YELLOW, f)?;
 
         Ok(())
     }
@@ -102,6 +117,7 @@ fn write_suggestions(
     f: &mut Formatter<'_>,
     stats: &ResponseStats,
     source: &lychee_lib::InputSource,
+    symbol: &str,
 ) -> Result<(), fmt::Error> {
     if let Some(suggestions) = stats.suggestion_map.get(source) {
         // Sort suggestions
@@ -111,7 +127,7 @@ fn write_suggestions(
             numeric_sort::cmp(&a, &b)
         });
 
-        writeln!(f, "\nℹ Suggestions")?;
+        writeln!(f, "\n{symbol}Suggestions")?;
         for suggestion in sorted_suggestions {
             writeln!(f, "{suggestion}")?;
         }
@@ -128,7 +144,7 @@ fn write_if_any(
     f: &mut fmt::Formatter<'_>,
 ) -> Result<(), fmt::Error> {
     if value > 0 {
-        color!(f, style, " {} {} {}", symbol, value, text)?;
+        color!(f, style, " {}{} {}", symbol, value, text)?;
     }
     Ok(())
 }
@@ -151,7 +167,8 @@ impl StatsFormatter for Compact {
         };
         let host_stats = CompactHostStats {
             host_stats: stats.host_stats,
-        };
+        }
+        .format(&self.mode)?;
 
         Ok(format!("{response_stats}\n{host_stats}"))
     }
@@ -184,15 +201,31 @@ mod tests {
 [404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | Rejected status code: 404 Not Found
 [TIMEOUT] https://httpbin.org/delay/2 (at 1:1) | Request timed out
 
-ℹ Suggestions
+Suggestions
 https://original.dev/ --> https://suggestion.dev/
 
-🔍 5 Total (in 0s) 🔗 5 Unique ✅ 3 OK 🚫 1 Error ⏳ 1 Timeouts 🔀 1 Redirects
+5 Total (in 0s) 5 Unique 3 OK 1 Error 1 Timeouts 1 Redirects
 
-📊 Per-host Statistics (1 domains, 5 requests)
+Per-host Statistics (1 domains, 5 requests)
   example.com       5 reqs  (20% cached)    [✓ 3, ✗ 1, ? 1]
 "
         );
+    }
+
+    #[test]
+    fn test_formatter_emoji_mode_keeps_symbols() {
+        let formatter = Compact::new(OutputMode::Emoji);
+        let result = formatter.format(get_dummy_stats()).unwrap();
+        let without_color_codes = Regex::new(r"\u{1b}\[[0-9;]*m")
+            .unwrap()
+            .replace_all(&result, "")
+            .to_string();
+
+        assert!(without_color_codes.contains("\nℹ Suggestions\n"));
+        assert!(without_color_codes.contains(
+            "\n🔍 5 Total (in 0s) 🔗 5 Unique ✅ 3 OK 🚫 1 Error ⏳ 1 Timeouts 🔀 1 Redirects\n"
+        ));
+        assert!(without_color_codes.contains("\n📊 Per-host Statistics (1 domains, 5 requests)\n"));
     }
 
     #[test]
@@ -242,7 +275,7 @@ https://original.dev/ --> https://suggestion.dev/
 [https://example.com/]:
 [IGNORED] https://example.com/ignored | Unsupported: URL is missing a hostname
 
-🔍 1 Total (in 0s) 🔗 1 Unique ✅ 0 OK 🚫 0 Errors ⛔ 1 Unsupported"
+1 Total (in 0s) 1 Unique 0 OK 0 Errors 1 Unsupported"
         );
     }
 }
