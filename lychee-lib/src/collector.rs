@@ -284,8 +284,19 @@ impl Collector {
                 async move {
                     let content = content?;
                     let uris: Vec<RawUri> = extractor.extract(&content);
-                    let requests =
-                        request::create(uris, &content.source, root_dir.as_deref(), &global_base);
+                    // Resolve relative links against the final (post-redirect)
+                    // URL, but report using the original source the user gave.
+                    let report_source = content
+                        .original_source
+                        .clone()
+                        .unwrap_or_else(|| content.source.clone());
+                    let requests = request::create(
+                        uris,
+                        &content.source,
+                        &report_source,
+                        root_dir.as_deref(),
+                        &global_base,
+                    );
                     Result::Ok(stream::iter(requests))
                 }
             })

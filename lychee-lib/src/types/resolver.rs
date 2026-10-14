@@ -68,6 +68,9 @@ impl UrlContentResolver {
 
         Ok(InputContent {
             source: ResolvedInputSource::RemoteUrl(Box::new(final_url)),
+            // Keep the URL the user asked for so reports show it rather than
+            // the (possibly opaque) redirect target.
+            original_source: Some(ResolvedInputSource::RemoteUrl(Box::new(url))),
             file_type,
             content,
         })
