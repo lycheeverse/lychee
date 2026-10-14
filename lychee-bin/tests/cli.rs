@@ -4772,3 +4772,157 @@ fn test_file_limit_low_concurrency() {
         "System file descriptor limit is 64 which is too low for the requested concurrency of 128. Lowering `max_concurrency` to 44",
     ));
 }
+
+#[cfg(test)]
+mod redirect_relative_links {
+    use assert_cmd::cargo::cargo_bin_cmd;
+    use http::StatusCode;
+    use url::Url;
+    use wiremock::{
+        Mock, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    /// Relative links inside content reached through a redirect must be
+    /// resolved against the *final* (post-redirect) URL, not the originally
+    /// requested one.
+    ///
+    /// See <https://github.com/lycheeverse/lychee/issues/2018>.
+    ///
+    /// `/canonical-page` 302s to `/deep/subdir/index.html` (a different
+    /// directory depth), whose body contains the relative link `other.html`.
+    /// The link must therefore be reported as
+    /// `<mock>/deep/subdir/other.html` and not `<mock>/other.html`.
+    #[tokio::test]
+    async fn test_relative_links_resolve_against_redirect_target() {
+        let mock_server = wiremock::MockServer::start().await;
+
+        let target_url =
+            Url::parse(&format!("{}/deep/subdir/index.html", mock_server.uri())).unwrap();
+        let expected_link =
+            Url::parse(&format!("{}/deep/subdir/other.html", mock_server.uri())).unwrap();
+
+        // Path A: a temporary redirect to path B, under a deeper directory.
+        Mock::given(method("GET"))
+            .and(path("/canonical-page"))
+            .respond_with(
+                ResponseTemplate::new(StatusCode::FOUND)
+                    .insert_header("Location", target_url.as_str()),
+            )
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        // Path B: the redirect target, containing a relative link.
+        Mock::given(method("GET"))
+            .and(path("/deep/subdir/index.html"))
+            .respond_with(
+                ResponseTemplate::new(StatusCode::OK)
+                    .insert_header("Content-Type", "text/html")
+                    .set_body_string(r#"<html><body><a href="other.html">other</a></body></html>"#),
+            )
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        // The relative link must exist so the run reports a success rather
+        // than a 404 (which would still reveal the resolved URL, but success
+        // makes the assertion about resolution rather than about reachability).
+        Mock::given(method("GET"))
+            .and(path("/deep/subdir/other.html"))
+            .respond_with(ResponseTemplate::new(StatusCode::OK))
+            .mount(&mock_server)
+            .await;
+
+        let requested_url = Url::parse(&format!("{}/canonical-page", mock_server.uri())).unwrap();
+
+        // `--dump` prints the collected (resolved) URLs, which is exactly the
+        // resolution base that this issue is about.
+        let output = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg("--no-progress")
+            .arg(requested_url.as_str())
+            .assert()
+            .success()
+            .get_output()
+            .clone();
+
+        let stdout = String::from_utf8(output.stdout).unwrap();
+
+        assert!(
+            stdout.contains(expected_link.as_str()),
+            "expected relative link to resolve against the post-redirect base\n\
+             expected: {expected_link}\n\
+             stdout:\n{stdout}"
+        );
+
+        // Guard against the pre-fix behaviour: resolving against the requested
+        // URL would yield `<mock>/other.html`.
+        let wrong_link = Url::parse(&format!("{}/other.html", mock_server.uri())).unwrap();
+        assert!(
+            !stdout.contains(wrong_link.as_str()),
+            "relative link was resolved against the pre-redirect URL ({wrong_link})\n\
+             stdout:\n{stdout}"
+        );
+    }
+
+    /// The URL reported to the user must stay the *original* input URL, even
+    /// when the response was redirected. Relative links, however, are still
+    /// resolved against the final URL.
+    ///
+    /// See <https://github.com/lycheeverse/lychee/issues/2018>.
+    #[tokio::test]
+    async fn test_reported_url_is_original_after_redirect() {
+        let mock_server = wiremock::MockServer::start().await;
+
+        let target_url =
+            Url::parse(&format!("{}/deep/subdir/index.html", mock_server.uri())).unwrap();
+
+        Mock::given(method("GET"))
+            .and(path("/canonical-page"))
+            .respond_with(
+                ResponseTemplate::new(StatusCode::FOUND)
+                    .insert_header("Location", target_url.as_str()),
+            )
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/deep/subdir/index.html"))
+            .respond_with(
+                ResponseTemplate::new(StatusCode::OK)
+                    .insert_header("Content-Type", "text/html")
+                    .set_body_string(r#"<html><body><a href="broken-link">x</a></body></html>"#),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let requested_url = Url::parse(&format!("{}/canonical-page", mock_server.uri())).unwrap();
+
+        // Verbose JSON output exposes the `source`/`origin` fields which carry
+        // the URL shown to the user.
+        let output = cargo_bin_cmd!()
+            .arg("--verbose")
+            .arg("--format")
+            .arg("json")
+            .arg(requested_url.as_str())
+            .assert()
+            .get_output()
+            .clone();
+
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        // JSON output keys errors by input source: must be the original URL.
+        assert!(
+            stdout.contains(&format!("\"{requested_url}\"")),
+            "JSON output must key the input source by the originally requested URL\n\
+             expected key: \"{requested_url}\"\n\
+             stdout:\n{stdout}"
+        );
+        assert!(
+            !stdout.contains(&format!("\"{target_url}\"")),
+            "the redirect target URL must never be reported as the input source\n\
+             unexpected key: \"{target_url}\"\n\
+             stdout:\n{stdout}"
+        );
+    }
+}
