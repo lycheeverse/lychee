@@ -490,6 +490,55 @@ mod tests {
         assert_eq!(links, expected_links);
     }
 
+    /// Regression test for <https://github.com/lycheeverse/lychee/issues/2018>.
+    ///
+    /// When a command-line input URL redirects, relative links in the final
+    /// document must be resolved against the redirect target (the final URL),
+    /// not against the originally requested URL.
+    #[tokio::test]
+    async fn test_collect_relative_links_after_redirect() {
+        let mock_server = wiremock::MockServer::start().await;
+
+        // The redirect target. Note the nested path segment: a relative link
+        // like `blog/post` can only resolve correctly against this URL.
+        let target_url = format!("{}/deep/page.html", mock_server.uri());
+        let redirect_url = format!("{}/redirect", mock_server.uri());
+
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/redirect"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(StatusCode::MOVED_PERMANENTLY)
+                    .insert_header("Location", target_url.as_str()),
+            )
+            .mount(&mock_server)
+            .await;
+
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/deep/page.html"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(StatusCode::OK).set_body_string(
+                    r#"<html><body><a href="subdir/other.html">relative</a></body></html>"#,
+                ),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let inputs = HashSet::from_iter([Input::from_input_source(InputSource::RemoteUrl(
+            Box::new(Url::parse(&redirect_url).unwrap()),
+        ))]);
+
+        let links = collect(inputs, None, BaseInfo::none()).await.ok().unwrap();
+
+        // The relative link must resolve against the *final* URL, i.e. the
+        // directory of `/deep/page.html`, and not against `/redirect`.
+        let expected: HashSet<Uri> = HashSet::from_iter([Uri::try_from(format!(
+            "{}/deep/subdir/other.html",
+            mock_server.uri()
+        ))
+        .unwrap()]);
+        assert_eq!(links, expected);
+    }
+
     #[tokio::test]
     async fn test_collect_html_srcset() {
         let base = BaseInfo::try_from("https://example.com/").unwrap();
