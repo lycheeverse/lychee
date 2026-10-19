@@ -8,7 +8,7 @@ license = "Apache-2.0 OR MIT"
 repository = "https://github.com/lycheeverse/lychee"
 version.workspace = true
 readme = "../README.md"
-rust-version = "1.85.0"
+rust-version = "1.89.0"
 publish = false
 
 [dependencies]
