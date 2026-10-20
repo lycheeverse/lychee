@@ -8,11 +8,11 @@ name = "builder"
 path = "builder.rs"
 
 [dependencies]
-lychee-lib = { path = "../../lychee-lib", default-features = false }
-tokio = { version = "1.52.3", features = ["full"] }
-regex = "1.12.2"
 http = "1.4.1"
+lychee-lib = { path = "../../lychee-lib", default-features = false }
+regex = "1.12.2"
 reqwest = "0.13.4"
+tokio = { version = "1.52.3", features = ["full"] }
 
 [features]
 email-check = ["lychee-lib/email-check"]

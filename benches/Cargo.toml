@@ -8,8 +8,8 @@ edition = "2024"
 publish = false
 
 [dependencies]
-lychee-lib = { path = "../lychee-lib", default-features = false }
 criterion = "0.8.2"
+lychee-lib = { path = "../lychee-lib", default-features = false }
 tokio = "1.52.3"
 
 [features]
