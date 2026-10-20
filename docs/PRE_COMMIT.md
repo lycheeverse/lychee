@@ -9,7 +9,7 @@ Add this to your `.pre-commit-config.yaml`:
 ```yaml
 repos:
   - repo: https://github.com/lycheeverse/lychee
-    rev: lychee-v0.20.1  # Use latest lychee-v* tag
+    rev: lychee-v0.24.2  # Use latest lychee-v* tag
     hooks:
       - id: lychee  # Auto-installs lychee
 ```
@@ -51,18 +51,18 @@ repos:
 
 ## Version Format
 
-⚠️ **Important**: Use `lychee-v*` format for tags (e.g., `lychee-v0.20.1`), not `v*` format.
+⚠️ **Important**: Use `lychee-v*` format for tags (e.g., `lychee-v0.24.2`), not `v*` format.
 
 The tag format changed after v0.15.1 to support cargo-binstall URL patterns:
-- ❌ `rev: v0.20.1` (doesn't exist)  
-- ✅ `rev: lychee-v0.20.1` (correct format)
+- ❌ `rev: v0.24.2` (doesn't exist)  
+- ✅ `rev: lychee-v0.24.2` (correct format)
 
 ## Common Configuration
 
 ```yaml
 repos:
   - repo: https://github.com/lycheeverse/lychee
-    rev: lychee-v0.20.1
+    rev: lychee-v0.24.2
     hooks:
       - id: lychee
         args: 

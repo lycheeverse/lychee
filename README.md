@@ -870,7 +870,7 @@ cargo run --locked --bin lychee -- --generate config-schema > docs/schema.json
 
 ## Supported file formats
 
-lychee supports HTML and Markdown file formats.
+lychee supports HTML, Markdown, CSS, and XML file formats.
 For any other file format, lychee falls back to a "plain text" mode.
 This means that [linkify](https://github.com/robinst/linkify)
 attempts to extract URLs on a best-effort basis.
@@ -896,7 +896,7 @@ Lychee can also be used as a [pre-commit](https://pre-commit.com/) hook.
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/lycheeverse/lychee.git
-    rev: v0.15.1
+    rev: lychee-v0.24.2
     hooks:
       - id: lychee
         # Optionally include additional CLI arguments
