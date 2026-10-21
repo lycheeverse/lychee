@@ -1,18 +1,13 @@
+use std::sync::{Arc, LazyLock};
+
 use indicatif::{ProgressBar as Bar, ProgressStyle};
 use log::Level;
 use lychee_lib::ResponseBody;
-use std::sync::{Arc, LazyLock};
 
 use crate::{
     config::OutputMode,
     formatters::{get_progress_formatter, response::ResponseFormatter},
 };
-
-#[derive(Clone)]
-struct ProgressConfig {
-    template: &'static str,
-    progress_chars: &'static str,
-}
 
 const CONFIG: ProgressConfig = ProgressConfig {
     template: "{pos}/{len:.238} {bar:.162/238} {wide_msg}",
@@ -30,7 +25,9 @@ static STYLE: LazyLock<ProgressStyle> = LazyLock::new(|| {
 pub(crate) struct Progress {
     /// Optional progress bar to visualize progress
     bar: Option<Bar>,
+
     log_level: Level,
+
     formatter: Arc<Box<dyn ResponseFormatter>>,
 }
 
@@ -71,6 +68,27 @@ impl Progress {
         });
     }
 
+    pub(crate) fn finish(&self, message: &'static str) {
+        self.with_bar(|b| b.finish_with_message(message));
+    }
+
+    fn with_bar<F>(&self, action: F)
+    where
+        F: FnOnce(&Bar),
+    {
+        if let Some(bar) = &self.bar {
+            action(bar);
+        }
+    }
+
+    pub(crate) fn set_length(&self, n: u64) {
+        self.with_bar(|b| b.set_length(n));
+    }
+
+    pub(crate) fn inc_length(&self, n: u64) {
+        self.with_bar(|b| b.inc_length(n));
+    }
+
     fn print_progress(&self, response_message: Option<&(&ResponseBody, String)>) {
         if self.log_level < Level::Info {
             return;
@@ -87,25 +105,10 @@ impl Progress {
             eprintln!("{message}");
         }
     }
+}
+#[derive(Clone)]
+struct ProgressConfig {
+    template: &'static str,
 
-    pub(crate) fn set_length(&self, n: u64) {
-        self.with_bar(|b| b.set_length(n));
-    }
-
-    pub(crate) fn inc_length(&self, n: u64) {
-        self.with_bar(|b| b.inc_length(n));
-    }
-
-    pub(crate) fn finish(&self, message: &'static str) {
-        self.with_bar(|b| b.finish_with_message(message));
-    }
-
-    fn with_bar<F>(&self, action: F)
-    where
-        F: FnOnce(&Bar),
-    {
-        if let Some(bar) = &self.bar {
-            action(bar);
-        }
-    }
+    progress_chars: &'static str,
 }

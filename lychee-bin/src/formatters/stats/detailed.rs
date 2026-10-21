@@ -1,4 +1,11 @@
-use super::StatsFormatter;
+use std::{
+    collections::HashSet,
+    fmt::{self, Display},
+};
+
+use anyhow::Result;
+use lychee_lib::InputSource;
+
 use crate::{
     config,
     formatters::{
@@ -8,34 +15,42 @@ use crate::{
     },
 };
 
-use anyhow::Result;
-use lychee_lib::InputSource;
-use std::{
-    collections::HashSet,
-    fmt::{self, Display},
-};
+use super::StatsFormatter;
+
 // Maximum padding for each entry in the final statistics output
 const WIDTH: usize = 20;
 
-fn write_stat(f: &mut fmt::Formatter, title: &str, stat: usize, newline: bool) -> fmt::Result {
-    f.write_str(title)?;
+pub(crate) struct Detailed {
+    mode: config::OutputMode,
+}
 
-    let spacing = WIDTH.saturating_sub(title.chars().count());
-    f.write_str(format!("{stat:.>spacing$}").as_str())?;
-
-    if newline {
-        f.write_str("\n")?;
+impl Detailed {
+    pub(crate) const fn new(mode: config::OutputMode) -> Self {
+        Self { mode }
     }
+}
 
-    Ok(())
+impl StatsFormatter for Detailed {
+    fn format(&self, stats: OutputStats) -> Result<String> {
+        let response_stats = DetailedResponseStats {
+            stats: stats.response_stats,
+            mode: self.mode.clone(),
+        };
+        let host_stats = DetailedHostStats {
+            host_stats: stats.host_stats,
+        };
+
+        Ok(format!("{response_stats}\n{host_stats}"))
+    }
 }
 
 /// A wrapper struct that combines `ResponseStats` with an additional `OutputMode`.
 /// Multiple `Display` implementations are not allowed for `ResponseStats`, so this struct is used to
 /// encapsulate additional context.
 struct DetailedResponseStats {
-    stats: ResponseStats,
     mode: config::OutputMode,
+
+    stats: ResponseStats,
 }
 
 impl Display for DetailedResponseStats {
@@ -87,6 +102,19 @@ impl Display for DetailedResponseStats {
     }
 }
 
+fn write_stat(f: &mut fmt::Formatter, title: &str, stat: usize, newline: bool) -> fmt::Result {
+    f.write_str(title)?;
+
+    let spacing = WIDTH.saturating_sub(title.chars().count());
+    f.write_str(format!("{stat:.>spacing$}").as_str())?;
+
+    if newline {
+        f.write_str("\n")?;
+    }
+
+    Ok(())
+}
+
 fn write_stats<T: Display>(
     f: &mut fmt::Formatter<'_>,
     title: &str,
@@ -106,30 +134,6 @@ fn write_stats<T: Display>(
         }
     }
     Ok(())
-}
-
-pub(crate) struct Detailed {
-    mode: config::OutputMode,
-}
-
-impl Detailed {
-    pub(crate) const fn new(mode: config::OutputMode) -> Self {
-        Self { mode }
-    }
-}
-
-impl StatsFormatter for Detailed {
-    fn format(&self, stats: OutputStats) -> Result<String> {
-        let response_stats = DetailedResponseStats {
-            stats: stats.response_stats,
-            mode: self.mode.clone(),
-        };
-        let host_stats = DetailedHostStats {
-            host_stats: stats.host_stats,
-        };
-
-        Ok(format!("{response_stats}\n{host_stats}"))
-    }
 }
 
 #[cfg(test)]

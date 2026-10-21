@@ -1,11 +1,7 @@
-use crate::Preprocessor;
-use crate::filter::PathExcludes;
-use crate::ratelimit::HostPool;
-use crate::types::resolver::UrlContentResolver;
-use crate::{
-    BaseInfo, Input, LycheeResult, Request, RequestError, basic_auth::BasicAuthExtractor,
-    extract::Extractor, types::FileExtensions, types::uri::raw::RawUri, utils::request,
-};
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
 use futures::TryStreamExt;
 use futures::{
     StreamExt,
@@ -14,62 +10,51 @@ use futures::{
 use http::HeaderMap;
 use log::warn;
 use par_stream::ParStreamExt;
-use std::collections::HashSet;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+
+use crate::Preprocessor;
+use crate::filter::PathExcludes;
+use crate::ratelimit::HostPool;
+use crate::types::resolver::UrlContentResolver;
+use crate::{
+    BaseInfo, Input, LycheeResult, Request, RequestError, basic_auth::BasicAuthExtractor,
+    extract::Extractor, types::FileExtensions, types::uri::raw::RawUri, utils::request,
+};
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone)]
 pub struct Collector {
-    basic_auth_extractor: Option<BasicAuthExtractor>,
-    skip_missing_inputs: bool,
-    skip_ignored: bool,
-    skip_hidden: bool,
-    include_verbatim: bool,
-    include_wikilinks: bool,
-    use_html5ever: bool,
-    root_dir: Option<PathBuf>,
     base: BaseInfo,
-    excluded_paths: PathExcludes,
+
     /// Custom headers forwarded to the resolver for remote input fetches.
     /// Note: when a `host_pool` is set, per-host headers configured there
     /// take precedence over these global headers for known hosts.
     headers: HeaderMap,
+
+    root_dir: Option<PathBuf>,
+
     /// Shared host pool used to fetch remote input documents.
     ///
     /// Using the same pool as the link checker means that input URL fetches
     /// use the configured user-agent, TLS settings, cookies, per-host rate
     /// limits, and custom headers.
     host_pool: Arc<HostPool>,
-    preprocessor: Option<Preprocessor>,
-}
 
-impl Default for Collector {
-    /// # Panics
-    ///
-    /// We call [`Collector::new()`] which can panic in certain scenarios.
-    ///
-    /// Use `Collector::new()` instead if you need to handle
-    /// [`ClientBuilder`](crate::ClientBuilder) errors gracefully.
-    fn default() -> Self {
-        Collector {
-            basic_auth_extractor: None,
-            skip_missing_inputs: false,
-            include_verbatim: false,
-            include_wikilinks: false,
-            use_html5ever: false,
-            skip_hidden: true,
-            skip_ignored: true,
-            root_dir: None,
-            base: BaseInfo::none(),
-            headers: HeaderMap::new(),
-            host_pool: Arc::new(HostPool::default()),
-            excluded_paths: PathExcludes::empty(),
-            preprocessor: None,
-        }
-    }
+    preprocessor: Option<Preprocessor>,
+
+    use_html5ever: bool,
+
+    skip_hidden: bool,
+    skip_ignored: bool,
+    skip_missing_inputs: bool,
+
+    excluded_paths: PathExcludes,
+
+    include_verbatim: bool,
+    include_wikilinks: bool,
+
+    basic_auth_extractor: Option<BasicAuthExtractor>,
 }
 
 impl Collector {
@@ -126,27 +111,6 @@ impl Collector {
         })
     }
 
-    /// Skip missing input files (default is to error if they don't exist)
-    #[must_use]
-    pub const fn skip_missing_inputs(mut self, yes: bool) -> Self {
-        self.skip_missing_inputs = yes;
-        self
-    }
-
-    /// Skip files that are hidden
-    #[must_use]
-    pub const fn skip_hidden(mut self, yes: bool) -> Self {
-        self.skip_hidden = yes;
-        self
-    }
-
-    /// Skip files that are ignored
-    #[must_use]
-    pub const fn skip_ignored(mut self, yes: bool) -> Self {
-        self.skip_ignored = yes;
-        self
-    }
-
     /// Set headers to use when resolving input URLs
     #[must_use]
     pub fn headers(mut self, headers: HeaderMap) -> Self {
@@ -173,10 +137,43 @@ impl Collector {
         self
     }
 
+    /// Configure a file [`Preprocessor`]
+    #[must_use]
+    pub fn preprocessor(mut self, preprocessor: Option<Preprocessor>) -> Self {
+        self.preprocessor = preprocessor;
+        self
+    }
+
     /// Use `html5ever` to parse HTML instead of `html5gum`.
     #[must_use]
     pub const fn use_html5ever(mut self, yes: bool) -> Self {
         self.use_html5ever = yes;
+        self
+    }
+
+    /// Skip files that are hidden
+    #[must_use]
+    pub const fn skip_hidden(mut self, yes: bool) -> Self {
+        self.skip_hidden = yes;
+        self
+    }
+    /// Skip files that are ignored
+    #[must_use]
+    pub const fn skip_ignored(mut self, yes: bool) -> Self {
+        self.skip_ignored = yes;
+        self
+    }
+    /// Skip missing input files (default is to error if they don't exist)
+    #[must_use]
+    pub const fn skip_missing_inputs(mut self, yes: bool) -> Self {
+        self.skip_missing_inputs = yes;
+        self
+    }
+
+    /// Configure which paths to exclude
+    #[must_use]
+    pub fn excluded_paths(mut self, excluded_paths: PathExcludes) -> Self {
+        self.excluded_paths = excluded_paths;
         self
     }
 
@@ -186,19 +183,11 @@ impl Collector {
         self.include_verbatim = yes;
         self
     }
-
     /// Check WikiLinks in Markdown files
     #[allow(clippy::doc_markdown)]
     #[must_use]
     pub const fn include_wikilinks(mut self, yes: bool) -> Self {
         self.include_wikilinks = yes;
-        self
-    }
-
-    /// Configure a file [`Preprocessor`]
-    #[must_use]
-    pub fn preprocessor(mut self, preprocessor: Option<Preprocessor>) -> Self {
-        self.preprocessor = preprocessor;
         self
     }
 
@@ -212,13 +201,6 @@ impl Collector {
         self
     }
 
-    /// Configure which paths to exclude
-    #[must_use]
-    pub fn excluded_paths(mut self, excluded_paths: PathExcludes) -> Self {
-        self.excluded_paths = excluded_paths;
-        self
-    }
-
     /// Convenience method to fetch all unique links from inputs
     /// with the default extensions.
     pub fn collect_links(
@@ -227,7 +209,6 @@ impl Collector {
     ) -> impl Stream<Item = Result<Request, RequestError>> {
         self.collect_links_from_file_types(inputs, crate::types::FileType::default_extensions())
     }
-
     /// Fetch all unique links from inputs
     /// All relative URLs get prefixed with `base` (if given).
     /// (This can be a directory or a base URL)
@@ -290,6 +271,32 @@ impl Collector {
                 }
             })
             .try_flatten()
+    }
+}
+
+impl Default for Collector {
+    /// # Panics
+    ///
+    /// We call [`Collector::new()`] which can panic in certain scenarios.
+    ///
+    /// Use `Collector::new()` instead if you need to handle
+    /// [`ClientBuilder`](crate::ClientBuilder) errors gracefully.
+    fn default() -> Self {
+        Collector {
+            basic_auth_extractor: None,
+            skip_missing_inputs: false,
+            include_verbatim: false,
+            include_wikilinks: false,
+            use_html5ever: false,
+            skip_hidden: true,
+            skip_ignored: true,
+            root_dir: None,
+            base: BaseInfo::none(),
+            headers: HeaderMap::new(),
+            host_pool: Arc::new(HostPool::default()),
+            excluded_paths: PathExcludes::empty(),
+            preprocessor: None,
+        }
     }
 }
 

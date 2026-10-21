@@ -1,6 +1,7 @@
-use assert_cmd::Command;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+use assert_cmd::Command;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -19,9 +20,18 @@ const TIMING_TOLERANCE: Duration = Duration::from_millis(1000);
 enum Reset {
     /// Absolute Unix timestamp (GitHub, GitLab); lychee waits `reset - now`.
     Absolute(SystemTime),
+
     /// Relative seconds until reset (IETF draft, `Retry-After`); lychee waits
     /// that long after parsing the headers.
     Relative(Duration),
+}
+
+/// Formats a `SystemTime` as a whole-second Unix timestamp string.
+fn unix_timestamp(time: SystemTime) -> String {
+    time.duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        .to_string()
 }
 
 /// Absolute reset time `RATE_LIMIT_RESET_OFFSET_SECONDS` from now, truncated to
@@ -33,14 +43,6 @@ fn absolute_reset_time() -> SystemTime {
         .as_secs()
         + RATE_LIMIT_RESET_OFFSET_SECONDS;
     UNIX_EPOCH + Duration::from_secs(secs)
-}
-
-/// Formats a `SystemTime` as a whole-second Unix timestamp string.
-fn unix_timestamp(time: SystemTime) -> String {
-    time.duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
-        .to_string()
 }
 
 /// Runs lychee sequentially over two paths and asserts the gap between the two
@@ -130,41 +132,89 @@ async fn run_rate_limit_test(headers: &[(&str, &str)], reset: Reset) {
 }
 
 #[tokio::test]
-async fn test_github_rate_limit_exhausted() {
-    let reset_time = absolute_reset_time();
-    let reset_header = unix_timestamp(reset_time);
+async fn test_retry_after_seconds() {
+    // A `Retry-After` on a 429 should delay the *next* request to a different
+    // path on the same host. Unlike `test_retry_rate_limit_headers` (same URL),
+    // this checks that the backoff carries over to an independent URL.
+    let mock_server = MockServer::start().await;
+    let request_times = Arc::new(Mutex::new(Vec::<Instant>::new()));
+    let delay_str = RATE_LIMIT_DELAY_SECONDS.to_string();
 
-    run_rate_limit_test(
-        &[
-            ("x-ratelimit-limit", "100"),
-            ("x-ratelimit-remaining", "0"),
-            ("x-ratelimit-reset", &reset_header),
-        ],
-        Reset::Absolute(reset_time),
-    )
-    .await;
+    // path1: 429 + Retry-After on the first hit, 200 on the retry.
+    let times_clone_1 = request_times.clone();
+    let delay_header = delay_str.clone();
+    Mock::given(method("GET"))
+        .and(path("/path1"))
+        .respond_with(move |_: &wiremock::Request| {
+            times_clone_1.lock().unwrap().push(Instant::now());
+            ResponseTemplate::new(429).insert_header("Retry-After", delay_header.as_str())
+        })
+        .up_to_n_times(1)
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    // Serves the path1 retry once the backoff expires.
+    Mock::given(method("GET"))
+        .and(path("/path1"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let times_clone_2 = request_times.clone();
+    Mock::given(method("GET"))
+        .and(path("/path2"))
+        .respond_with(move |_: &wiremock::Request| {
+            times_clone_2.lock().unwrap().push(Instant::now());
+            ResponseTemplate::new(200)
+        })
+        .expect(1)
+        .mount(&mock_server)
+        .await;
+
+    let inputs: String = ["path1", "path2"]
+        .iter()
+        .map(|p| format!("{}/{p}\n", mock_server.uri()))
+        .collect();
+
+    let mut cmd = Command::cargo_bin("lychee").unwrap();
+    cmd.arg("-")
+        .arg("--max-concurrency")
+        .arg("1") // sequential so the backoff order is deterministic
+        // Isolate the Retry-After-driven delay from the generic retry wait.
+        .arg("--retry-wait-time")
+        .arg("0")
+        .write_stdin(inputs)
+        .assert()
+        .success();
+
+    let elapsed = {
+        let times = request_times.lock().unwrap();
+        assert_eq!(
+            times.len(),
+            2,
+            "Expected 2 recorded requests (path1 first hit + path2), got {}",
+            times.len()
+        );
+        times[1].duration_since(times[0])
+    };
+
+    let expected_delay = Duration::from_secs(RATE_LIMIT_DELAY_SECONDS);
+    let expected_min = expected_delay.saturating_sub(TIMING_TOLERANCE);
+    let expected_max = expected_delay.saturating_add(TIMING_TOLERANCE);
+
+    assert!(
+        elapsed >= expected_min,
+        "Retry-After backoff not respected: expected at least {expected_min:?}, got {elapsed:?}"
+    );
+    assert!(
+        elapsed <= expected_max,
+        "Retry-After backoff was too long: expected at most {expected_max:?}, got {elapsed:?}"
+    );
+
+    mock_server.verify().await;
 }
-
-#[tokio::test]
-async fn test_gitlab_rate_limit_exhausted() {
-    let reset_time = absolute_reset_time();
-    let reset_header = unix_timestamp(reset_time);
-
-    run_rate_limit_test(
-        &[
-            ("RateLimit-Limit", "100"),
-            ("RateLimit-Remaining", "0"),
-            ("RateLimit-Reset", &reset_header),
-            // GitLab-specific. Its presence tells the `rate-limits` crate to read
-            // `RateLimit-Reset` as an absolute timestamp rather than relative
-            // seconds (IETF draft), which share the same header name.
-            ("RateLimit-Observed", "100"),
-        ],
-        Reset::Absolute(reset_time),
-    )
-    .await;
-}
-
 #[tokio::test]
 async fn test_ietf_draft_exhausted() {
     let delay_str = RATE_LIMIT_DELAY_SECONDS.to_string();
@@ -248,86 +298,37 @@ async fn test_retry_rate_limit_headers() {
 }
 
 #[tokio::test]
-async fn test_retry_after_seconds() {
-    // A `Retry-After` on a 429 should delay the *next* request to a different
-    // path on the same host. Unlike `test_retry_rate_limit_headers` (same URL),
-    // this checks that the backoff carries over to an independent URL.
-    let mock_server = MockServer::start().await;
-    let request_times = Arc::new(Mutex::new(Vec::<Instant>::new()));
-    let delay_str = RATE_LIMIT_DELAY_SECONDS.to_string();
+async fn test_github_rate_limit_exhausted() {
+    let reset_time = absolute_reset_time();
+    let reset_header = unix_timestamp(reset_time);
 
-    // path1: 429 + Retry-After on the first hit, 200 on the retry.
-    let times_clone_1 = request_times.clone();
-    let delay_header = delay_str.clone();
-    Mock::given(method("GET"))
-        .and(path("/path1"))
-        .respond_with(move |_: &wiremock::Request| {
-            times_clone_1.lock().unwrap().push(Instant::now());
-            ResponseTemplate::new(429).insert_header("Retry-After", delay_header.as_str())
-        })
-        .up_to_n_times(1)
-        .expect(1)
-        .mount(&mock_server)
-        .await;
+    run_rate_limit_test(
+        &[
+            ("x-ratelimit-limit", "100"),
+            ("x-ratelimit-remaining", "0"),
+            ("x-ratelimit-reset", &reset_header),
+        ],
+        Reset::Absolute(reset_time),
+    )
+    .await;
+}
 
-    // Serves the path1 retry once the backoff expires.
-    Mock::given(method("GET"))
-        .and(path("/path1"))
-        .respond_with(ResponseTemplate::new(200))
-        .expect(1)
-        .mount(&mock_server)
-        .await;
+#[tokio::test]
+async fn test_gitlab_rate_limit_exhausted() {
+    let reset_time = absolute_reset_time();
+    let reset_header = unix_timestamp(reset_time);
 
-    let times_clone_2 = request_times.clone();
-    Mock::given(method("GET"))
-        .and(path("/path2"))
-        .respond_with(move |_: &wiremock::Request| {
-            times_clone_2.lock().unwrap().push(Instant::now());
-            ResponseTemplate::new(200)
-        })
-        .expect(1)
-        .mount(&mock_server)
-        .await;
-
-    let inputs: String = ["path1", "path2"]
-        .iter()
-        .map(|p| format!("{}/{p}\n", mock_server.uri()))
-        .collect();
-
-    let mut cmd = Command::cargo_bin("lychee").unwrap();
-    cmd.arg("-")
-        .arg("--max-concurrency")
-        .arg("1") // sequential so the backoff order is deterministic
-        // Isolate the Retry-After-driven delay from the generic retry wait.
-        .arg("--retry-wait-time")
-        .arg("0")
-        .write_stdin(inputs)
-        .assert()
-        .success();
-
-    let elapsed = {
-        let times = request_times.lock().unwrap();
-        assert_eq!(
-            times.len(),
-            2,
-            "Expected 2 recorded requests (path1 first hit + path2), got {}",
-            times.len()
-        );
-        times[1].duration_since(times[0])
-    };
-
-    let expected_delay = Duration::from_secs(RATE_LIMIT_DELAY_SECONDS);
-    let expected_min = expected_delay.saturating_sub(TIMING_TOLERANCE);
-    let expected_max = expected_delay.saturating_add(TIMING_TOLERANCE);
-
-    assert!(
-        elapsed >= expected_min,
-        "Retry-After backoff not respected: expected at least {expected_min:?}, got {elapsed:?}"
-    );
-    assert!(
-        elapsed <= expected_max,
-        "Retry-After backoff was too long: expected at most {expected_max:?}, got {elapsed:?}"
-    );
-
-    mock_server.verify().await;
+    run_rate_limit_test(
+        &[
+            ("RateLimit-Limit", "100"),
+            ("RateLimit-Remaining", "0"),
+            ("RateLimit-Reset", &reset_header),
+            // GitLab-specific. Its presence tells the `rate-limits` crate to read
+            // `RateLimit-Reset` as an absolute timestamp rather than relative
+            // seconds (IETF draft), which share the same header name.
+            ("RateLimit-Observed", "100"),
+        ],
+        Reset::Absolute(reset_time),
+    )
+    .await;
 }

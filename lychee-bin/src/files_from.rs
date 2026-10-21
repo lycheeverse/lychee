@@ -3,9 +3,10 @@
 //! This module provides the `FilesFrom` struct which handles reading input file
 //! lists from any reader, with support for comments and empty line filtering.
 
-use anyhow::{Context, Result};
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
+
+use anyhow::{Context, Result};
 
 /// Comment marker for ignoring lines in files-from input
 const COMMENT_MARKER: &str = "#";

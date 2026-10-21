@@ -1,3 +1,11 @@
+use std::{borrow::Cow, collections::HashSet, path::Path, sync::Arc, time::Duration};
+
+use async_trait::async_trait;
+use http::{Method, StatusCode};
+use octocrab::Octocrab;
+use reqwest::{Request, header::CONTENT_TYPE};
+use url::Url;
+
 use crate::{
     BasicAuthExtractor, ErrorKind, FileType, FragmentCheckerOptions, Methods, Status, Uri,
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
@@ -10,12 +18,6 @@ use crate::{
     },
     utils::fragment_checker::{FragmentChecker, FragmentInput},
 };
-use async_trait::async_trait;
-use http::{Method, StatusCode};
-use octocrab::Octocrab;
-use reqwest::{Request, header::CONTENT_TYPE};
-use std::{borrow::Cow, collections::HashSet, path::Path, sync::Arc, time::Duration};
-use url::Url;
 
 #[derive(Debug, Clone)]
 pub(crate) struct WebsiteChecker {
@@ -26,39 +28,10 @@ pub(crate) struct WebsiteChecker {
     /// and return the first successful one.
     methods: Methods,
 
-    /// GitHub client used for requests.
-    github_client: Option<Octocrab>,
-
-    /// The chain of plugins to be executed on each request.
-    plugin_request_chain: RequestChain,
-
-    /// Maximum number of retries per request before returning an error.
-    max_retries: u64,
-
-    /// Initial wait time between retries of failed requests. This doubles after
-    /// each failure.
-    retry_wait_time: Duration,
-
     /// Set of accepted return codes / status codes.
     ///
     /// Unmatched return codes/ status codes are deemed as errors.
     accepted: HashSet<StatusCode>,
-
-    /// Requires using HTTPS when it's available.
-    ///
-    /// This would treat unencrypted links as errors when HTTPS is available.
-    require_https: bool,
-
-    /// Controls which fragment types are checked in the response body.
-    ///
-    /// No fragments are checked if the request method is `HEAD`.
-    fragment_checker_options: FragmentCheckerOptions,
-
-    /// Utility for performing fragment checks in HTML files.
-    fragment_checker: FragmentChecker,
-
-    /// Keep track of HTTP redirections for reporting
-    redirect_history: RedirectHistory,
 
     /// Optional host pool for per-host rate limiting.
     ///
@@ -68,15 +41,37 @@ pub(crate) struct WebsiteChecker {
 
     /// Basic auth extractor to obtain credentials from.
     basic_auth: BasicAuthExtractor,
+
+    /// Maximum number of retries per request before returning an error.
+    max_retries: u64,
+
+    /// GitHub client used for requests.
+    github_client: Option<Octocrab>,
+
+    /// Requires using HTTPS when it's available.
+    ///
+    /// This would treat unencrypted links as errors when HTTPS is available.
+    require_https: bool,
+
+    /// Initial wait time between retries of failed requests. This doubles after
+    /// each failure.
+    retry_wait_time: Duration,
+
+    /// Keep track of HTTP redirections for reporting
+    redirect_history: RedirectHistory,
+
+    /// The chain of plugins to be executed on each request.
+    plugin_request_chain: RequestChain,
+
+    /// Utility for performing fragment checks in HTML files.
+    fragment_checker: FragmentChecker,
+    /// Controls which fragment types are checked in the response body.
+    ///
+    /// No fragments are checked if the request method is `HEAD`.
+    fragment_checker_options: FragmentCheckerOptions,
 }
 
 impl WebsiteChecker {
-    /// Get a reference to `HostPool`
-    #[must_use]
-    pub(crate) fn host_pool(&self) -> Arc<HostPool> {
-        self.host_pool.clone()
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         methods: Methods,
@@ -107,6 +102,12 @@ impl WebsiteChecker {
         }
     }
 
+    /// Get a reference to `HostPool`
+    #[must_use]
+    pub(crate) fn host_pool(&self) -> Arc<HostPool> {
+        self.host_pool.clone()
+    }
+
     /// Retry requests up to `max_retries` times
     /// with an exponential backoff.
     /// Note that, in addition, there also is a host-specific backoff
@@ -128,6 +129,32 @@ impl WebsiteChecker {
         status
     }
 
+    /// Check a `uri` hosted on `GitHub` via the GitHub API.
+    ///
+    /// # Caveats
+    ///
+    /// Files inside private repositories won't get checked and instead would
+    /// be reported as valid if the repository itself is reachable through the
+    /// API.
+    ///
+    /// A better approach would be to download the file through the API or
+    /// clone the repo, but we chose the pragmatic approach.
+    async fn check_github(&self, uri: GithubUri) -> Status {
+        let Some(client) = &self.github_client else {
+            return ErrorKind::MissingGitHubToken.into();
+        };
+        let repo = match client.repos(&uri.owner, &uri.repo).get().await {
+            Ok(repo) => repo,
+            Err(e) => return ErrorKind::GithubRequest(Box::new(e)).into(),
+        };
+        if let Some(true) = repo.private {
+            return Status::Ok(StatusCode::OK);
+        } else if let Some(endpoint) = uri.endpoint {
+            return ErrorKind::InvalidGithubUrl(format!("{}/{}/{endpoint}", uri.owner, uri.repo))
+                .into();
+        }
+        Status::Ok(StatusCode::OK)
+    }
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
     async fn check_default(&self, request: Request) -> Status {
         let method = request.method().clone();
@@ -185,32 +212,6 @@ impl WebsiteChecker {
             Err(e) => e.into(),
         }
     }
-
-    async fn check_html_fragment(
-        &self,
-        url: Url,
-        status: Status,
-        content: &str,
-        file_type: FileType,
-    ) -> Status {
-        match self
-            .fragment_checker
-            .check(
-                FragmentInput {
-                    content: Cow::Borrowed(content),
-                    file_type,
-                },
-                &url,
-                self.fragment_checker_options,
-            )
-            .await
-        {
-            Ok(true) => status,
-            Ok(false) => Status::Error(ErrorKind::InvalidFragment(url.into())),
-            Err(e) => Status::Error(e),
-        }
-    }
-
     /// Checks the given URI of a website.
     ///
     /// # Errors
@@ -235,33 +236,48 @@ impl WebsiteChecker {
         let redirects = self.redirect_history.resolve(&uri.url);
         (status, redirects)
     }
-
-    /// Mark HTTP URLs as insecure, if the user required HTTPS
-    /// and the URL is available under HTTPS.
-    async fn handle_insecure_url(
+    /// Build and check a single request for `uri` using the given `method`.
+    async fn check_with_method(
         &self,
+        method: Method,
         uri: &Uri,
-        default_chain: &Chain<Request, Status>,
-        status: Status,
+        default_chain: &RequestChain,
     ) -> Status {
-        if self.require_https
-            && uri.scheme() == "http"
-            && let Status::Ok(_) = status
-            && let Ok(https_uri) = uri.to_https()
-        {
-            let is_https_available = self
-                .check_website_inner(&https_uri, default_chain)
-                .await
-                .is_success();
+        let request = match self.host_pool.build_request(method, uri) {
+            Ok(request) => request,
+            Err(e) => return e.into(),
+        };
 
-            if is_https_available {
-                return Status::Error(ErrorKind::InsecureURL(https_uri));
-            }
-        }
+        let status = ClientRequestChains::new(vec![&self.plugin_request_chain, default_chain])
+            .traverse(request)
+            .await;
 
-        status
+        self.handle_github(status, uri).await
     }
-
+    async fn check_html_fragment(
+        &self,
+        url: Url,
+        status: Status,
+        content: &str,
+        file_type: FileType,
+    ) -> Status {
+        match self
+            .fragment_checker
+            .check(
+                FragmentInput {
+                    content: Cow::Borrowed(content),
+                    file_type,
+                },
+                &url,
+                self.fragment_checker_options,
+            )
+            .await
+        {
+            Ok(true) => status,
+            Ok(false) => Status::Error(ErrorKind::InvalidFragment(url.into())),
+            Err(e) => Status::Error(e),
+        }
+    }
     /// Checks the given URI of a website.
     ///
     /// Unsupported schemes will be ignored
@@ -306,25 +322,6 @@ impl WebsiteChecker {
         last_status.expect("Methods is guaranteed to be non-empty")
     }
 
-    /// Build and check a single request for `uri` using the given `method`.
-    async fn check_with_method(
-        &self,
-        method: Method,
-        uri: &Uri,
-        default_chain: &RequestChain,
-    ) -> Status {
-        let request = match self.host_pool.build_request(method, uri) {
-            Ok(request) => request,
-            Err(e) => return e.into(),
-        };
-
-        let status = ClientRequestChains::new(vec![&self.plugin_request_chain, default_chain])
-            .traverse(request)
-            .await;
-
-        self.handle_github(status, uri).await
-    }
-
     // Pull out the heavy machinery in case of a failed normal request.
     // This could be a GitHub URL and we ran into the rate limiter.
     // TODO: We should try to parse the URI as GitHub URI first (Lucius, Jan 2023)
@@ -342,32 +339,37 @@ impl WebsiteChecker {
 
         status
     }
+    /// Mark HTTP URLs as insecure, if the user required HTTPS
+    /// and the URL is available under HTTPS.
+    async fn handle_insecure_url(
+        &self,
+        uri: &Uri,
+        default_chain: &Chain<Request, Status>,
+        status: Status,
+    ) -> Status {
+        if self.require_https
+            && uri.scheme() == "http"
+            && let Status::Ok(_) = status
+            && let Ok(https_uri) = uri.to_https()
+        {
+            let is_https_available = self
+                .check_website_inner(&https_uri, default_chain)
+                .await
+                .is_success();
 
-    /// Check a `uri` hosted on `GitHub` via the GitHub API.
-    ///
-    /// # Caveats
-    ///
-    /// Files inside private repositories won't get checked and instead would
-    /// be reported as valid if the repository itself is reachable through the
-    /// API.
-    ///
-    /// A better approach would be to download the file through the API or
-    /// clone the repo, but we chose the pragmatic approach.
-    async fn check_github(&self, uri: GithubUri) -> Status {
-        let Some(client) = &self.github_client else {
-            return ErrorKind::MissingGitHubToken.into();
-        };
-        let repo = match client.repos(&uri.owner, &uri.repo).get().await {
-            Ok(repo) => repo,
-            Err(e) => return ErrorKind::GithubRequest(Box::new(e)).into(),
-        };
-        if let Some(true) = repo.private {
-            return Status::Ok(StatusCode::OK);
-        } else if let Some(endpoint) = uri.endpoint {
-            return ErrorKind::InvalidGithubUrl(format!("{}/{}/{endpoint}", uri.owner, uri.repo))
-                .into();
+            if is_https_available {
+                return Status::Error(ErrorKind::InsecureURL(https_uri));
+            }
         }
-        Status::Ok(StatusCode::OK)
+
+        status
+    }
+}
+
+#[async_trait]
+impl Handler<Request, Status> for WebsiteChecker {
+    async fn handle(&mut self, input: Request) -> ChainResult<Request, Status> {
+        ChainResult::Done(self.retry_request(input).await)
     }
 }
 
@@ -382,13 +384,6 @@ impl WebsiteChecker {
 /// See <https://github.com/seanmonstar/reqwest/blob/de5dbb1ab849cc301dcefebaeabdf4ce2e0f1e53/src/async_impl/body.rs#L168>
 fn clone_unwrap(request: &Request) -> Request {
     request.try_clone().expect("Failed to clone request: body was a stream, which should be impossible with `stream` feature disabled")
-}
-
-#[async_trait]
-impl Handler<Request, Status> for WebsiteChecker {
-    async fn handle(&mut self, input: Request) -> ChainResult<Request, Status> {
-        ChainResult::Done(self.retry_request(input).await)
-    }
 }
 
 #[cfg(test)]

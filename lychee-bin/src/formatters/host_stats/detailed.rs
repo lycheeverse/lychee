@@ -1,7 +1,8 @@
 use std::fmt::{self, Display};
 
-use super::host_heading;
 use lychee_lib::ratelimit::HostStatsMap;
+
+use super::host_heading;
 
 pub(crate) struct DetailedHostStats {
     pub(crate) host_stats: Option<HostStatsMap>,

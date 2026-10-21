@@ -12,11 +12,11 @@ pub static DEFAULT_ACCEPTED_STATUS_CODES: LazyLock<HashSet<StatusCode>> =
 
 #[derive(Debug, Error, PartialEq)]
 pub enum StatusCodeSelectorError {
-    #[error("invalid/empty input")]
-    InvalidInput,
-
     #[error("failed to parse range: {0}")]
     RangeError(#[from] StatusRangeError),
+
+    #[error("invalid/empty input")]
+    InvalidInput,
 }
 
 /// A [`StatusCodeSelector`] holds ranges of HTTP status codes, and determines
@@ -24,6 +24,64 @@ pub enum StatusCodeSelectorError {
 #[derive(Clone, Debug, PartialEq)]
 pub struct StatusCodeSelector {
     ranges: Vec<StatusRange>,
+}
+
+impl StatusCodeSelector {
+    #[cfg(test)]
+    pub(crate) const fn len(&self) -> usize {
+        self.ranges.len()
+    }
+
+    /// Creates a new empty selector
+    #[must_use]
+    pub const fn empty() -> Self {
+        Self { ranges: Vec::new() }
+    }
+
+    /// Creates a new [`StatusCodeSelector`] prefilled with `ranges`.
+    #[must_use]
+    pub fn new_from(ranges: Vec<StatusRange>) -> Self {
+        let mut selector = Self::empty();
+
+        for range in ranges {
+            selector.add_range(range);
+        }
+
+        selector
+    }
+
+    /// Returns whether this [`StatusCodeSelector`] contains `value`.
+    #[must_use]
+    pub fn contains(&self, value: u16) -> bool {
+        self.ranges.iter().any(|range| range.contains(value))
+    }
+
+    /// Adds a range of HTTP status codes to this [`StatusCodeSelector`].
+    /// This method merges the new and existing ranges if they overlap.
+    pub fn add_range(&mut self, range: StatusRange) -> &mut Self {
+        // Merge with previous range if possible
+        if let Some(last) = self.ranges.last_mut()
+            && last.merge(&range)
+        {
+            return self;
+        }
+
+        // If neither is the case, the ranges have no overlap at all. Just add
+        // to the list of ranges.
+        self.ranges.push(range);
+        self
+    }
+
+    /// Create a new selector where 100..=103 and 200..300 are selected.
+    /// These are the status codes which are accepted by default.
+    #[must_use]
+    pub fn default_accepted() -> Self {
+        #[expect(clippy::missing_panics_doc, reason = "infallible")]
+        Self::new_from(vec![
+            StatusRange::new(100, 103).unwrap(),
+            StatusRange::new(200, 299).unwrap(),
+        ])
+    }
 }
 
 impl FromStr for StatusCodeSelector {
@@ -52,74 +110,6 @@ impl Display for StatusCodeSelector {
     }
 }
 
-impl StatusCodeSelector {
-    /// Creates a new empty selector
-    #[must_use]
-    pub const fn empty() -> Self {
-        Self { ranges: Vec::new() }
-    }
-
-    /// Create a new selector where 100..=103 and 200..300 are selected.
-    /// These are the status codes which are accepted by default.
-    #[must_use]
-    pub fn default_accepted() -> Self {
-        #[expect(clippy::missing_panics_doc, reason = "infallible")]
-        Self::new_from(vec![
-            StatusRange::new(100, 103).unwrap(),
-            StatusRange::new(200, 299).unwrap(),
-        ])
-    }
-
-    /// Creates a new [`StatusCodeSelector`] prefilled with `ranges`.
-    #[must_use]
-    pub fn new_from(ranges: Vec<StatusRange>) -> Self {
-        let mut selector = Self::empty();
-
-        for range in ranges {
-            selector.add_range(range);
-        }
-
-        selector
-    }
-
-    /// Adds a range of HTTP status codes to this [`StatusCodeSelector`].
-    /// This method merges the new and existing ranges if they overlap.
-    pub fn add_range(&mut self, range: StatusRange) -> &mut Self {
-        // Merge with previous range if possible
-        if let Some(last) = self.ranges.last_mut()
-            && last.merge(&range)
-        {
-            return self;
-        }
-
-        // If neither is the case, the ranges have no overlap at all. Just add
-        // to the list of ranges.
-        self.ranges.push(range);
-        self
-    }
-
-    /// Returns whether this [`StatusCodeSelector`] contains `value`.
-    #[must_use]
-    pub fn contains(&self, value: u16) -> bool {
-        self.ranges.iter().any(|range| range.contains(value))
-    }
-
-    #[cfg(test)]
-    pub(crate) const fn len(&self) -> usize {
-        self.ranges.len()
-    }
-}
-
-impl<S: BuildHasher + Default> From<StatusCodeSelector> for HashSet<StatusCode, S> {
-    fn from(value: StatusCodeSelector) -> Self {
-        value
-            .ranges
-            .into_iter()
-            .flat_map(<HashSet<StatusCode>>::from)
-            .collect()
-    }
-}
-
 impl Serialize for StatusCodeSelector {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -128,6 +118,15 @@ impl Serialize for StatusCodeSelector {
         // Serialize as the `Display` string (e.g. `200..=299,429`), which
         // round-trips through the `FromStr`-based deserializer.
         serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for StatusCodeSelector {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(StatusCodeSelectorVisitor)
     }
 }
 
@@ -146,7 +145,6 @@ impl<'de> Visitor<'de> for StatusCodeSelectorVisitor {
     {
         StatusCodeSelector::from_str(v).map_err(serde::de::Error::custom)
     }
-
     fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
@@ -156,7 +154,6 @@ impl<'de> Visitor<'de> for StatusCodeSelectorVisitor {
             StatusRange::new(value, value).map_err(serde::de::Error::custom)?,
         ]))
     }
-
     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
     where
         A: serde::de::SeqAccess<'de>,
@@ -184,12 +181,13 @@ impl<'de> Visitor<'de> for StatusCodeSelectorVisitor {
     }
 }
 
-impl<'de> Deserialize<'de> for StatusCodeSelector {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_any(StatusCodeSelectorVisitor)
+impl<S: BuildHasher + Default> From<StatusCodeSelector> for HashSet<StatusCode, S> {
+    fn from(value: StatusCodeSelector) -> Self {
+        value
+            .ranges
+            .into_iter()
+            .flat_map(<HashSet<StatusCode>>::from)
+            .collect()
     }
 }
 

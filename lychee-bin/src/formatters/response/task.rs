@@ -1,5 +1,6 @@
-use super::ResponseFormatter;
 use lychee_lib::ResponseBody;
+
+use super::ResponseFormatter;
 
 pub(crate) struct TaskFormatter;
 

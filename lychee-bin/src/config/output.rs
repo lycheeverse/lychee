@@ -3,42 +3,12 @@
 //! Defines the supported output formatting options for the CLI,
 //! such as color modes and output formats (e.g. JSON, Compact, Detailed).
 
+use std::str::FromStr;
+
 use anyhow::{Error, Result, anyhow};
 use schemars::JsonSchema;
 use serde::Deserialize;
-use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString, VariantNames};
-
-/// The format to use for the final status report
-#[derive(
-    Debug, Deserialize, Default, Clone, Display, EnumIter, VariantNames, PartialEq, JsonSchema,
-)]
-#[non_exhaustive]
-#[strum(serialize_all = "snake_case")]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum StatsFormat {
-    #[default]
-    Compact,
-    Detailed,
-    Json,
-    Junit,
-    Markdown,
-}
-
-impl FromStr for StatsFormat {
-    type Err = Error;
-
-    fn from_str(format: &str) -> Result<Self, Self::Err> {
-        match format.to_lowercase().as_str() {
-            "compact" | "string" => Ok(StatsFormat::Compact),
-            "detailed" => Ok(StatsFormat::Detailed),
-            "json" => Ok(StatsFormat::Json),
-            "junit" => Ok(StatsFormat::Junit),
-            "markdown" | "md" => Ok(StatsFormat::Markdown),
-            _ => Err(anyhow!("Unknown format {format}")),
-        }
-    }
-}
 
 /// The different formatter modes
 ///
@@ -58,6 +28,14 @@ impl FromStr for StatsFormat {
 )]
 #[non_exhaustive]
 pub(crate) enum OutputMode {
+    /// Task output.
+    ///
+    /// This mode uses Markdown-styled checkboxes to represent the status of the requests.
+    /// Some people may find this mode more intuitive and useful for task tracking.
+    #[serde(rename = "task")]
+    #[strum(serialize = "task", ascii_case_insensitive)]
+    Task,
+
     /// Plain text output.
     ///
     /// This is the most basic output mode for terminals that do not support
@@ -86,14 +64,6 @@ pub(crate) enum OutputMode {
     #[serde(rename = "emoji")]
     #[strum(serialize = "emoji", ascii_case_insensitive)]
     Emoji,
-
-    /// Task output.
-    ///
-    /// This mode uses Markdown-styled checkboxes to represent the status of the requests.
-    /// Some people may find this mode more intuitive and useful for task tracking.
-    #[serde(rename = "task")]
-    #[strum(serialize = "task", ascii_case_insensitive)]
-    Task,
 }
 
 impl OutputMode {
@@ -101,9 +71,42 @@ impl OutputMode {
     pub(crate) const fn is_plain(&self) -> bool {
         matches!(self, OutputMode::Plain)
     }
-
     /// Returns `true` if the response format is `Emoji`
     pub(crate) const fn is_emoji(&self) -> bool {
         matches!(self, OutputMode::Emoji)
+    }
+}
+/// The format to use for the final status report
+#[derive(
+    Debug, Deserialize, Default, Clone, Display, EnumIter, VariantNames, PartialEq, JsonSchema,
+)]
+#[non_exhaustive]
+#[strum(serialize_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum StatsFormat {
+    Json,
+
+    Junit,
+
+    #[default]
+    Compact,
+
+    Detailed,
+
+    Markdown,
+}
+
+impl FromStr for StatsFormat {
+    type Err = Error;
+
+    fn from_str(format: &str) -> Result<Self, Self::Err> {
+        match format.to_lowercase().as_str() {
+            "compact" | "string" => Ok(StatsFormat::Compact),
+            "detailed" => Ok(StatsFormat::Detailed),
+            "json" => Ok(StatsFormat::Json),
+            "junit" => Ok(StatsFormat::Junit),
+            "markdown" | "md" => Ok(StatsFormat::Markdown),
+            _ => Err(anyhow!("Unknown format {format}")),
+        }
     }
 }

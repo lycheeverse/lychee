@@ -13,7 +13,6 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
-use crate::{BasicAuthExtractor, remap::Remap};
 use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use http::{
@@ -37,6 +36,7 @@ use crate::{
     remap::Remaps,
     types::{DEFAULT_ACCEPTED_STATUS_CODES, Redirects, redirect_history::RedirectHistory},
 };
+use crate::{BasicAuthExtractor, remap::Remap};
 
 /// Default number of redirects that are followed.
 pub const DEFAULT_MAX_REDIRECTS: usize = 10;
@@ -58,20 +58,125 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// information.
 const TCP_KEEPALIVE: Duration = Duration::from_secs(60);
 
-/// Controls which fragment types should be checked for supported links.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct FragmentCheckerOptions {
-    /// Check anchor fragments like `#section`.
-    pub check_anchor_fragments: bool,
-    /// Check text fragments like `#:~:text=example`.
-    pub check_text_fragments: bool,
+/// Handles incoming requests and returns responses.
+///
+/// See [`ClientBuilder`] which contains sane defaults for all configuration
+/// options.
+#[derive(Debug, Clone)]
+pub struct Client {
+    /// Optional remap rules for URIs matching pattern.
+    remaps: Option<Remaps>,
+
+    /// Rules to decide whether a given link should be checked or ignored.
+    filter: Filter,
+
+    /// A checker for file URLs.
+    file_checker: FileChecker,
+
+    /// A checker for email URLs.
+    email_checker: MailChecker,
+
+    /// A checker for website URLs.
+    website_checker: WebsiteChecker,
 }
 
-impl FragmentCheckerOptions {
-    /// Returns `true` if either anchor or text fragment checking is enabled.
+impl Client {
+    /// Remap [`Uri`] as a side-effect, using the client-defined remap rules.
+    /// Return `Some` only if a remap was performed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an `Err` if the remapped `uri` is not a valid URI.
+    pub fn remap(&self, uri: &mut Uri) -> Result<Option<Remap>> {
+        match self.remaps {
+            Some(ref remaps) => {
+                let remapped = remaps.remap(uri)?;
+                if let Some(remapped) = &remapped {
+                    *uri = remapped.new.clone();
+                }
+
+                Ok(remapped)
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Get `HostPool`
     #[must_use]
-    pub const fn any_enabled(self) -> bool {
-        self.check_anchor_fragments || self.check_text_fragments
+    pub fn host_pool(&self) -> Arc<HostPool> {
+        self.website_checker.host_pool()
+    }
+
+    /// Returns whether the given `uri` should be ignored from checking.
+    #[must_use]
+    pub fn is_excluded(&self, uri: &Uri) -> bool {
+        self.filter.is_excluded(uri)
+    }
+
+    /// Check a single request.
+    ///
+    /// `request` can be either a [`Request`] or a type that can be converted
+    /// into it. In any case, it must represent a valid URI.
+    ///
+    /// # Errors
+    ///
+    /// Returns an `Err` if:
+    /// - `request` does not represent a valid URI.
+    /// - Encrypted connection for a HTTP URL is available but unused. (Only
+    ///   checked when `Client::require_https` is `true`.)
+    #[allow(clippy::missing_panics_doc)]
+    pub async fn check<T, E>(&self, request: T) -> Result<Response>
+    where
+        Request: TryFrom<T, Error = E>,
+        ErrorKind: From<E>,
+    {
+        let Request {
+            mut uri,
+            source,
+            span,
+            ..
+        } = request.try_into()?;
+
+        let start = std::time::Instant::now(); // Measure check time
+        let remap = self.remap(&mut uri)?.inspect(|r| debug!("Remapping {r}"));
+
+        let (status, redirects) = match uri.scheme() {
+            _ if self.is_excluded(&uri) => (Status::Excluded, None),
+            _ if uri.is_tel() => (Status::Excluded, None), // We don't check tel: URIs
+            _ if uri.is_file() => (self.check_file(&uri).await, None),
+            _ if uri.is_mail() => (self.check_mail(&uri).await, None),
+            _ => self.check_website(&uri).await,
+        };
+
+        Ok(Response::new(
+            uri,
+            status,
+            redirects,
+            remap,
+            source.into(),
+            span,
+            Some(start.elapsed()),
+        ))
+    }
+    /// Check a single file using the file checker.
+    pub async fn check_file(&self, uri: &Uri) -> Status {
+        self.file_checker.check(uri).await
+    }
+    /// Checks a `mailto` URI.
+    pub async fn check_mail(&self, uri: &Uri) -> Status {
+        self.email_checker.check_mail(uri).await
+    }
+    /// Checks the given URI of a website.
+    ///
+    /// # Errors
+    ///
+    /// This returns an `Err` if
+    /// - The URI is invalid.
+    /// - The request failed.
+    /// - The response status code is not accepted.
+    /// - The URI cannot be converted to HTTPS.
+    pub async fn check_website(&self, uri: &Uri) -> (Status, Option<Redirects>) {
+        self.website_checker.check_website(uri).await
     }
 }
 
@@ -81,15 +186,14 @@ impl FragmentCheckerOptions {
 #[derive(TypedBuilder, Debug, Clone)]
 #[builder(field_defaults(default, setter(into)))]
 pub struct ClientBuilder {
-    /// Optional GitHub token used for GitHub links.
+    /// Base for resolving paths.
     ///
-    /// This allows much more request before getting rate-limited.
-    ///
-    /// # Rate-limiting Defaults
-    ///
-    /// As of Feb 2022, it's 60 per hour without GitHub token v.s.
-    /// 5000 per hour with token.
-    github_token: Option<SecretString>,
+    /// E.g. if the base is `/home/user/` and the path is `file.txt`, the
+    /// resolved path would be `/home/user/file.txt`.
+    base: BaseInfo,
+
+    /// Per-host configuration overrides
+    hosts: HostConfigs,
 
     /// Remap URIs matching a pattern to a different URI.
     ///
@@ -107,10 +211,58 @@ pub struct ClientBuilder {
     /// make sure rules don't conflict with each other.
     remaps: Option<Remaps>,
 
-    /// Automatically append file extensions to `file://` URIs as needed
+    /// HTTP methods used for requests, in order of preference.
     ///
-    /// This option takes effect on `file://` URIs which do not exist.
-    fallback_extensions: Vec<String>,
+    /// Lychee tries each method in order and returns the first success. This
+    /// allows falling back to e.g. `GET` when a server rejects `HEAD` requests.
+    #[builder(default = Methods::from(reqwest::Method::GET))]
+    method: Methods,
+
+    /// Set of accepted URL schemes.
+    ///
+    /// Only links with matched URI schemes are checked. This has no effect when
+    /// it's empty.
+    schemes: HashSet<String>,
+
+    /// Response timeout per request.
+    timeout: Option<Duration>,
+
+    /// Links matching this set of regular expressions are **always** checked.
+    ///
+    /// This has higher precedence over [`ClientBuilder::excludes`], **but**
+    /// has lower precedence compared to any other `exclude_` fields or
+    /// [`ClientBuilder::schemes`] below.
+    includes: Option<RegexSet>,
+
+    /// Links matching this set of regular expressions are ignored, **except**
+    /// when a link also matches against [`ClientBuilder::includes`].
+    excludes: Option<RegexSet>,
+
+    /// Set of accepted return codes / status codes.
+    ///
+    /// Unmatched return codes/ status codes are deemed as errors.
+    #[builder(default = DEFAULT_ACCEPTED_STATUS_CODES.clone())]
+    accepted: HashSet<StatusCode>,
+
+    /// User-agent used for checking links.
+    ///
+    /// Defaults to [`DEFAULT_USER_AGENT`].
+    ///
+    /// # Notes
+    ///
+    /// This may be helpful for bypassing certain firewalls.
+    // Faking the user agent is necessary for some websites, unfortunately.
+    // Otherwise we get a 403 from the firewall (e.g. Sucuri/Cloudproxy on ldra.com).
+    #[builder(default_code = "String::from(DEFAULT_USER_AGENT)")]
+    user_agent: String,
+
+    /// Cookie store used for requests.
+    ///
+    /// See <https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.cookie_store>
+    cookie_jar: Option<Arc<CookieStoreMutex>>,
+
+    /// Basic auth credentials extractor.
+    basic_auth: BasicAuthExtractor,
 
     /// Index file names to use when resolving `file://` URIs which point to
     /// directories.
@@ -128,16 +280,85 @@ pub struct ClientBuilder {
     #[builder(default = None)]
     index_files: Option<Vec<String>>,
 
-    /// Links matching this set of regular expressions are **always** checked.
+    /// Optional GitHub token used for GitHub links.
     ///
-    /// This has higher precedence over [`ClientBuilder::excludes`], **but**
-    /// has lower precedence compared to any other `exclude_` fields or
-    /// [`ClientBuilder::schemes`] below.
-    includes: Option<RegexSet>,
+    /// This allows much more request before getting rate-limited.
+    ///
+    /// # Rate-limiting Defaults
+    ///
+    /// As of Feb 2022, it's 60 per hour without GitHub token v.s.
+    /// 5000 per hour with token.
+    github_token: Option<SecretString>,
 
-    /// Links matching this set of regular expressions are ignored, **except**
-    /// when a link also matches against [`ClientBuilder::includes`].
-    excludes: Option<RegexSet>,
+    /// Maximum number of retries per request before returning an error.
+    ///
+    /// Defaults to [`DEFAULT_MAX_RETRIES`].
+    #[builder(default = DEFAULT_MAX_RETRIES)]
+    max_retries: u64,
+    /// Maximum number of redirects per request before returning an error.
+    ///
+    /// Defaults to [`DEFAULT_MAX_REDIRECTS`].
+    #[builder(default = DEFAULT_MAX_REDIRECTS)]
+    max_redirects: usize,
+
+    /// When `true`, requires using HTTPS when it's available.
+    ///
+    /// This would treat unencrypted links as errors when HTTPS is available.
+    /// It has no effect on non-HTTP schemes or if the URL doesn't support
+    /// HTTPS.
+    require_https: bool,
+
+    /// When `true`, accept invalid SSL certificates.
+    ///
+    /// # Warning
+    ///
+    /// You should think very carefully before allowing invalid SSL
+    /// certificates. It will accept any certificate for any site to be trusted
+    /// including expired certificates. This introduces significant
+    /// vulnerabilities, and should only be used as a last resort.
+    // TODO: We should add a warning message in CLI. (Lucius, Jan 2023)
+    allow_insecure: bool,
+
+    /// Default [headers] for every request.
+    ///
+    /// This allows working around validation issues on some websites. See also
+    /// [here] for usage examples.
+    ///
+    /// [headers]: https://docs.rs/http/latest/http/header/struct.HeaderName.html
+    /// [here]: https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.default_headers
+    custom_headers: HeaderMap,
+
+    /// When `true`, check mail addresses.
+    include_mail: bool,
+    /// Enable the checking of wikilinks in markdown files.
+    /// Note that base must not be `None` if you set this `true`.
+    include_wikilinks: bool,
+
+    /// Minimum accepted TLS version.
+    min_tls_version: Option<tls::Version>,
+
+    /// Initial time between retries of failed requests.
+    ///
+    /// Defaults to [`DEFAULT_RETRY_WAIT_TIME_SECS`].
+    ///
+    /// # Notes
+    ///
+    /// For each request, the wait time increases using an exponential backoff
+    /// mechanism. For example, if the value is 1 second, then it waits for
+    /// 2 ^ (N-1) seconds before the N-th retry.
+    ///
+    /// This prevents spending too much system resources on slow responders and
+    /// prioritizes other requests.
+    #[builder(default_code = "Duration::from_secs(DEFAULT_RETRY_WAIT_TIME_SECS as u64)")]
+    retry_wait_time: Duration,
+
+    /// Global rate limiting configuration that applies as defaults to all hosts
+    rate_limit_config: RateLimitConfig,
+
+    /// Automatically append file extensions to `file://` URIs as needed
+    ///
+    /// This option takes effect on `file://` URIs which do not exist.
+    fallback_extensions: Vec<String>,
 
     /// When `true`, exclude all private network addresses.
     ///
@@ -146,7 +367,6 @@ pub struct ClientBuilder {
     /// - [`ClientBuilder::exclude_link_local_ips`]
     /// - [`ClientBuilder::exclude_loopback_ips`]
     exclude_all_private: bool,
-
     /// When `true`, exclude private IP addresses.
     ///
     /// # IPv4
@@ -174,7 +394,22 @@ pub struct ClientBuilder {
     /// [IETF RFC 4291]: https://tools.ietf.org/html/rfc4291
     /// [IETF RFC 3879]: https://tools.ietf.org/html/rfc3879
     exclude_private_ips: bool,
-
+    /// When `true`, exclude loopback IP addresses.
+    ///
+    /// # IPv4
+    ///
+    /// This is a loopback address (`127.0.0.0/8`).
+    ///
+    /// This property is defined by [IETF RFC 1122].
+    ///
+    /// # IPv6
+    ///
+    /// This is the loopback address (`::1`), as defined in
+    /// [IETF RFC 4291 section 2.5.3].
+    ///
+    /// [IETF RFC 1122]: https://tools.ietf.org/html/rfc1122
+    /// [IETF RFC 4291 section 2.5.3]: https://tools.ietf.org/html/rfc4291#section-2.5.3
+    exclude_loopback_ips: bool,
     /// When `true`, exclude link-local IPs.
     ///
     /// # IPv4
@@ -196,156 +431,14 @@ pub struct ClientBuilder {
     /// [RFC 4291 section 2.4]: https://tools.ietf.org/html/rfc4291#section-2.4
     exclude_link_local_ips: bool,
 
-    /// When `true`, exclude loopback IP addresses.
-    ///
-    /// # IPv4
-    ///
-    /// This is a loopback address (`127.0.0.0/8`).
-    ///
-    /// This property is defined by [IETF RFC 1122].
-    ///
-    /// # IPv6
-    ///
-    /// This is the loopback address (`::1`), as defined in
-    /// [IETF RFC 4291 section 2.5.3].
-    ///
-    /// [IETF RFC 1122]: https://tools.ietf.org/html/rfc1122
-    /// [IETF RFC 4291 section 2.5.3]: https://tools.ietf.org/html/rfc4291#section-2.5.3
-    exclude_loopback_ips: bool,
-
-    /// When `true`, check mail addresses.
-    include_mail: bool,
-
-    /// Maximum number of redirects per request before returning an error.
-    ///
-    /// Defaults to [`DEFAULT_MAX_REDIRECTS`].
-    #[builder(default = DEFAULT_MAX_REDIRECTS)]
-    max_redirects: usize,
-
-    /// Maximum number of retries per request before returning an error.
-    ///
-    /// Defaults to [`DEFAULT_MAX_RETRIES`].
-    #[builder(default = DEFAULT_MAX_RETRIES)]
-    max_retries: u64,
-
-    /// Minimum accepted TLS version.
-    min_tls_version: Option<tls::Version>,
-
-    /// User-agent used for checking links.
-    ///
-    /// Defaults to [`DEFAULT_USER_AGENT`].
-    ///
-    /// # Notes
-    ///
-    /// This may be helpful for bypassing certain firewalls.
-    // Faking the user agent is necessary for some websites, unfortunately.
-    // Otherwise we get a 403 from the firewall (e.g. Sucuri/Cloudproxy on ldra.com).
-    #[builder(default_code = "String::from(DEFAULT_USER_AGENT)")]
-    user_agent: String,
-
-    /// When `true`, accept invalid SSL certificates.
-    ///
-    /// # Warning
-    ///
-    /// You should think very carefully before allowing invalid SSL
-    /// certificates. It will accept any certificate for any site to be trusted
-    /// including expired certificates. This introduces significant
-    /// vulnerabilities, and should only be used as a last resort.
-    // TODO: We should add a warning message in CLI. (Lucius, Jan 2023)
-    allow_insecure: bool,
-
-    /// Set of accepted URL schemes.
-    ///
-    /// Only links with matched URI schemes are checked. This has no effect when
-    /// it's empty.
-    schemes: HashSet<String>,
-
-    /// Default [headers] for every request.
-    ///
-    /// This allows working around validation issues on some websites. See also
-    /// [here] for usage examples.
-    ///
-    /// [headers]: https://docs.rs/http/latest/http/header/struct.HeaderName.html
-    /// [here]: https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.default_headers
-    custom_headers: HeaderMap,
-
-    /// HTTP methods used for requests, in order of preference.
-    ///
-    /// Lychee tries each method in order and returns the first success. This
-    /// allows falling back to e.g. `GET` when a server rejects `HEAD` requests.
-    #[builder(default = Methods::from(reqwest::Method::GET))]
-    method: Methods,
-
-    /// Set of accepted return codes / status codes.
-    ///
-    /// Unmatched return codes/ status codes are deemed as errors.
-    #[builder(default = DEFAULT_ACCEPTED_STATUS_CODES.clone())]
-    accepted: HashSet<StatusCode>,
-
-    /// Response timeout per request.
-    timeout: Option<Duration>,
-
-    /// Base for resolving paths.
-    ///
-    /// E.g. if the base is `/home/user/` and the path is `file.txt`, the
-    /// resolved path would be `/home/user/file.txt`.
-    base: BaseInfo,
-
-    /// Initial time between retries of failed requests.
-    ///
-    /// Defaults to [`DEFAULT_RETRY_WAIT_TIME_SECS`].
-    ///
-    /// # Notes
-    ///
-    /// For each request, the wait time increases using an exponential backoff
-    /// mechanism. For example, if the value is 1 second, then it waits for
-    /// 2 ^ (N-1) seconds before the N-th retry.
-    ///
-    /// This prevents spending too much system resources on slow responders and
-    /// prioritizes other requests.
-    #[builder(default_code = "Duration::from_secs(DEFAULT_RETRY_WAIT_TIME_SECS as u64)")]
-    retry_wait_time: Duration,
-
-    /// When `true`, requires using HTTPS when it's available.
-    ///
-    /// This would treat unencrypted links as errors when HTTPS is available.
-    /// It has no effect on non-HTTP schemes or if the URL doesn't support
-    /// HTTPS.
-    require_https: bool,
-
-    /// Cookie store used for requests.
-    ///
-    /// See <https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.cookie_store>
-    cookie_jar: Option<Arc<CookieStoreMutex>>,
-
-    /// Controls which fragment types are checked in links.
-    fragment_checker_options: FragmentCheckerOptions,
-
-    /// Enable the checking of wikilinks in markdown files.
-    /// Note that base must not be `None` if you set this `true`.
-    include_wikilinks: bool,
-
     /// Requests run through this chain where each item in the chain
     /// can modify the request. A chained item can also decide to exit
     /// early and return a status, so that subsequent chain items are
     /// skipped and the lychee-internal request chain is not activated.
     plugin_request_chain: RequestChain,
 
-    /// Global rate limiting configuration that applies as defaults to all hosts
-    rate_limit_config: RateLimitConfig,
-
-    /// Per-host configuration overrides
-    hosts: HostConfigs,
-
-    /// Basic auth credentials extractor.
-    basic_auth: BasicAuthExtractor,
-}
-
-impl Default for ClientBuilder {
-    #[inline]
-    fn default() -> Self {
-        Self::builder().build()
-    }
+    /// Controls which fragment types are checked in links.
+    fragment_checker_options: FragmentCheckerOptions,
 }
 
 impl ClientBuilder {
@@ -432,23 +525,6 @@ impl ClientBuilder {
         })
     }
 
-    /// Build the host-specific clients with their host-specific headers
-    fn build_host_clients(&self, redirect_history: &RedirectHistory) -> Result<ClientMap> {
-        self.hosts
-            .iter()
-            .map(|(host, config)| {
-                let mut headers = self.default_headers()?;
-                headers.extend(config.headers.clone());
-                let client = self
-                    .build_client(redirect_history.clone())?
-                    .default_headers(headers)
-                    .build()
-                    .map_err(ErrorKind::BuildRequestClient)?;
-                Ok((HostKey::from(host.as_str()), client))
-            })
-            .collect()
-    }
-
     /// Create a [`reqwest::ClientBuilder`] based on various fields
     fn build_client(&self, redirect_history: RedirectHistory) -> Result<reqwest::ClientBuilder> {
         let mut builder = reqwest::ClientBuilder::new()
@@ -473,6 +549,22 @@ impl ClientBuilder {
 
         Ok(builder)
     }
+    /// Build the host-specific clients with their host-specific headers
+    fn build_host_clients(&self, redirect_history: &RedirectHistory) -> Result<ClientMap> {
+        self.hosts
+            .iter()
+            .map(|(host, config)| {
+                let mut headers = self.default_headers()?;
+                headers.extend(config.headers.clone());
+                let client = self
+                    .build_client(redirect_history.clone())?
+                    .default_headers(headers)
+                    .build()
+                    .map_err(ErrorKind::BuildRequestClient)?;
+                Ok((HostKey::from(host.as_str()), client))
+            })
+            .collect()
+    }
 
     fn default_headers(&self) -> Result<HeaderMap> {
         let user_agent = self.user_agent.clone();
@@ -496,6 +588,30 @@ impl ClientBuilder {
     }
 }
 
+impl Default for ClientBuilder {
+    #[inline]
+    fn default() -> Self {
+        Self::builder().build()
+    }
+}
+
+/// Controls which fragment types should be checked for supported links.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FragmentCheckerOptions {
+    /// Check text fragments like `#:~:text=example`.
+    pub check_text_fragments: bool,
+    /// Check anchor fragments like `#section`.
+    pub check_anchor_fragments: bool,
+}
+
+impl FragmentCheckerOptions {
+    /// Returns `true` if either anchor or text fragment checking is enabled.
+    #[must_use]
+    pub const fn any_enabled(self) -> bool {
+        self.check_anchor_fragments || self.check_text_fragments
+    }
+}
+
 /// Create our custom [`redirect::Policy`] in order to stop following redirects
 /// once `max_redirects` is reached and to record redirections for reporting.
 fn redirect_policy(redirect_history: RedirectHistory, max_redirects: usize) -> redirect::Policy {
@@ -508,131 +624,6 @@ fn redirect_policy(redirect_history: RedirectHistory, max_redirects: usize) -> r
             attempt.follow()
         }
     })
-}
-
-/// Handles incoming requests and returns responses.
-///
-/// See [`ClientBuilder`] which contains sane defaults for all configuration
-/// options.
-#[derive(Debug, Clone)]
-pub struct Client {
-    /// Optional remap rules for URIs matching pattern.
-    remaps: Option<Remaps>,
-
-    /// Rules to decide whether a given link should be checked or ignored.
-    filter: Filter,
-
-    /// A checker for website URLs.
-    website_checker: WebsiteChecker,
-
-    /// A checker for file URLs.
-    file_checker: FileChecker,
-
-    /// A checker for email URLs.
-    email_checker: MailChecker,
-}
-
-impl Client {
-    /// Get `HostPool`
-    #[must_use]
-    pub fn host_pool(&self) -> Arc<HostPool> {
-        self.website_checker.host_pool()
-    }
-
-    /// Check a single request.
-    ///
-    /// `request` can be either a [`Request`] or a type that can be converted
-    /// into it. In any case, it must represent a valid URI.
-    ///
-    /// # Errors
-    ///
-    /// Returns an `Err` if:
-    /// - `request` does not represent a valid URI.
-    /// - Encrypted connection for a HTTP URL is available but unused. (Only
-    ///   checked when `Client::require_https` is `true`.)
-    #[allow(clippy::missing_panics_doc)]
-    pub async fn check<T, E>(&self, request: T) -> Result<Response>
-    where
-        Request: TryFrom<T, Error = E>,
-        ErrorKind: From<E>,
-    {
-        let Request {
-            mut uri,
-            source,
-            span,
-            ..
-        } = request.try_into()?;
-
-        let start = std::time::Instant::now(); // Measure check time
-        let remap = self.remap(&mut uri)?.inspect(|r| debug!("Remapping {r}"));
-
-        let (status, redirects) = match uri.scheme() {
-            _ if self.is_excluded(&uri) => (Status::Excluded, None),
-            _ if uri.is_tel() => (Status::Excluded, None), // We don't check tel: URIs
-            _ if uri.is_file() => (self.check_file(&uri).await, None),
-            _ if uri.is_mail() => (self.check_mail(&uri).await, None),
-            _ => self.check_website(&uri).await,
-        };
-
-        Ok(Response::new(
-            uri,
-            status,
-            redirects,
-            remap,
-            source.into(),
-            span,
-            Some(start.elapsed()),
-        ))
-    }
-
-    /// Check a single file using the file checker.
-    pub async fn check_file(&self, uri: &Uri) -> Status {
-        self.file_checker.check(uri).await
-    }
-
-    /// Remap [`Uri`] as a side-effect, using the client-defined remap rules.
-    /// Return `Some` only if a remap was performed.
-    ///
-    /// # Errors
-    ///
-    /// Returns an `Err` if the remapped `uri` is not a valid URI.
-    pub fn remap(&self, uri: &mut Uri) -> Result<Option<Remap>> {
-        match self.remaps {
-            Some(ref remaps) => {
-                let remapped = remaps.remap(uri)?;
-                if let Some(remapped) = &remapped {
-                    *uri = remapped.new.clone();
-                }
-
-                Ok(remapped)
-            }
-            None => Ok(None),
-        }
-    }
-
-    /// Returns whether the given `uri` should be ignored from checking.
-    #[must_use]
-    pub fn is_excluded(&self, uri: &Uri) -> bool {
-        self.filter.is_excluded(uri)
-    }
-
-    /// Checks the given URI of a website.
-    ///
-    /// # Errors
-    ///
-    /// This returns an `Err` if
-    /// - The URI is invalid.
-    /// - The request failed.
-    /// - The response status code is not accepted.
-    /// - The URI cannot be converted to HTTPS.
-    pub async fn check_website(&self, uri: &Uri) -> (Status, Option<Redirects>) {
-        self.website_checker.check_website(uri).await
-    }
-
-    /// Checks a `mailto` URI.
-    pub async fn check_mail(&self, uri: &Uri) -> Status {
-        self.email_checker.check_mail(uri).await
-    }
 }
 
 /// A shorthand function to check a single URI.

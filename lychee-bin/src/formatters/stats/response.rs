@@ -24,48 +24,67 @@ use crate::formatters::suggestion::Suggestion;
 pub(crate) struct ResponseStats {
     /// Total number of responses
     pub(crate) total: usize,
+
     /// Number of unique responses (i.e. responses with a unique URI)
     pub(crate) unique: usize,
-    /// Number of successful responses
-    pub(crate) successful: usize,
-    /// Number of responses with an unknown status
-    pub(crate) unknown: usize,
-    /// Number of responses, which lychee does not support right now
-    pub(crate) unsupported: usize,
-    /// Number of timeouts
-    pub(crate) timeouts: usize,
-    /// Number of redirects encountered while checking links
-    pub(crate) redirects: usize,
+
     /// Number of Url remaps performed
     pub(crate) remaps: usize,
-    /// Number of links excluded from the run (e.g. due to the `--exclude` flag)
-    pub(crate) excludes: usize,
+
     /// Number of responses with an error status
     pub(crate) errors: usize,
+
     /// Number of responses that were cached from a previous run
     pub(crate) cached: usize,
-    /// Successful responses (if `detailed_stats` is enabled)
-    pub(crate) success_map: HashMap<InputSource, HashSet<ResponseBody>>,
-    /// Failed responses
-    pub(crate) error_map: HashMap<InputSource, HashSet<ResponseBody>>,
-    /// Timed out responses
-    pub(crate) timeout_map: HashMap<InputSource, HashSet<ResponseBody>>,
-    /// [`Suggestion`]s for failed responses (if `--suggest` is enabled)
-    pub(crate) suggestion_map: HashMap<InputSource, HashSet<Suggestion>>,
-    /// All [`Redirects`] independent of the response status (if `detailed_stats` is enabled)
-    pub(crate) redirect_map: HashMap<InputSource, HashSet<Redirects>>,
-    /// Excluded responses (if `detailed_stats` is enabled)
-    pub(crate) excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
-    /// Unsupported responses (shown as `IGNORED`), e.g. malformed URLs or
-    /// unsupported URI schemes that could not be turned into a request
-    pub(crate) unsupported_map: HashMap<InputSource, HashSet<ResponseBody>>,
+
+    /// Number of responses with an unknown status
+    pub(crate) unknown: usize,
+
+    /// Number of timeouts
+    pub(crate) timeouts: usize,
+
+    /// Number of links excluded from the run (e.g. due to the `--exclude` flag)
+    pub(crate) excludes: usize,
+
     /// The time it took to perform the full run
     pub(crate) duration: Duration,
-    /// Also track successful and excluded responses
-    pub(crate) detailed_stats: bool,
+
+    /// Number of redirects encountered while checking links
+    pub(crate) redirects: usize,
+
+    /// Failed responses
+    pub(crate) error_map: HashMap<InputSource, HashSet<ResponseBody>>,
+
     /// Set for counting unique responses
     #[serde(skip)]
     pub(crate) seen_uris: HashSet<Uri>,
+
+    /// Number of successful responses
+    pub(crate) successful: usize,
+
+    /// Successful responses (if `detailed_stats` is enabled)
+    pub(crate) success_map: HashMap<InputSource, HashSet<ResponseBody>>,
+
+    /// Timed out responses
+    pub(crate) timeout_map: HashMap<InputSource, HashSet<ResponseBody>>,
+
+    /// All [`Redirects`] independent of the response status (if `detailed_stats` is enabled)
+    pub(crate) redirect_map: HashMap<InputSource, HashSet<Redirects>>,
+
+    /// Excluded responses (if `detailed_stats` is enabled)
+    pub(crate) excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
+
+    /// Number of responses, which lychee does not support right now
+    pub(crate) unsupported: usize,
+    /// Unsupported responses (shown as `IGNORED`), e.g. malformed URLs or
+    /// unsupported URI schemes that could not be turned into a request
+    pub(crate) unsupported_map: HashMap<InputSource, HashSet<ResponseBody>>,
+
+    /// [`Suggestion`]s for failed responses (if `--suggest` is enabled)
+    pub(crate) suggestion_map: HashMap<InputSource, HashSet<Suggestion>>,
+
+    /// Also track successful and excluded responses
+    pub(crate) detailed_stats: bool,
 }
 
 impl ResponseStats {
@@ -80,30 +99,22 @@ impl ResponseStats {
         }
     }
 
-    /// Increment the counters for the given status
-    ///
-    /// This function is used to update the counters (success, error, etc.)
-    /// based on the given response status.
-    pub(crate) const fn increment_status_counters(&mut self, status: &Status) {
-        match status {
-            Status::Ok(_) => self.successful += 1,
-            Status::Error(_) | Status::RequestError(_) => self.errors += 1,
-            Status::UnknownStatusCode(_) | Status::UnknownMailStatus(_) => self.unknown += 1,
-            Status::Timeout(_) => self.timeouts += 1,
-            Status::Excluded => self.excludes += 1,
-            Status::Unsupported(_) => self.unsupported += 1,
-            Status::Cached(cache_status) => {
-                self.cached += 1;
-                match cache_status {
-                    CacheStatus::Ok(_) => self.successful += 1,
-                    CacheStatus::Error(_) => self.errors += 1,
-                    CacheStatus::Excluded => self.excludes += 1,
-                    CacheStatus::Unsupported => self.unsupported += 1,
-                }
-            }
+    /// Update the stats with a new response
+    pub(crate) fn add(&mut self, response: Response) {
+        if self.seen_uris.insert(response.body().uri.clone()) {
+            self.unique += 1;
         }
-    }
 
+        self.total += 1;
+        if response.redirects().is_some() {
+            self.redirects += 1;
+        }
+        if response.remap().is_some() {
+            self.remaps += 1;
+        }
+        self.increment_status_counters(response.status());
+        self.add_response_status(response);
+    }
     /// Add a response status to the appropriate map (success, fail, excluded)
     fn add_response_status(&mut self, response: Response) {
         let status = response.status();
@@ -135,40 +146,45 @@ impl ResponseStats {
         status_map_entry.insert(response.into_body());
     }
 
-    /// Update the stats with a new response
-    pub(crate) fn add(&mut self, response: Response) {
-        if self.seen_uris.insert(response.body().uri.clone()) {
-            self.unique += 1;
-        }
-
-        self.total += 1;
-        if response.redirects().is_some() {
-            self.redirects += 1;
-        }
-        if response.remap().is_some() {
-            self.remaps += 1;
-        }
-        self.increment_status_counters(response.status());
-        self.add_response_status(response);
+    #[inline]
+    #[cfg(test)]
+    /// Check if no responses were received
+    const fn is_empty(&self) -> bool {
+        self.total == 0
     }
-
     #[inline]
     /// Check if the entire run was successful
     pub(crate) fn is_success(&self) -> bool {
         self.error_map.is_empty() && self.timeout_map.is_empty()
     }
-
     #[inline]
     /// Check if the entire run was successful, ignoring timeouts
     pub(crate) fn is_success_ignoring_timeouts(&self) -> bool {
         self.error_map.is_empty()
     }
 
-    #[inline]
-    #[cfg(test)]
-    /// Check if no responses were received
-    const fn is_empty(&self) -> bool {
-        self.total == 0
+    /// Increment the counters for the given status
+    ///
+    /// This function is used to update the counters (success, error, etc.)
+    /// based on the given response status.
+    pub(crate) const fn increment_status_counters(&mut self, status: &Status) {
+        match status {
+            Status::Ok(_) => self.successful += 1,
+            Status::Error(_) | Status::RequestError(_) => self.errors += 1,
+            Status::UnknownStatusCode(_) | Status::UnknownMailStatus(_) => self.unknown += 1,
+            Status::Timeout(_) => self.timeouts += 1,
+            Status::Excluded => self.excludes += 1,
+            Status::Unsupported(_) => self.unsupported += 1,
+            Status::Cached(cache_status) => {
+                self.cached += 1;
+                match cache_status {
+                    CacheStatus::Ok(_) => self.successful += 1,
+                    CacheStatus::Error(_) => self.errors += 1,
+                    CacheStatus::Excluded => self.excludes += 1,
+                    CacheStatus::Unsupported => self.unsupported += 1,
+                }
+            }
+        }
     }
 }
 

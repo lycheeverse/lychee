@@ -1,27 +1,12 @@
-use crate::time::{self, Timestamp, timestamp};
+use std::{collections::HashSet, path::Path};
+
 use anyhow::Result;
 use dashmap::{DashMap, mapref::one::Ref};
 use http::StatusCode;
 use lychee_lib::{CacheStatus, Client, Request, Response, Status, StatusCodeSelector, Uri};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, path::Path};
 
-/// Describes a response status that can be serialized to disk
-#[derive(Serialize, Deserialize)]
-pub(crate) struct CacheValue {
-    pub(crate) status: CacheStatus,
-    pub(crate) timestamp: Timestamp,
-}
-
-impl From<&Status> for CacheValue {
-    fn from(s: &Status) -> Self {
-        let timestamp = time::timestamp();
-        CacheValue {
-            status: s.into(),
-            timestamp,
-        }
-    }
-}
+use crate::time::{self, Timestamp, timestamp};
 
 /// The cache stores previous response codes for faster checking.
 ///
@@ -35,34 +20,8 @@ impl Cache {
         Self(DashMap::new())
     }
 
-    fn insert(&self, key: Uri, value: CacheValue) -> Option<CacheValue> {
-        self.0.insert(key, value)
-    }
-
     fn get(&self, key: &Uri) -> Option<Ref<'_, Uri, CacheValue>> {
         self.0.get(key)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn contains_key(&self, key: &Uri) -> bool {
-        self.0.contains_key(key)
-    }
-
-    /// Store the cache under the given path. Update access timestamps
-    pub(crate) fn store(&self, path: impl AsRef<Path>) -> Result<()> {
-        let mut wtr = csv::WriterBuilder::new()
-            .has_headers(false)
-            .from_path(path)?;
-
-        for result in &self.0 {
-            // Do not serialize errors to disk. We always want to recheck failing links.
-            if matches!(result.value().status, CacheStatus::Error(_)) {
-                continue;
-            }
-            wtr.serialize((result.key(), result.value()))?;
-        }
-
-        Ok(())
     }
 
     /// Load cache from path. Discard entries older than `max_age_secs`
@@ -107,6 +66,32 @@ impl Cache {
         Ok(map)
     }
 
+    /// Store the cache under the given path. Update access timestamps
+    pub(crate) fn store(&self, path: impl AsRef<Path>) -> Result<()> {
+        let mut wtr = csv::WriterBuilder::new()
+            .has_headers(false)
+            .from_path(path)?;
+
+        for result in &self.0 {
+            // Do not serialize errors to disk. We always want to recheck failing links.
+            if matches!(result.value().status, CacheStatus::Error(_)) {
+                continue;
+            }
+            wtr.serialize((result.key(), result.value()))?;
+        }
+
+        Ok(())
+    }
+
+    fn insert(&self, key: Uri, value: CacheValue) -> Option<CacheValue> {
+        self.0.insert(key, value)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn contains_key(&self, key: &Uri) -> bool {
+        self.0.contains_key(key)
+    }
+
     pub(crate) async fn handle<F: Future<Output = Response>>(
         &self,
         client: &Client,
@@ -139,6 +124,24 @@ impl Cache {
         }
 
         response
+    }
+}
+
+/// Describes a response status that can be serialized to disk
+#[derive(Serialize, Deserialize)]
+pub(crate) struct CacheValue {
+    pub(crate) status: CacheStatus,
+
+    pub(crate) timestamp: Timestamp,
+}
+
+impl From<&Status> for CacheValue {
+    fn from(s: &Status) -> Self {
+        let timestamp = time::timestamp();
+        CacheValue {
+            status: s.into(),
+            timestamp,
+        }
     }
 }
 

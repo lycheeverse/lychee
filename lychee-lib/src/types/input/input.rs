@@ -3,6 +3,15 @@
 //! The `Input` type handles the construction and validation of various input
 //! sources including URLs, file paths, glob patterns, and stdin.
 
+use std::ffi::OsStr;
+use std::io::IsTerminal;
+use std::path::{Path, PathBuf};
+
+use async_stream::try_stream;
+use futures::stream::{Stream, StreamExt};
+use log::debug;
+use tokio::io::{AsyncReadExt, stdin};
+
 use super::InputResolver;
 use super::content::InputContent;
 use super::source::{InputSource, ResolvedInputSource};
@@ -10,13 +19,6 @@ use crate::Preprocessor;
 use crate::filter::PathExcludes;
 use crate::types::{FileType, RequestError, file::FileExtensions, resolver::UrlContentResolver};
 use crate::{ErrorKind, LycheeResult};
-use async_stream::try_stream;
-use futures::stream::{Stream, StreamExt};
-use log::debug;
-use std::ffi::OsStr;
-use std::io::IsTerminal;
-use std::path::{Path, PathBuf};
-use tokio::io::{AsyncReadExt, stdin};
 
 /// Lychee Input with optional file hint for parsing
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -53,28 +55,41 @@ impl Input {
         })
     }
 
-    /// Convenience constructor with default settings
+    /// Retrieve all sources from this input. The output depends on the type of
+    /// input:
+    ///
+    /// - Remote URLs are returned as is, in their full form
+    /// - Glob patterns are expanded and each matched entry is returned
+    /// - Absolute or relative filepaths are returned as-is
+    /// - Stdin input is returned as the special string `<stdin>`
+    /// - A raw string input is returned as the special string `<raw string>`
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - the input does not exist (i.e. the path is invalid)
-    /// - the input cannot be parsed as a URL
-    pub fn from_value(value: &str) -> LycheeResult<Self> {
-        Self::new(value, None, false)
+    /// Returns an error if [`InputResolver::resolve`] returns an error.
+    pub fn get_sources(
+        self,
+        file_extensions: FileExtensions,
+        skip_hidden: bool,
+        skip_ignored: bool,
+        excluded_paths: &PathExcludes,
+    ) -> impl Stream<Item = LycheeResult<String>> {
+        InputResolver::resolve(
+            &self,
+            file_extensions,
+            skip_hidden,
+            skip_ignored,
+            excluded_paths,
+        )
+        .map(|res| {
+            res.map(|src| match src {
+                ResolvedInputSource::FsPath(path) => path.to_string_lossy().to_string(),
+                ResolvedInputSource::RemoteUrl(url) => url.to_string(),
+                ResolvedInputSource::Stdin => "<stdin>".to_string(),
+                ResolvedInputSource::String(_) => "<raw string>".to_string(),
+            })
+        })
     }
-
-    /// Create an `Input` from an existing `InputSource`
-    ///
-    /// The file type will be determined later when processing the input.
-    #[must_use]
-    pub const fn from_input_source(source: InputSource) -> Self {
-        Self {
-            source,
-            file_type_hint: None,
-        }
-    }
-
     /// Retrieve the contents from the input
     ///
     /// If the input is a path, only search through files that match the given
@@ -208,40 +223,46 @@ impl Input {
         }
     }
 
-    /// Retrieve all sources from this input. The output depends on the type of
-    /// input:
-    ///
-    /// - Remote URLs are returned as is, in their full form
-    /// - Glob patterns are expanded and each matched entry is returned
-    /// - Absolute or relative filepaths are returned as-is
-    /// - Stdin input is returned as the special string `<stdin>`
-    /// - A raw string input is returned as the special string `<raw string>`
+    /// Convenience constructor with default settings
     ///
     /// # Errors
     ///
-    /// Returns an error if [`InputResolver::resolve`] returns an error.
-    pub fn get_sources(
-        self,
-        file_extensions: FileExtensions,
-        skip_hidden: bool,
-        skip_ignored: bool,
-        excluded_paths: &PathExcludes,
-    ) -> impl Stream<Item = LycheeResult<String>> {
-        InputResolver::resolve(
-            &self,
-            file_extensions,
-            skip_hidden,
-            skip_ignored,
-            excluded_paths,
-        )
-        .map(|res| {
-            res.map(|src| match src {
-                ResolvedInputSource::FsPath(path) => path.to_string_lossy().to_string(),
-                ResolvedInputSource::RemoteUrl(url) => url.to_string(),
-                ResolvedInputSource::Stdin => "<stdin>".to_string(),
-                ResolvedInputSource::String(_) => "<raw string>".to_string(),
-            })
-        })
+    /// Returns an error if:
+    /// - the input does not exist (i.e. the path is invalid)
+    /// - the input cannot be parsed as a URL
+    pub fn from_value(value: &str) -> LycheeResult<Self> {
+        Self::new(value, None, false)
+    }
+    /// Create an `Input` from an existing `InputSource`
+    ///
+    /// The file type will be determined later when processing the input.
+    #[must_use]
+    pub const fn from_input_source(source: InputSource) -> Self {
+        Self {
+            source,
+            file_type_hint: None,
+        }
+    }
+
+    /// Create `InputContent` from a string.
+    #[must_use]
+    pub fn string_content(s: &str, file_type_hint: Option<FileType>) -> InputContent {
+        InputContent::from_string(s, file_type_hint.unwrap_or_default())
+    }
+
+    /// Get content of file.
+    /// Get preprocessed file content if [`Preprocessor`] is [`Some`]
+    async fn get_content(
+        path: &PathBuf,
+        preprocessor: Option<&Preprocessor>,
+    ) -> LycheeResult<String> {
+        if let Some(pre) = preprocessor {
+            pre.process(path)
+        } else {
+            Ok(tokio::fs::read_to_string(path)
+                .await
+                .map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))?)
+        }
     }
 
     /// Get the content for a given path.
@@ -293,27 +314,6 @@ impl Input {
         };
 
         Ok(input_content)
-    }
-
-    /// Create `InputContent` from a string.
-    #[must_use]
-    pub fn string_content(s: &str, file_type_hint: Option<FileType>) -> InputContent {
-        InputContent::from_string(s, file_type_hint.unwrap_or_default())
-    }
-
-    /// Get content of file.
-    /// Get preprocessed file content if [`Preprocessor`] is [`Some`]
-    async fn get_content(
-        path: &PathBuf,
-        preprocessor: Option<&Preprocessor>,
-    ) -> LycheeResult<String> {
-        if let Some(pre) = preprocessor {
-            pre.process(path)
-        } else {
-            Ok(tokio::fs::read_to_string(path)
-                .await
-                .map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))?)
-        }
     }
 }
 

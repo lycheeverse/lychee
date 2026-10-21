@@ -27,67 +27,13 @@ pub enum CacheStatus {
     Unsupported,
 }
 
-/// Serialize `StatusCode` as code only, without reason text
-#[allow(clippy::trivially_copy_pass_by_ref)]
-pub(crate) fn serialize_status_code<S>(
-    status: &StatusCode,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    let mut s = serializer.serialize_struct("StatusCode", 1)?;
-    s.serialize_field("code", &status.as_u16())?;
-    s.end()
-}
-
-#[allow(clippy::trivially_copy_pass_by_ref, clippy::ref_option)]
-fn serialize_optional_status_code<S>(
-    status: &Option<StatusCode>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    match status {
-        Some(code) => serialize_status_code(code, serializer),
-        None => serializer.serialize_none(),
-    }
-}
-
-impl<'de> Deserialize<'de> for CacheStatus {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let status = <&str as Deserialize<'de>>::deserialize(deserializer)?;
-        match status {
-            "Excluded" => Ok(CacheStatus::Excluded),
-            // Keep for compatibility with older cache files, even though this
-            // no longer gets serialized. Can be removed at a later point in
-            // time.
-            "Unsupported" => Ok(CacheStatus::Unsupported),
-            other => match other.parse::<u16>() {
-                Ok(code) => {
-                    let code = StatusCode::from_u16(code).map_err(|_| {
-                        use serde::de::Error;
-                        D::Error::custom(
-                            "invalid status code value, expected the value to be >= 100 and <= 999",
-                        )
-                    })?;
-                    if code.is_success() {
-                        // classify successful status codes as cache status success
-                        // Does not account for status code overrides passed through
-                        // the 'accept' flag. Instead, this is handled at a higher level
-                        // when the cache status is converted to a status.
-                        Ok(CacheStatus::Ok(code))
-                    } else {
-                        // classify redirects, client errors, & server errors as cache status error
-                        Ok(CacheStatus::Error(Some(code)))
-                    }
-                }
-                Err(_) => Ok(CacheStatus::Error(None)),
-            },
+impl CacheStatus {
+    /// Returns `true` if the cache status is excluded by the given [`StatusCodeSelector`].
+    #[must_use]
+    pub fn is_excluded(&self, excluder: &StatusCodeSelector) -> bool {
+        match Option::<StatusCode>::from(*self) {
+            Some(status) => excluder.contains(status.as_u16()),
+            _ => false,
         }
     }
 }
@@ -129,6 +75,43 @@ impl From<&Status> for CacheStatus {
     }
 }
 
+impl<'de> Deserialize<'de> for CacheStatus {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let status = <&str as Deserialize<'de>>::deserialize(deserializer)?;
+        match status {
+            "Excluded" => Ok(CacheStatus::Excluded),
+            // Keep for compatibility with older cache files, even though this
+            // no longer gets serialized. Can be removed at a later point in
+            // time.
+            "Unsupported" => Ok(CacheStatus::Unsupported),
+            other => match other.parse::<u16>() {
+                Ok(code) => {
+                    let code = StatusCode::from_u16(code).map_err(|_| {
+                        use serde::de::Error;
+                        D::Error::custom(
+                            "invalid status code value, expected the value to be >= 100 and <= 999",
+                        )
+                    })?;
+                    if code.is_success() {
+                        // classify successful status codes as cache status success
+                        // Does not account for status code overrides passed through
+                        // the 'accept' flag. Instead, this is handled at a higher level
+                        // when the cache status is converted to a status.
+                        Ok(CacheStatus::Ok(code))
+                    } else {
+                        // classify redirects, client errors, & server errors as cache status error
+                        Ok(CacheStatus::Error(Some(code)))
+                    }
+                }
+                Err(_) => Ok(CacheStatus::Error(None)),
+            },
+        }
+    }
+}
+
 impl From<CacheStatus> for Option<StatusCode> {
     fn from(val: CacheStatus) -> Self {
         match val {
@@ -139,14 +122,31 @@ impl From<CacheStatus> for Option<StatusCode> {
     }
 }
 
-impl CacheStatus {
-    /// Returns `true` if the cache status is excluded by the given [`StatusCodeSelector`].
-    #[must_use]
-    pub fn is_excluded(&self, excluder: &StatusCodeSelector) -> bool {
-        match Option::<StatusCode>::from(*self) {
-            Some(status) => excluder.contains(status.as_u16()),
-            _ => false,
-        }
+/// Serialize `StatusCode` as code only, without reason text
+#[allow(clippy::trivially_copy_pass_by_ref)]
+pub(crate) fn serialize_status_code<S>(
+    status: &StatusCode,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let mut s = serializer.serialize_struct("StatusCode", 1)?;
+    s.serialize_field("code", &status.as_u16())?;
+    s.end()
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref, clippy::ref_option)]
+fn serialize_optional_status_code<S>(
+    status: &Option<StatusCode>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match status {
+        Some(code) => serialize_status_code(code, serializer),
+        None => serializer.serialize_none(),
     }
 }
 

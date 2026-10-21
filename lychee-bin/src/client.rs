@@ -1,13 +1,15 @@
-use crate::config::{Config, HeaderMapExt};
-use crate::parse::parse_remaps;
+use std::collections::HashSet;
+use std::sync::Arc;
+
 use anyhow::{Context, Result};
 use http::{HeaderMap, StatusCode};
 use lychee_lib::BasicAuthExtractor;
 use lychee_lib::{Client, ClientBuilder, ratelimit::RateLimitConfig};
 use regex::RegexSet;
 use reqwest_cookie_store::CookieStoreMutex;
-use std::collections::HashSet;
-use std::sync::Arc;
+
+use crate::config::{Config, HeaderMapExt};
+use crate::parse::parse_remaps;
 
 /// Creates a client according to the command-line config
 pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -> Result<Client> {

@@ -36,34 +36,10 @@ impl Uri {
     }
 
     #[inline]
-    /// Changes this URL's scheme.
-    pub(crate) fn set_scheme(&mut self, scheme: &str) -> std::result::Result<(), ()> {
-        self.url.set_scheme(scheme)
-    }
-
-    #[inline]
     #[must_use]
     /// Returns the domain of the URI (e.g. `example.com`)
     pub fn domain(&self) -> Option<&str> {
         self.url.domain()
-    }
-
-    #[inline]
-    #[must_use]
-    /// Returns the path of the URI (e.g. `/path/to/resource`)
-    pub fn path(&self) -> &str {
-        self.url.path()
-    }
-
-    #[inline]
-    #[must_use]
-    /// Unless this URL is cannot-be-a-base,
-    /// return an iterator of '/' slash-separated path segments,
-    /// each as a percent-encoded ASCII string.
-    ///
-    /// Return `None` for cannot-be-a-base URLs.
-    pub fn path_segments(&self) -> Option<std::str::Split<'_, char>> {
-        self.url.path_segments()
     }
 
     #[must_use]
@@ -88,9 +64,19 @@ impl Uri {
 
     #[inline]
     #[must_use]
-    /// Check if the URI is a valid mail address
-    pub fn is_mail(&self) -> bool {
-        self.scheme() == "mailto"
+    /// Returns the path of the URI (e.g. `/path/to/resource`)
+    pub fn path(&self) -> &str {
+        self.url.path()
+    }
+    #[inline]
+    #[must_use]
+    /// Unless this URL is cannot-be-a-base,
+    /// return an iterator of '/' slash-separated path segments,
+    /// each as a percent-encoded ASCII string.
+    ///
+    /// Return `None` for cannot-be-a-base URLs.
+    pub fn path_segments(&self) -> Option<std::str::Split<'_, char>> {
+        self.url.path_segments()
     }
 
     #[inline]
@@ -99,45 +85,24 @@ impl Uri {
     pub fn is_tel(&self) -> bool {
         self.scheme() == "tel"
     }
-
+    #[inline]
+    #[must_use]
+    /// Check if the URI is a valid mail address
+    pub fn is_mail(&self) -> bool {
+        self.scheme() == "mailto"
+    }
     #[inline]
     #[must_use]
     /// Check if the URI is a file
     pub fn is_file(&self) -> bool {
         self.scheme() == "file"
     }
-
     #[inline]
     #[must_use]
     /// Check if the URI is a `data` URI
     pub fn is_data(&self) -> bool {
         self.scheme() == "data"
     }
-
-    #[inline]
-    #[must_use]
-    /// Returns `true` if this is a loopback address.
-    ///
-    /// ## IPv4
-    ///
-    /// This is a loopback address (`127.0.0.0/8`).
-    ///
-    /// This property is defined by [IETF RFC 1122].
-    ///
-    /// ## IPv6
-    ///
-    /// This is the loopback address (`::1`), as defined in [IETF RFC 4291 section 2.5.3].
-    ///
-    /// [IETF RFC 1122]: https://tools.ietf.org/html/rfc1122
-    /// [IETF RFC 4291 section 2.5.3]: https://tools.ietf.org/html/rfc4291#section-2.5.3
-    pub fn is_loopback(&self) -> bool {
-        match self.url.host() {
-            Some(url::Host::Ipv4(addr)) => addr.is_loopback(),
-            Some(url::Host::Ipv6(addr)) => addr.is_loopback(),
-            _ => false,
-        }
-    }
-
     #[inline]
     #[must_use]
     /// Returns `true` if this is a private IPv4 address, a unique local IPv6 address (`fc00::/7`).
@@ -170,7 +135,29 @@ impl Uri {
             _ => false,
         }
     }
-
+    #[inline]
+    #[must_use]
+    /// Returns `true` if this is a loopback address.
+    ///
+    /// ## IPv4
+    ///
+    /// This is a loopback address (`127.0.0.0/8`).
+    ///
+    /// This property is defined by [IETF RFC 1122].
+    ///
+    /// ## IPv6
+    ///
+    /// This is the loopback address (`::1`), as defined in [IETF RFC 4291 section 2.5.3].
+    ///
+    /// [IETF RFC 1122]: https://tools.ietf.org/html/rfc1122
+    /// [IETF RFC 4291 section 2.5.3]: https://tools.ietf.org/html/rfc4291#section-2.5.3
+    pub fn is_loopback(&self) -> bool {
+        match self.url.host() {
+            Some(url::Host::Ipv4(addr)) => addr.is_loopback(),
+            Some(url::Host::Ipv6(addr)) => addr.is_loopback(),
+            _ => false,
+        }
+    }
     #[inline]
     #[must_use]
     /// Returns `true` if the address is a link-local IPv4 address (`169.254.0.0/16`),
@@ -192,6 +179,12 @@ impl Uri {
             Some(url::Host::Ipv6(addr)) => Ipv6Network::from(addr).is_unicast_link_local(),
             _ => false,
         }
+    }
+
+    #[inline]
+    /// Changes this URL's scheme.
+    pub(crate) fn set_scheme(&mut self, scheme: &str) -> std::result::Result<(), ()> {
+        self.url.set_scheme(scheme)
     }
 }
 

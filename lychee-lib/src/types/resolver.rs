@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
+use http::HeaderMap;
+use reqwest::{Request, Url};
+
 use super::{FileType, InputContent, ResolvedInputSource};
 use crate::ratelimit::HostPool;
 use crate::utils::request;
 use crate::{BasicAuthExtractor, Result, Uri};
-use http::HeaderMap;
-use reqwest::{Request, Url};
 
 /// Structure to fetch remote content.
 ///
@@ -14,22 +15,31 @@ use reqwest::{Request, Url};
 /// per-host rate limiting as regular link checks.
 #[derive(Debug, Clone)]
 pub struct UrlContentResolver {
-    pub basic_auth_extractor: Option<BasicAuthExtractor>,
     pub headers: HeaderMap,
-    pub host_pool: Arc<HostPool>,
-}
 
-impl Default for UrlContentResolver {
-    fn default() -> Self {
-        Self {
-            basic_auth_extractor: None,
-            headers: HeaderMap::new(),
-            host_pool: Arc::new(HostPool::default()),
-        }
-    }
+    pub host_pool: Arc<HostPool>,
+
+    pub basic_auth_extractor: Option<BasicAuthExtractor>,
 }
 
 impl UrlContentResolver {
+    fn build_request(
+        &self,
+        url: &Url,
+        credentials: Option<super::BasicAuthCredentials>,
+    ) -> Result<Request> {
+        let mut request = self
+            .host_pool
+            .build_request(reqwest::Method::GET, &url.clone().into())?;
+
+        request.headers_mut().extend(self.headers.clone());
+        if let Some(credentials) = credentials {
+            credentials.append_to_request(&mut request);
+        }
+
+        Ok(request)
+    }
+
     /// Fetch remote content by URL.
     ///
     /// This method is not intended to check if a URL is functional but
@@ -66,21 +76,13 @@ impl UrlContentResolver {
             content,
         })
     }
-
-    fn build_request(
-        &self,
-        url: &Url,
-        credentials: Option<super::BasicAuthCredentials>,
-    ) -> Result<Request> {
-        let mut request = self
-            .host_pool
-            .build_request(reqwest::Method::GET, &url.clone().into())?;
-
-        request.headers_mut().extend(self.headers.clone());
-        if let Some(credentials) = credentials {
-            credentials.append_to_request(&mut request);
+}
+impl Default for UrlContentResolver {
+    fn default() -> Self {
+        Self {
+            basic_auth_extractor: None,
+            headers: HeaderMap::new(),
+            host_pool: Arc::new(HostPool::default()),
         }
-
-        Ok(request)
     }
 }

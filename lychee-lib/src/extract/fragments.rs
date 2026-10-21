@@ -23,35 +23,6 @@ use regex::Regex;
 static REGEX_TO_REMOVE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"[^\w -]").expect("fragment regex failed"));
 
-/// Lowercase the given string while exactly matching Github's algorithm for
-/// lowercasing fragment identifiers.
-///
-/// Github's lowercase algorithm does not handle multi-character
-/// [special case rules][], but Rust's `to_lowercase` *does* implement
-/// these rules. This function needs to compensate for this difference.
-///
-/// [special case rules]: https://www.unicode.org/Public/3.2-Update/SpecialCasing-3.2.0.txt
-fn github_lowercase(chars: impl Iterator<Item = char>) -> impl Iterator<Item = char> {
-    chars.flat_map(char::to_lowercase)
-}
-
-/// Converts the given header text into a hyphen-separated fragment ID, mimicking
-/// the algorithm used by GitHub. However, does not guarantee that the returned
-/// IDs are unique between calls. For most uses, [`GithubHeadingIdGenerator`]
-/// should be used instead.
-pub fn generate_without_disambiguation(text: &str) -> String {
-    github_lowercase(
-        REGEX_TO_REMOVE
-            .split(text)
-            .flat_map(str::chars)
-            .map(|c| match c {
-                ' ' => '-',
-                c => c,
-            }),
-    )
-    .collect()
-}
-
 /// A stateful type for generating fragment identifiers in the style
 /// of Github's markdown header links.
 ///
@@ -100,6 +71,23 @@ impl GithubHeadingIdGenerator {
         self.next_suffixes.contains_key(candidate)
     }
 
+    /// Converts the given header text into a lowercase hyphen-separated
+    /// string suitable for use as a fragment identifier. Additionally, this
+    /// function ensures returned IDs are distinct from any earlier ID returned
+    /// by this [`GithubHeadingIdGenerator::generate`].
+    ///
+    /// For example,
+    /// ```
+    /// # use lychee_lib::extract::fragments::GithubHeadingIdGenerator;
+    /// let mut generator = GithubHeadingIdGenerator::new();
+    /// assert_eq!(generator.generate("foo bar"), "foo-bar");
+    /// assert_eq!(generator.generate("foo bar"), "foo-bar-1");
+    /// assert_eq!(generator.generate("foo, bar!"), "foo-bar-2");
+    /// ```
+    pub fn generate(&mut self, text: &str) -> String {
+        self.disambiguate(generate_without_disambiguation(text))
+    }
+
     /// Disambiguates the given "base" ID by appending a hyphen and a number
     /// to the ID if it conflicts with a previously-generated ID. This function
     /// will continue trying successive numbers until a conflict is avoided.
@@ -127,23 +115,35 @@ impl GithubHeadingIdGenerator {
 
         candidate
     }
+}
 
-    /// Converts the given header text into a lowercase hyphen-separated
-    /// string suitable for use as a fragment identifier. Additionally, this
-    /// function ensures returned IDs are distinct from any earlier ID returned
-    /// by this [`GithubHeadingIdGenerator::generate`].
-    ///
-    /// For example,
-    /// ```
-    /// # use lychee_lib::extract::fragments::GithubHeadingIdGenerator;
-    /// let mut generator = GithubHeadingIdGenerator::new();
-    /// assert_eq!(generator.generate("foo bar"), "foo-bar");
-    /// assert_eq!(generator.generate("foo bar"), "foo-bar-1");
-    /// assert_eq!(generator.generate("foo, bar!"), "foo-bar-2");
-    /// ```
-    pub fn generate(&mut self, text: &str) -> String {
-        self.disambiguate(generate_without_disambiguation(text))
-    }
+/// Lowercase the given string while exactly matching Github's algorithm for
+/// lowercasing fragment identifiers.
+///
+/// Github's lowercase algorithm does not handle multi-character
+/// [special case rules][], but Rust's `to_lowercase` *does* implement
+/// these rules. This function needs to compensate for this difference.
+///
+/// [special case rules]: https://www.unicode.org/Public/3.2-Update/SpecialCasing-3.2.0.txt
+fn github_lowercase(chars: impl Iterator<Item = char>) -> impl Iterator<Item = char> {
+    chars.flat_map(char::to_lowercase)
+}
+
+/// Converts the given header text into a hyphen-separated fragment ID, mimicking
+/// the algorithm used by GitHub. However, does not guarantee that the returned
+/// IDs are unique between calls. For most uses, [`GithubHeadingIdGenerator`]
+/// should be used instead.
+pub fn generate_without_disambiguation(text: &str) -> String {
+    github_lowercase(
+        REGEX_TO_REMOVE
+            .split(text)
+            .flat_map(str::chars)
+            .map(|c| match c {
+                ' ' => '-',
+                c => c,
+            }),
+    )
+    .collect()
 }
 
 #[cfg(test)]

@@ -16,10 +16,11 @@
 //! }
 //! ```
 
-use super::{ConfigLoader, ConfigMatch};
-use crate::config::Config;
 use anyhow::{Context, Result};
 use serde::Deserialize;
+
+use super::{ConfigLoader, ConfigMatch};
+use crate::config::Config;
 
 pub(crate) const PACKAGE_JSON_CONFIG_FILE: &str = "package.json";
 
@@ -32,10 +33,6 @@ struct PackageJson {
 pub(crate) struct PackageJsonLoader;
 
 impl ConfigLoader for PackageJsonLoader {
-    fn filename(&self) -> &str {
-        PACKAGE_JSON_CONFIG_FILE
-    }
-
     fn load(&self, contents: &str) -> Result<ConfigMatch> {
         let package_json = serde_json::from_str::<PackageJson>(contents)
             .with_context(|| "Failed to parse lychee config from package.json")?;
@@ -44,6 +41,10 @@ impl ConfigLoader for PackageJsonLoader {
             Some(config) => Ok(ConfigMatch::Found(Box::new(config))),
             None => Ok(ConfigMatch::NotFound),
         }
+    }
+
+    fn filename(&self) -> &str {
+        PACKAGE_JSON_CONFIG_FILE
     }
 }
 

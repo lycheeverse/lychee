@@ -1,8 +1,9 @@
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+
 use dashmap::DashMap;
 use http::{Method, StatusCode};
 use reqwest::{Client, Request};
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
 
 use crate::ratelimit::{
     CacheableResponse, Host, HostConfigs, HostKey, HostStats, HostStatsMap, RateLimitConfig,
@@ -29,17 +30,17 @@ pub struct HostPool {
     /// Map of hostname to Host instances, created on-demand
     hosts: DashMap<HostKey, Arc<Host>>,
 
-    /// Global configuration for rate limiting defaults
-    global_config: RateLimitConfig,
+    /// Host-specific clients
+    client_map: ClientMap,
 
     /// Per-host configuration overrides
     host_configs: HostConfigs,
 
+    /// Global configuration for rate limiting defaults
+    global_config: RateLimitConfig,
+
     /// Fallback client for hosts without host-specific client
     default_client: Client,
-
-    /// Host-specific clients
-    client_map: ClientMap,
 }
 
 impl HostPool {
@@ -58,130 +59,6 @@ impl HostPool {
             default_client,
             client_map,
         }
-    }
-
-    /// Try to execute a [`Request`] with appropriate per-host rate limiting.
-    ///
-    /// # Errors
-    ///
-    /// Fails if:
-    /// - The request URL has no valid hostname
-    /// - The underlying HTTP request fails
-    pub(crate) async fn execute_request(
-        &self,
-        request: Request,
-        needs_body: bool,
-    ) -> Result<CacheableResponse> {
-        let url = request.url();
-        let host_key = HostKey::try_from(url)?;
-        let host = self.get_or_create_host(host_key);
-        host.execute_request(request, needs_body).await
-    }
-
-    /// Try to build a [`Request`]
-    ///
-    /// # Errors
-    ///
-    /// Fails if:
-    /// - The request URI has no valid hostname
-    /// - The request fails to build
-    pub fn build_request(&self, method: Method, uri: &Uri) -> Result<Request> {
-        let host_key = HostKey::try_from(uri)?;
-        let host = self.get_or_create_host(host_key);
-        host.get_client()
-            .request(method, uri.url.clone())
-            .build()
-            .map_err(ErrorKind::BuildRequestClient)
-    }
-
-    /// Return the accepted status codes for the host of `key` (a URL or URI).
-    ///
-    /// A host override replaces `global`; an empty override accepts no codes.
-    /// Without an override or a valid host, return a clone of `global`.
-    #[must_use]
-    pub fn accepted_status_codes<K>(
-        &self,
-        key: K,
-        global: &HashSet<StatusCode>,
-    ) -> HashSet<StatusCode>
-    where
-        HostKey: TryFrom<K>,
-    {
-        HostKey::try_from(key)
-            .ok()
-            .and_then(|host_key| self.host_configs.get(&host_key))
-            .and_then(|config| config.accept.as_ref())
-            .map_or_else(|| global.clone(), |selector| selector.clone().into())
-    }
-
-    /// Get an existing host or create a new one for the given hostname
-    fn get_or_create_host(&self, host_key: HostKey) -> Arc<Host> {
-        self.hosts
-            .entry(host_key.clone())
-            .or_insert_with(|| {
-                let host_config = self
-                    .host_configs
-                    .get(&host_key)
-                    .cloned()
-                    .unwrap_or_default();
-
-                let client = self
-                    .client_map
-                    .get(&host_key)
-                    .unwrap_or(&self.default_client)
-                    .clone();
-
-                Arc::new(Host::new(
-                    host_key,
-                    &host_config,
-                    &self.global_config,
-                    client,
-                ))
-            })
-            .value()
-            .clone()
-    }
-
-    /// Returns statistics for the host if it exists, otherwise returns empty stats.
-    /// This provides consistent behavior whether or not requests have been made to that host yet.
-    #[must_use]
-    pub fn host_stats(&self, hostname: &str) -> HostStats {
-        let host_key = HostKey::from(hostname);
-        self.hosts
-            .get(&host_key)
-            .map(|host| host.stats())
-            .unwrap_or_default()
-    }
-
-    /// Returns a `HashMap` mapping hostnames to their statistics.
-    /// Only hosts that have had requests will be included.
-    #[must_use]
-    pub fn all_host_stats(&self) -> HostStatsMap {
-        HostStatsMap::from(
-            self.hosts
-                .iter()
-                .map(|entry| {
-                    let hostname = entry.key().to_string();
-                    let stats = entry.value().stats();
-                    (hostname, stats)
-                })
-                .collect::<HashMap<_, _>>(),
-        )
-    }
-
-    /// Get the number of host instances that have been created,
-    /// which corresponds to the number of unique hostnames that have
-    /// been accessed.
-    #[must_use]
-    pub fn active_host_count(&self) -> usize {
-        self.hosts.len()
-    }
-
-    /// Get  a copy of the current host-specific configurations.
-    /// This is useful for debugging or runtime monitoring of configuration.
-    #[must_use]
-    pub fn host_configurations(&self) -> HostConfigs {
-        self.host_configs.clone()
     }
 
     /// Remove a host from the pool.
@@ -213,6 +90,111 @@ impl HostPool {
             .collect()
     }
 
+    /// Try to build a [`Request`]
+    ///
+    /// # Errors
+    ///
+    /// Fails if:
+    /// - The request URI has no valid hostname
+    /// - The request fails to build
+    pub fn build_request(&self, method: Method, uri: &Uri) -> Result<Request> {
+        let host_key = HostKey::try_from(uri)?;
+        let host = self.get_or_create_host(host_key);
+        host.get_client()
+            .request(method, uri.url.clone())
+            .build()
+            .map_err(ErrorKind::BuildRequestClient)
+    }
+
+    /// Returns a `HashMap` mapping hostnames to their statistics.
+    /// Only hosts that have had requests will be included.
+    #[must_use]
+    pub fn all_host_stats(&self) -> HostStatsMap {
+        HostStatsMap::from(
+            self.hosts
+                .iter()
+                .map(|entry| {
+                    let hostname = entry.key().to_string();
+                    let stats = entry.value().stats();
+                    (hostname, stats)
+                })
+                .collect::<HashMap<_, _>>(),
+        )
+    }
+
+    /// Returns statistics for the host if it exists, otherwise returns empty stats.
+    /// This provides consistent behavior whether or not requests have been made to that host yet.
+    #[must_use]
+    pub fn host_stats(&self, hostname: &str) -> HostStats {
+        let host_key = HostKey::from(hostname);
+        self.hosts
+            .get(&host_key)
+            .map(|host| host.stats())
+            .unwrap_or_default()
+    }
+    /// Get  a copy of the current host-specific configurations.
+    /// This is useful for debugging or runtime monitoring of configuration.
+    #[must_use]
+    pub fn host_configurations(&self) -> HostConfigs {
+        self.host_configs.clone()
+    }
+
+    /// Get the number of host instances that have been created,
+    /// which corresponds to the number of unique hostnames that have
+    /// been accessed.
+    #[must_use]
+    pub fn active_host_count(&self) -> usize {
+        self.hosts.len()
+    }
+
+    /// Get an existing host or create a new one for the given hostname
+    fn get_or_create_host(&self, host_key: HostKey) -> Arc<Host> {
+        self.hosts
+            .entry(host_key.clone())
+            .or_insert_with(|| {
+                let host_config = self
+                    .host_configs
+                    .get(&host_key)
+                    .cloned()
+                    .unwrap_or_default();
+
+                let client = self
+                    .client_map
+                    .get(&host_key)
+                    .unwrap_or(&self.default_client)
+                    .clone();
+
+                Arc::new(Host::new(
+                    host_key,
+                    &host_config,
+                    &self.global_config,
+                    client,
+                ))
+            })
+            .value()
+            .clone()
+    }
+
+    /// Return the accepted status codes for the host of `key` (a URL or URI).
+    ///
+    /// A host override replaces `global`; an empty override accepts no codes.
+    /// Without an override or a valid host, return a clone of `global`.
+    #[must_use]
+    pub fn accepted_status_codes<K>(
+        &self,
+        key: K,
+        global: &HashSet<StatusCode>,
+    ) -> HashSet<StatusCode>
+    where
+        HostKey: TryFrom<K>,
+    {
+        HostKey::try_from(key)
+            .ok()
+            .and_then(|host_key| self.host_configs.get(&host_key))
+            .and_then(|config| config.accept.as_ref())
+            .map_or_else(|| global.clone(), |selector| selector.clone().into())
+    }
+
     /// Record a cache hit for the given URI in host statistics.
     /// This tracks that a request was served from the persistent disk cache.
     /// Note that no equivalent function for tracking cache misses is exposed,
@@ -229,6 +211,24 @@ impl HostPool {
                 }
             }
         }
+    }
+
+    /// Try to execute a [`Request`] with appropriate per-host rate limiting.
+    ///
+    /// # Errors
+    ///
+    /// Fails if:
+    /// - The request URL has no valid hostname
+    /// - The underlying HTTP request fails
+    pub(crate) async fn execute_request(
+        &self,
+        request: Request,
+        needs_body: bool,
+    ) -> Result<CacheableResponse> {
+        let url = request.url();
+        let host_key = HostKey::try_from(url)?;
+        let host = self.get_or_create_host(host_key);
+        host.execute_request(request, needs_body).await
     }
 }
 

@@ -36,27 +36,8 @@ pub type ConcurrentlyWith<St, Fut> =
 pub type Partitioned<T, SenderFut = future::Pending<Never>> =
     stream::TakeUntil<ReceiverStream<T>, future::Join<SenderFut, future::Pending<Never>>>;
 
-/// A stream which is pending until the given future completes, at which point
-/// the stream will terminate. The returned stream will never return any values,
-/// so the choice of `T` can be arbitrary.
-pub fn pending_until<T, Fut: Future>(fut: Fut) -> PendingUntil<T, Fut> {
-    stream::pending().take_until(fut)
-}
-
 /// Extra stream combinators. This is for extra functions not available in the usual [`futures::StreamExt`].
 pub trait StreamExt: Stream {
-    /// A stream which wraps a stream while concurrently polling a given future.
-    ///
-    /// The future is only polled for its side effects. Its output is discarded.
-    /// All items from the input stream will be propagated unchanged. The returned
-    /// stream will terminate when the argument stream terminates.
-    fn concurrently_with<Fut: Future>(self, fut: Fut) -> ConcurrentlyWith<Self, Fut>
-    where
-        Self: Sized,
-    {
-        self.take_until(future::join(fut, future::pending()))
-    }
-
     /// Partitions the given stream of [`Result<T, E>`] into two streams&mdash;one yielding the
     /// `T` values and one yielding the `E` values.
     ///
@@ -107,6 +88,24 @@ pub trait StreamExt: Stream {
 
         (ok_stream, err_stream)
     }
+
+    /// A stream which wraps a stream while concurrently polling a given future.
+    ///
+    /// The future is only polled for its side effects. Its output is discarded.
+    /// All items from the input stream will be propagated unchanged. The returned
+    /// stream will terminate when the argument stream terminates.
+    fn concurrently_with<Fut: Future>(self, fut: Fut) -> ConcurrentlyWith<Self, Fut>
+    where
+        Self: Sized,
+    {
+        self.take_until(future::join(fut, future::pending()))
+    }
 }
 
 impl<T: ?Sized> StreamExt for T where T: Stream {}
+/// A stream which is pending until the given future completes, at which point
+/// the stream will terminate. The returned stream will never return any values,
+/// so the choice of `T` can be arbitrary.
+pub fn pending_until<T, Fut: Future>(fut: Fut) -> PendingUntil<T, Fut> {
+    stream::pending().take_until(fut)
+}

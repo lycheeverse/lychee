@@ -1,21 +1,24 @@
 mod regex_filter;
 
-use regex::RegexSet;
 use std::collections::HashSet;
 use std::sync::LazyLock;
 
-/// Include configuration for the link checker.
-/// You can include links based on regex patterns.
-pub type Includes = regex_filter::RegexFilter;
-
-/// Exclude configuration for the link checker.
-/// You can ignore links based on regex patterns.
-pub type Excludes = regex_filter::RegexFilter;
-
-/// You can exclude paths and files based on regex patterns.
-pub type PathExcludes = regex_filter::RegexFilter;
+use regex::RegexSet;
 
 use crate::Uri;
+
+/// Pre-defined exclusions for known false-positives
+const FALSE_POSITIVE_PAT: &[&str] = &[
+    r"^https?://schemas\.openxmlformats\.org",
+    r"^https?://schemas\.microsoft\.com",
+    r"^https?://schemas\.zune\.net",
+    r"^https?://www\.w3\.org/1999/xhtml",
+    r"^https?://www\.w3\.org/1999/xlink",
+    r"^https?://www\.w3\.org/2000/svg",
+    r"^https?://www\.w3\.org/2001/XMLSchema-instance",
+    r"^https?://ogp\.me/ns#",
+    r"^https?://(.*)/xmlrpc\.php$",
+];
 
 /// These domains are explicitly defined by RFC 2606, section 3 Reserved Example
 /// Second Level Domain Names for describing example cases and should not be
@@ -46,157 +49,49 @@ static UNSUPPORTED_DOMAINS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     ])
 });
 
-/// Pre-defined exclusions for known false-positives
-const FALSE_POSITIVE_PAT: &[&str] = &[
-    r"^https?://schemas\.openxmlformats\.org",
-    r"^https?://schemas\.microsoft\.com",
-    r"^https?://schemas\.zune\.net",
-    r"^https?://www\.w3\.org/1999/xhtml",
-    r"^https?://www\.w3\.org/1999/xlink",
-    r"^https?://www\.w3\.org/2000/svg",
-    r"^https?://www\.w3\.org/2001/XMLSchema-instance",
-    r"^https?://ogp\.me/ns#",
-    r"^https?://(.*)/xmlrpc\.php$",
-];
-
 static FALSE_POSITIVE_SET: LazyLock<RegexSet> =
     LazyLock::new(|| regex::RegexSet::new(FALSE_POSITIVE_PAT).expect("Failed to create RegexSet"));
 
-/// The given input is a well-known false-positive, which won't be checked by
-/// default. This behavior can be explicitly overwritten by defining an
-/// `Include` pattern, which will match on a false positive
-#[inline]
-#[must_use]
-pub fn is_false_positive(input: &str) -> bool {
-    FALSE_POSITIVE_SET.is_match(input)
-}
+/// Include configuration for the link checker.
+/// You can include links based on regex patterns.
+pub type Includes = regex_filter::RegexFilter;
 
-/// Check if the host belongs to a known example domain as defined in
-/// [RFC 2606](https://datatracker.ietf.org/doc/html/rfc2606)
-#[inline]
-#[must_use]
-pub fn is_example_domain(uri: &Uri) -> bool {
-    match uri.domain() {
-        Some(domain) => {
-            // Check if the domain is exactly an example domain or a subdomain of it.
-            EXAMPLE_DOMAINS.iter().any(|&example| {
-                domain == example
-                    || domain
-                        .split_once('.')
-                        .is_some_and(|(_subdomain, tld_part)| tld_part == example)
-            }) || EXAMPLE_TLDS
-                .iter()
-                .any(|&example_tld| domain.ends_with(example_tld))
-        }
-        None => {
-            // Check if the URI is an email address.
-            // e.g. `mailto:mail@example.com`
-            // In this case, the domain is part of the path
-            if uri.is_mail() {
-                EXAMPLE_DOMAINS.iter().any(|tld| uri.path().ends_with(tld))
-            } else {
-                false
-            }
-        }
-    }
-}
+/// Exclude configuration for the link checker.
+/// You can ignore links based on regex patterns.
+pub type Excludes = regex_filter::RegexFilter;
 
-/// Check if the host belongs to a known unsupported domain
-#[inline]
-#[must_use]
-pub fn is_unsupported_domain(uri: &Uri) -> bool {
-    if let Some(domain) = uri.domain() {
-        // It is not enough to use `UNSUPPORTED_DOMAINS.contains(domain)` here
-        // as this would not include checks for subdomains, such as
-        // `foo.example.com`
-        UNSUPPORTED_DOMAINS.iter().any(|tld| domain.ends_with(tld))
-    } else {
-        false
-    }
-}
+/// You can exclude paths and files based on regex patterns.
+pub type PathExcludes = regex_filter::RegexFilter;
 
 /// A generic URI filter
 /// Used to decide if a given URI should be checked or skipped
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Debug, Default)]
 pub struct Filter {
-    /// URIs explicitly included for checking. This takes precedence over excludes
-    pub includes: Option<Includes>,
-    /// URIs excluded from checking
-    pub excludes: Option<Excludes>,
     /// Only check URIs with the given schemes (e.g. `https` and `http`)
     // TODO: includes_scheme and excludes_scheme
     // TODO: excludes_mail should be an alias for exclude_scheme=mailto
     pub schemes: HashSet<String>,
+
+    /// URIs explicitly included for checking. This takes precedence over excludes
+    pub includes: Option<Includes>,
+
+    /// URIs excluded from checking
+    pub excludes: Option<Excludes>,
+
+    /// Example: octocat@github.com
+    pub include_mail: bool,
+
     /// Example: 192.168.0.1
     pub exclude_private_ips: bool,
-    /// Example: 169.254.0.0
-    pub exclude_link_local_ips: bool,
     /// For IPv4: 127.0.0.1/8
     /// For IPv6: `::1/128`
     pub exclude_loopback_ips: bool,
-    /// Example: octocat@github.com
-    pub include_mail: bool,
+    /// Example: 169.254.0.0
+    pub exclude_link_local_ips: bool,
 }
 
 impl Filter {
-    #[inline]
-    #[must_use]
-    /// Whether e-mails aren't checked (which is the default)
-    pub fn is_mail_excluded(&self, uri: &Uri) -> bool {
-        uri.is_mail() && !self.include_mail
-    }
-
-    #[must_use]
-    /// Whether the IP address is excluded from checking
-    pub fn is_ip_excluded(&self, uri: &Uri) -> bool {
-        if (self.exclude_loopback_ips && uri.is_loopback())
-            || (self.exclude_private_ips && uri.is_private())
-            || (self.exclude_link_local_ips && uri.is_link_local())
-        {
-            return true;
-        }
-
-        false
-    }
-
-    #[must_use]
-    /// Whether the host is excluded from checking
-    pub fn is_host_excluded(&self, uri: &Uri) -> bool {
-        // If loopback IPs are excluded, exclude localhost as well, which usually maps to a loopback IP
-        self.exclude_loopback_ips && uri.domain() == Some("localhost")
-    }
-
-    #[inline]
-    #[must_use]
-    /// Whether the scheme of the given URI is excluded
-    pub fn is_scheme_excluded(&self, uri: &Uri) -> bool {
-        if self.schemes.is_empty() {
-            return false;
-        }
-        !self.schemes.contains(uri.scheme())
-    }
-
-    #[inline]
-    fn is_includes_empty(&self) -> bool {
-        !matches!(self.includes, Some(ref includes) if !includes.is_empty())
-    }
-
-    #[inline]
-    fn is_excludes_empty(&self) -> bool {
-        !matches!(self.excludes, Some(ref excludes) if !excludes.is_empty())
-    }
-
-    #[inline]
-    fn is_includes_match(&self, input: &str) -> bool {
-        matches!(self.includes, Some(ref includes) if includes.is_match(input))
-    }
-
-    #[inline]
-    fn is_excludes_match(&self, input: &str) -> bool {
-        matches!(self.excludes, Some(ref excludes) if excludes.is_match(input))
-    }
-
     /// Determine whether a given [`Uri`] should be excluded.
     ///
     /// # Details
@@ -255,6 +150,108 @@ impl Filter {
             return true;
         }
 
+        false
+    }
+    #[must_use]
+    /// Whether the IP address is excluded from checking
+    pub fn is_ip_excluded(&self, uri: &Uri) -> bool {
+        if (self.exclude_loopback_ips && uri.is_loopback())
+            || (self.exclude_private_ips && uri.is_private())
+            || (self.exclude_link_local_ips && uri.is_link_local())
+        {
+            return true;
+        }
+
+        false
+    }
+    #[inline]
+    #[must_use]
+    /// Whether e-mails aren't checked (which is the default)
+    pub fn is_mail_excluded(&self, uri: &Uri) -> bool {
+        uri.is_mail() && !self.include_mail
+    }
+    #[must_use]
+    /// Whether the host is excluded from checking
+    pub fn is_host_excluded(&self, uri: &Uri) -> bool {
+        // If loopback IPs are excluded, exclude localhost as well, which usually maps to a loopback IP
+        self.exclude_loopback_ips && uri.domain() == Some("localhost")
+    }
+    #[inline]
+    fn is_includes_empty(&self) -> bool {
+        !matches!(self.includes, Some(ref includes) if !includes.is_empty())
+    }
+    #[inline]
+    fn is_excludes_empty(&self) -> bool {
+        !matches!(self.excludes, Some(ref excludes) if !excludes.is_empty())
+    }
+    #[inline]
+    fn is_includes_match(&self, input: &str) -> bool {
+        matches!(self.includes, Some(ref includes) if includes.is_match(input))
+    }
+    #[inline]
+    fn is_excludes_match(&self, input: &str) -> bool {
+        matches!(self.excludes, Some(ref excludes) if excludes.is_match(input))
+    }
+    #[inline]
+    #[must_use]
+    /// Whether the scheme of the given URI is excluded
+    pub fn is_scheme_excluded(&self, uri: &Uri) -> bool {
+        if self.schemes.is_empty() {
+            return false;
+        }
+        !self.schemes.contains(uri.scheme())
+    }
+}
+
+/// The given input is a well-known false-positive, which won't be checked by
+/// default. This behavior can be explicitly overwritten by defining an
+/// `Include` pattern, which will match on a false positive
+#[inline]
+#[must_use]
+pub fn is_false_positive(input: &str) -> bool {
+    FALSE_POSITIVE_SET.is_match(input)
+}
+
+/// Check if the host belongs to a known example domain as defined in
+/// [RFC 2606](https://datatracker.ietf.org/doc/html/rfc2606)
+#[inline]
+#[must_use]
+pub fn is_example_domain(uri: &Uri) -> bool {
+    match uri.domain() {
+        Some(domain) => {
+            // Check if the domain is exactly an example domain or a subdomain of it.
+            EXAMPLE_DOMAINS.iter().any(|&example| {
+                domain == example
+                    || domain
+                        .split_once('.')
+                        .is_some_and(|(_subdomain, tld_part)| tld_part == example)
+            }) || EXAMPLE_TLDS
+                .iter()
+                .any(|&example_tld| domain.ends_with(example_tld))
+        }
+        None => {
+            // Check if the URI is an email address.
+            // e.g. `mailto:mail@example.com`
+            // In this case, the domain is part of the path
+            if uri.is_mail() {
+                EXAMPLE_DOMAINS.iter().any(|tld| uri.path().ends_with(tld))
+            } else {
+                false
+            }
+        }
+    }
+}
+
+/// Check if the host belongs to a known unsupported domain
+#[inline]
+#[must_use]
+pub fn is_unsupported_domain(uri: &Uri) -> bool {
+    if let Some(domain) = uri.domain() {
+        // It is not enough to use `UNSUPPORTED_DOMAINS.contains(domain)` here
+        // as this would not include checks for subdomains, such as
+        // `foo.example.com`
+        UNSUPPORTED_DOMAINS.iter().any(|tld| domain.ends_with(tld))
+    } else {
         false
     }
 }

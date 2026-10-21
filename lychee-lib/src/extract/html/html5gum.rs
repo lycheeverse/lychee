@@ -1,14 +1,16 @@
+use std::collections::{HashMap, HashSet};
+
 use html5gum::{
     Spanned, Tokenizer,
     emitters::callback::{Callback, CallbackEmitter, CallbackEvent},
 };
-use std::collections::{HashMap, HashSet};
 
-use super::{is_email_link, is_verbatim_elem, srcset};
 use crate::{
     extract::{css::extract_css, plaintext::extract_raw_uri_from_plaintext},
     types::uri::raw::{OffsetSpanProvider, RawUri, SourceSpanProvider, SpanProvider},
 };
+
+use super::{is_email_link, is_verbatim_elem, srcset};
 
 /// Extract links from HTML documents.
 ///
@@ -24,17 +26,33 @@ use crate::{
 /// the `fragments` set contains all fragments extracted from the HTML document.
 #[derive(Clone, Debug)]
 struct LinkExtractor<S: SpanProvider> {
+    /// Links extracted from the HTML document.
+    links: Vec<RawUri>,
+
+    /// Fragments extracted from the HTML document.
+    fragments: HashSet<String>,
+
+    /// Whether we're currently inside a `<style>` tag.
+    in_style_tag: bool,
+
     /// The [`SpanProvider`] which will be used to compute spans for URIs.
     ///
     /// This is generic, since e.g. the markdown parser has already started, so we have to compute
     /// the span location in relation to the offset in the outer document.
     span_provider: S,
-    /// Links extracted from the HTML document.
-    links: Vec<RawUri>,
-    /// Fragments extracted from the HTML document.
-    fragments: HashSet<String>,
+
+    /// Element name of the current verbatim block.
+    /// Used to keep track of nested verbatim blocks.
+    verbatim_stack: Vec<String>,
+
     /// Whether to include verbatim elements in the output.
     include_verbatim: bool,
+
+    /// Accumulated CSS content from within a `<style>` tag.
+    style_content: String,
+    /// Start offset of the style tag content (for span calculation).
+    style_content_offset: usize,
+
     /// Current element name being processed.
     /// This is called a tag in html5gum.
     current_element: String,
@@ -44,15 +62,6 @@ struct LinkExtractor<S: SpanProvider> {
     current_attributes: HashMap<String, Spanned<String>>,
     /// Current attribute name being processed.
     current_attribute_name: String,
-    /// Element name of the current verbatim block.
-    /// Used to keep track of nested verbatim blocks.
-    verbatim_stack: Vec<String>,
-    /// Whether we're currently inside a `<style>` tag.
-    in_style_tag: bool,
-    /// Accumulated CSS content from within a `<style>` tag.
-    style_content: String,
-    /// Start offset of the style tag content (for span calculation).
-    style_content_offset: usize,
 }
 
 impl<S: SpanProvider> LinkExtractor<S> {
@@ -74,65 +83,6 @@ impl<S: SpanProvider> LinkExtractor<S> {
             style_content: String::default(),
             style_content_offset: 0,
         }
-    }
-
-    /// Extract all semantically known links from a given HTML attribute.
-    // For a comprehensive list of elements that might contain URLs/URIs
-    // see https://www.w3.org/TR/REC-html40/index/attributes.html
-    // and https://html.spec.whatwg.org/multipage/indices.html#attributes-1
-    fn extract_urls_from_elem_attr(&self) -> Vec<RawUri> {
-        let mut urls = Vec::new();
-
-        // Process 'srcset' attribute first
-        if let Some(srcset) = self.current_attributes.get("srcset") {
-            let span = srcset.span;
-            urls.extend(srcset::parse(srcset).into_iter().map(|url| RawUri {
-                text: url.to_string(),
-                element: Some(self.current_element.clone()),
-                attribute: Some("srcset".to_string()),
-                span: self.span_provider.span(span.start),
-            }));
-        }
-
-        // Process other attributes
-        for (attr_name, attr_value) in &self.current_attributes {
-            #[allow(clippy::unnested_or_patterns)]
-            match (self.current_element.as_str(), attr_name.as_str()) {
-                // Common element/attribute combinations for links
-                (_, "href" | "src" | "cite" | "usemap") |
-                // Less common (but still valid!) combinations
-                ("applet", "codebase") |
-                ("body", "background") |
-                ("button", "formaction") |
-                ("command", "icon") |
-                ("form", "action") |
-                ("frame", "longdesc") |
-                ("head", "profile") |
-                ("html", "manifest") |
-                ("iframe", "longdesc") |
-                ("img", "longdesc") |
-                ("input", "formaction") |
-                ("object", "classid" | "codebase" | "data") |
-                ("video", "poster") => {
-                    urls.push(RawUri {
-                        text: attr_value.to_string(),
-                        element: Some(self.current_element.clone()),
-                        attribute: Some(attr_name.clone()),
-                        span: self.span_provider.span(attr_value.span.start),
-                    });
-                }
-                _ => {}
-            }
-        }
-
-        urls
-    }
-
-    /// Check if we should filter out links in the current context due to being
-    /// inside a verbatim element.
-    fn filter_verbatim_here(&self) -> bool {
-        !self.include_verbatim
-            && (is_verbatim_elem(&self.current_element) || !self.verbatim_stack.is_empty())
     }
 
     /// Flush the current element and attribute values to the links vector.
@@ -239,6 +189,65 @@ impl<S: SpanProvider> LinkExtractor<S> {
             self.fragments.insert(name.to_string());
         }
         self.current_attributes.clear();
+    }
+
+    /// Check if we should filter out links in the current context due to being
+    /// inside a verbatim element.
+    fn filter_verbatim_here(&self) -> bool {
+        !self.include_verbatim
+            && (is_verbatim_elem(&self.current_element) || !self.verbatim_stack.is_empty())
+    }
+
+    /// Extract all semantically known links from a given HTML attribute.
+    // For a comprehensive list of elements that might contain URLs/URIs
+    // see https://www.w3.org/TR/REC-html40/index/attributes.html
+    // and https://html.spec.whatwg.org/multipage/indices.html#attributes-1
+    fn extract_urls_from_elem_attr(&self) -> Vec<RawUri> {
+        let mut urls = Vec::new();
+
+        // Process 'srcset' attribute first
+        if let Some(srcset) = self.current_attributes.get("srcset") {
+            let span = srcset.span;
+            urls.extend(srcset::parse(srcset).into_iter().map(|url| RawUri {
+                text: url.to_string(),
+                element: Some(self.current_element.clone()),
+                attribute: Some("srcset".to_string()),
+                span: self.span_provider.span(span.start),
+            }));
+        }
+
+        // Process other attributes
+        for (attr_name, attr_value) in &self.current_attributes {
+            #[allow(clippy::unnested_or_patterns)]
+            match (self.current_element.as_str(), attr_name.as_str()) {
+                // Common element/attribute combinations for links
+                (_, "href" | "src" | "cite" | "usemap") |
+                // Less common (but still valid!) combinations
+                ("applet", "codebase") |
+                ("body", "background") |
+                ("button", "formaction") |
+                ("command", "icon") |
+                ("form", "action") |
+                ("frame", "longdesc") |
+                ("head", "profile") |
+                ("html", "manifest") |
+                ("iframe", "longdesc") |
+                ("img", "longdesc") |
+                ("input", "formaction") |
+                ("object", "classid" | "codebase" | "data") |
+                ("video", "poster") => {
+                    urls.push(RawUri {
+                        text: attr_value.to_string(),
+                        element: Some(self.current_element.clone()),
+                        attribute: Some(attr_name.clone()),
+                        span: self.span_provider.span(attr_value.span.start),
+                    });
+                }
+                _ => {}
+            }
+        }
+
+        urls
     }
 }
 

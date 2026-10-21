@@ -1,5 +1,6 @@
-use lychee_lib::{ClientBuilder, Request, Result};
 use std::convert::TryFrom;
+
+use lychee_lib::{ClientBuilder, Request, Result};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 

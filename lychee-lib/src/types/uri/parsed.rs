@@ -1,13 +1,14 @@
+use url::ParseError;
+
 use crate::types::uri::relative::RelativeUri;
 use crate::{ErrorKind, Uri};
-
-use url::ParseError;
 
 /// The result of parsing a string that could be either a full URL
 /// or a relative path/fragment.
 pub enum ParsedUri<'a> {
     /// A fully-qualified, absolute URI.
     Absolute(Uri),
+
     /// A relative URI that requires a base for resolution.
     Relative(RelativeUri<'a>),
 }

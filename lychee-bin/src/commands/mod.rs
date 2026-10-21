@@ -3,25 +3,30 @@ pub(crate) mod dump;
 pub(crate) mod dump_inputs;
 pub(crate) mod generate;
 
-pub(crate) use check::check;
-pub(crate) use dump::dump;
-pub(crate) use dump_inputs::dump_inputs;
-
 use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
-use crate::cache::Cache;
-use crate::config::Config;
 use lychee_lib::RequestError;
 use lychee_lib::{Client, Request};
 
+use crate::cache::Cache;
+use crate::config::Config;
+
+pub(crate) use check::check;
+pub(crate) use dump::dump;
+pub(crate) use dump_inputs::dump_inputs;
+
 /// Parameters passed to every command
 pub(crate) struct CommandParams<S: futures::Stream<Item = Result<Request, RequestError>>> {
-    pub(crate) client: Client,
-    pub(crate) cache: Cache,
-    pub(crate) requests: S,
     pub(crate) cfg: Config,
+
+    pub(crate) cache: Cache,
+
+    pub(crate) client: Client,
+
+    pub(crate) requests: S,
+
     pub(crate) is_stdin_input: bool,
 }
 

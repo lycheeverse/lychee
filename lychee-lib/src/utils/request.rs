@@ -1,5 +1,6 @@
-use reqwest::Url;
 use std::path::Path;
+
+use reqwest::Url;
 use url::PathSegmentsMut;
 
 use crate::{
@@ -8,12 +9,43 @@ use crate::{
     types::{ResolvedInputSource, uri::raw::RawUri},
 };
 
-/// Extract basic auth credentials for a given URL.
-pub(crate) fn extract_credentials(
-    extractor: Option<&BasicAuthExtractor>,
-    uri: &Uri,
-) -> Option<BasicAuthCredentials> {
-    extractor.as_ref().and_then(|ext| ext.matches(uri))
+/// Create requests out of the collected URLs. Maps each [`RawUri`] to a parsed
+/// [`Request`] or a [`RequestError`], according to the given options.
+///
+/// Requests are not deduplicated because repeated URLs may occur at different
+/// source locations. Caching and deduplication happens elsewhere (e.g., in the
+/// per-host `HostCache` and the top-level persistent cache).
+pub(crate) fn create(
+    uris: Vec<RawUri>,
+    source: &ResolvedInputSource,
+    root_dir: Option<&Path>,
+    fallback_base: &BaseInfo,
+) -> Vec<Result<Request, RequestError>> {
+    let source_base = match source.to_base_info() {
+        Ok(base) => base,
+        Err(e) => {
+            // This should be extremely rare and only happens
+            // if a FsPath leads to an invalid URL.
+            return vec![Err(RequestError::InputSourceError(
+                source.clone().into(),
+                e.into(),
+            ))];
+        }
+    };
+
+    // TODO: use_fs_root_as_origin is for backwards compat, so `--base-url file:///a`
+    // can resolve a link of `/b` to `file:///b` (in the absence of root-dir).
+    // maybe change if base-url semantics are changed in future.
+    let fallback_base = fallback_base.use_fs_root_as_origin();
+    let base = source_base.or_fallback(&fallback_base);
+
+    uris.into_iter()
+        .map(|raw_uri| {
+            create_request(&raw_uri, source, root_dir, base).map_err(|e| {
+                RequestError::CreateRequestItem(raw_uri.clone().into(), source.clone(), e.into())
+            })
+        })
+        .collect()
 }
 
 /// Create a request from a raw URI.
@@ -71,43 +103,12 @@ fn try_parse_into_uri(
     Ok(url.into())
 }
 
-/// Create requests out of the collected URLs. Maps each [`RawUri`] to a parsed
-/// [`Request`] or a [`RequestError`], according to the given options.
-///
-/// Requests are not deduplicated because repeated URLs may occur at different
-/// source locations. Caching and deduplication happens elsewhere (e.g., in the
-/// per-host `HostCache` and the top-level persistent cache).
-pub(crate) fn create(
-    uris: Vec<RawUri>,
-    source: &ResolvedInputSource,
-    root_dir: Option<&Path>,
-    fallback_base: &BaseInfo,
-) -> Vec<Result<Request, RequestError>> {
-    let source_base = match source.to_base_info() {
-        Ok(base) => base,
-        Err(e) => {
-            // This should be extremely rare and only happens
-            // if a FsPath leads to an invalid URL.
-            return vec![Err(RequestError::InputSourceError(
-                source.clone().into(),
-                e.into(),
-            ))];
-        }
-    };
-
-    // TODO: use_fs_root_as_origin is for backwards compat, so `--base-url file:///a`
-    // can resolve a link of `/b` to `file:///b` (in the absence of root-dir).
-    // maybe change if base-url semantics are changed in future.
-    let fallback_base = fallback_base.use_fs_root_as_origin();
-    let base = source_base.or_fallback(&fallback_base);
-
-    uris.into_iter()
-        .map(|raw_uri| {
-            create_request(&raw_uri, source, root_dir, base).map_err(|e| {
-                RequestError::CreateRequestItem(raw_uri.clone().into(), source.clone(), e.into())
-            })
-        })
-        .collect()
+/// Extract basic auth credentials for a given URL.
+pub(crate) fn extract_credentials(
+    extractor: Option<&BasicAuthExtractor>,
+    uri: &Uri,
+) -> Option<BasicAuthCredentials> {
+    extractor.as_ref().and_then(|ext| ext.matches(uri))
 }
 
 #[cfg(test)]

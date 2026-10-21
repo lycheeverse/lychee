@@ -1,8 +1,9 @@
-use http::{HeaderMap, HeaderName, HeaderValue};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::collections::hash_map::Iter;
 use std::time::Duration;
+
+use http::{HeaderMap, HeaderName, HeaderValue};
+use serde::{Deserialize, Serialize};
 
 use crate::StatusCodeSelector;
 use crate::ratelimit::HostKey;
@@ -13,44 +14,69 @@ const DEFAULT_CONCURRENCY: usize = 10;
 /// Default interval between requests to the same host
 const DEFAULT_REQUEST_INTERVAL: Duration = Duration::from_millis(50);
 
-/// Global rate limiting configuration that applies as defaults to all hosts
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct RateLimitConfig {
-    /// Default maximum concurrent requests per host
-    #[serde(default = "default_concurrency")]
-    pub concurrency: usize,
+/// Configuration for a specific host's rate limiting behavior
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HostConfig {
+    /// Accepted status codes for this host.
+    ///
+    /// When set, this fully replaces the global `accept` set for this host
+    /// (it is not merged with it), consistent with how `concurrency` and
+    /// `request_interval` override their global defaults.
+    #[serde(default)]
+    pub accept: Option<StatusCodeSelector>,
 
-    /// Default minimum interval between requests to the same host
-    #[serde(default = "default_request_interval", with = "humantime_serde")]
-    pub request_interval: Duration,
+    /// Custom headers to send with requests to this host
+    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_headers")]
+    #[serde(serialize_with = "serialize_headers")]
+    pub headers: HeaderMap,
+
+    /// Maximum concurrent requests allowed to this host
+    pub concurrency: Option<usize>,
+
+    /// Minimum interval between requests to this host
+    #[serde(default, with = "humantime_serde")]
+    pub request_interval: Option<Duration>,
 }
 
-impl Default for RateLimitConfig {
-    fn default() -> Self {
-        Self {
-            concurrency: default_concurrency(),
-            request_interval: default_request_interval(),
+impl HostConfig {
+    #[must_use]
+    pub(crate) fn merge(mut self, other: Self) -> Self {
+        for (k, v) in other.headers {
+            if let Some(k) = k {
+                self.headers.append(k, v);
+            }
         }
+
+        Self {
+            concurrency: self.concurrency.or(other.concurrency),
+            request_interval: self.request_interval.or(other.request_interval),
+            headers: self.headers,
+            accept: self.accept.or(other.accept),
+        }
+    }
+
+    /// Get the effective maximum concurrency, falling back to the global default
+    #[must_use]
+    pub fn effective_concurrency(&self, global_config: &RateLimitConfig) -> usize {
+        self.concurrency.unwrap_or(global_config.concurrency)
+    }
+    /// Get the effective request interval, falling back to the global default
+    #[must_use]
+    pub fn effective_request_interval(&self, global_config: &RateLimitConfig) -> Duration {
+        self.request_interval
+            .unwrap_or(global_config.request_interval)
     }
 }
 
-/// Default number of concurrent requests per host
-const fn default_concurrency() -> usize {
-    DEFAULT_CONCURRENCY
-}
-
-/// Default interval between requests to the same host
-const fn default_request_interval() -> Duration {
-    DEFAULT_REQUEST_INTERVAL
-}
-
-impl RateLimitConfig {
-    /// Create a `RateLimitConfig` from CLI options, using defaults for missing values
-    #[must_use]
-    pub fn from_options(concurrency: Option<usize>, request_interval: Option<Duration>) -> Self {
+impl Default for HostConfig {
+    fn default() -> Self {
         Self {
-            concurrency: concurrency.unwrap_or(DEFAULT_CONCURRENCY),
-            request_interval: request_interval.unwrap_or(DEFAULT_REQUEST_INTERVAL),
+            concurrency: None,
+            request_interval: None,
+            headers: HeaderMap::new(),
+            accept: None,
         }
     }
 }
@@ -69,12 +95,6 @@ impl HostConfigs {
     #[must_use]
     pub fn len(&self) -> usize {
         self.0.len()
-    }
-
-    /// Returns `true` if if there are no [`HostConfig`]s
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
     }
 
     /// Get the iterator over all elements
@@ -97,11 +117,19 @@ impl HostConfigs {
 
         self
     }
+
+    /// Returns `true` if if there are no [`HostConfig`]s
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 
 impl<'a> IntoIterator for &'a HostConfigs {
     type Item = (&'a HostKey, &'a HostConfig);
+
     type IntoIter = Iter<'a, HostKey, HostConfig>;
+
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()
     }
@@ -113,72 +141,48 @@ impl<const N: usize> From<[(HostKey, HostConfig); N]> for HostConfigs {
     }
 }
 
-/// Configuration for a specific host's rate limiting behavior
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct HostConfig {
-    /// Maximum concurrent requests allowed to this host
-    pub concurrency: Option<usize>,
+/// Global rate limiting configuration that applies as defaults to all hosts
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct RateLimitConfig {
+    /// Default maximum concurrent requests per host
+    #[serde(default = "default_concurrency")]
+    pub concurrency: usize,
 
-    /// Minimum interval between requests to this host
-    #[serde(default, with = "humantime_serde")]
-    pub request_interval: Option<Duration>,
-
-    /// Custom headers to send with requests to this host
-    #[serde(default)]
-    #[serde(deserialize_with = "deserialize_headers")]
-    #[serde(serialize_with = "serialize_headers")]
-    pub headers: HeaderMap,
-
-    /// Accepted status codes for this host.
-    ///
-    /// When set, this fully replaces the global `accept` set for this host
-    /// (it is not merged with it), consistent with how `concurrency` and
-    /// `request_interval` override their global defaults.
-    #[serde(default)]
-    pub accept: Option<StatusCodeSelector>,
+    /// Default minimum interval between requests to the same host
+    #[serde(default = "default_request_interval", with = "humantime_serde")]
+    pub request_interval: Duration,
 }
 
-impl Default for HostConfig {
+impl RateLimitConfig {
+    /// Create a `RateLimitConfig` from CLI options, using defaults for missing values
+    #[must_use]
+    pub fn from_options(concurrency: Option<usize>, request_interval: Option<Duration>) -> Self {
+        Self {
+            concurrency: concurrency.unwrap_or(DEFAULT_CONCURRENCY),
+            request_interval: request_interval.unwrap_or(DEFAULT_REQUEST_INTERVAL),
+        }
+    }
+}
+
+impl Default for RateLimitConfig {
     fn default() -> Self {
         Self {
-            concurrency: None,
-            request_interval: None,
-            headers: HeaderMap::new(),
-            accept: None,
+            concurrency: default_concurrency(),
+            request_interval: default_request_interval(),
         }
     }
 }
 
-impl HostConfig {
-    /// Get the effective maximum concurrency, falling back to the global default
-    #[must_use]
-    pub fn effective_concurrency(&self, global_config: &RateLimitConfig) -> usize {
-        self.concurrency.unwrap_or(global_config.concurrency)
-    }
-
-    /// Get the effective request interval, falling back to the global default
-    #[must_use]
-    pub fn effective_request_interval(&self, global_config: &RateLimitConfig) -> Duration {
-        self.request_interval
-            .unwrap_or(global_config.request_interval)
-    }
-
-    #[must_use]
-    pub(crate) fn merge(mut self, other: Self) -> Self {
-        for (k, v) in other.headers {
-            if let Some(k) = k {
-                self.headers.append(k, v);
-            }
-        }
-
-        Self {
-            concurrency: self.concurrency.or(other.concurrency),
-            request_interval: self.request_interval.or(other.request_interval),
-            headers: self.headers,
-            accept: self.accept.or(other.accept),
-        }
-    }
+/// Custom serializer for headers to TOML config format
+fn serialize_headers<S>(headers: &HeaderMap, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let map: HashMap<String, String> = headers
+        .iter()
+        .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
+        .collect();
+    map.serialize(serializer)
 }
 
 /// Custom deserializer for headers from TOML config format
@@ -201,16 +205,14 @@ where
     Ok(header_map)
 }
 
-/// Custom serializer for headers to TOML config format
-fn serialize_headers<S>(headers: &HeaderMap, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    let map: HashMap<String, String> = headers
-        .iter()
-        .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_string()))
-        .collect();
-    map.serialize(serializer)
+/// Default number of concurrent requests per host
+const fn default_concurrency() -> usize {
+    DEFAULT_CONCURRENCY
+}
+
+/// Default interval between requests to the same host
+const fn default_request_interval() -> Duration {
+    DEFAULT_REQUEST_INTERVAL
 }
 
 #[cfg(test)]

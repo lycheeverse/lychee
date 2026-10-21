@@ -2,6 +2,15 @@ use std::{fmt::Display, num::NonZeroUsize};
 
 use serde::Serialize;
 
+/// A trait for calculating a [`RawUriSpan`] at a given byte offset in the document.
+///
+/// If you have a document and want spans with absolute positions, use [`SourceSpanProvider`].
+/// If you start inside a document at a given offset, use [`OffsetSpanProvider`].
+pub(crate) trait SpanProvider {
+    /// Compute the [`RawUriSpan`] at a given byte offset in the document.
+    fn span(&self, offset: usize) -> RawUriSpan;
+}
+
 /// A raw URI that got extracted from a document with a fuzzy parser.
 /// Note that this can still be invalid according to stricter URI standards
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -9,18 +18,21 @@ pub struct RawUri {
     /// Unparsed URI represented as a `String`. There is no guarantee that it
     /// can be parsed into a URI object
     pub text: String,
+
+    /// The position of the URI in the document.
+    pub span: RawUriSpan,
+
     /// Name of the element that contained the URI (e.g. `a` for the `<a>` tag).
     /// This is a way to classify links to make it easier to offer fine control
     /// over the links that will be checked e.g. by trying to filter out links
     /// that were found in unwanted tags like `<pre>` or `<code>`.
     pub element: Option<String>,
+
     /// Name of the attribute that contained the URI (e.g. `src`). This is a way
     /// to classify links to make it easier to offer fine control over the links
     /// that will be checked e.g. by trying to filter out links that were found
     /// in unwanted attributes like `srcset` or `manifest`.
     pub attribute: Option<String>,
-    /// The position of the URI in the document.
-    pub span: RawUriSpan,
 }
 
 impl Display for RawUri {
@@ -50,6 +62,7 @@ pub struct RawUriSpan {
     ///
     /// The line is 1-based.
     pub line: NonZeroUsize,
+
     /// The column of the URI if computable.
     ///
     /// The column is 1-based.
@@ -68,46 +81,20 @@ impl Display for RawUriSpan {
     }
 }
 
-/// Test helper to create [`RawUriSpan`]s easily.
-#[cfg(test)]
-pub(crate) const fn span(line: usize, column: usize) -> RawUriSpan {
-    RawUriSpan {
-        line: NonZeroUsize::new(line).unwrap(),
-        column: Some(NonZeroUsize::new(column).unwrap()),
-    }
-}
-
-/// Test helper to create a [`RawUriSpan`] from just the line and leave the column unset.
-#[cfg(test)]
-pub(crate) const fn span_line(line: usize) -> RawUriSpan {
-    RawUriSpan {
-        line: std::num::NonZeroUsize::new(line).unwrap(),
-        column: None,
-    }
-}
-
-/// A trait for calculating a [`RawUriSpan`] at a given byte offset in the document.
-///
-/// If you have a document and want spans with absolute positions, use [`SourceSpanProvider`].
-/// If you start inside a document at a given offset, use [`OffsetSpanProvider`].
-pub(crate) trait SpanProvider {
-    /// Compute the [`RawUriSpan`] at a given byte offset in the document.
-    fn span(&self, offset: usize) -> RawUriSpan;
-}
-
 /// A [`SpanProvider`] which calculates spans depending on the input lines.
 ///
 /// Precomputes line lengths so that constructing [`RawUriSpan`]s is faster.
 /// If you start inside a document at a given offset, consider using [`OffsetSpanProvider`].
 #[derive(Clone, Debug)]
 pub(crate) struct SourceSpanProvider<'a> {
-    /// The computed map from line number to offset in the document.
-    line_starts: Vec<usize>,
     /// The input document.
     ///
     /// This is used to compute column information, since we can't rely on each character being a
     /// single byte long.
     input: &'a str,
+
+    /// The computed map from line number to offset in the document.
+    line_starts: Vec<usize>,
 }
 
 impl<'a> SourceSpanProvider<'a> {
@@ -157,15 +144,33 @@ impl SpanProvider for SourceSpanProvider<'_> {
 /// resulting [`RawUriSpan`] with the inner [`SpanProvider`].
 #[derive(Clone, Debug)]
 pub(crate) struct OffsetSpanProvider<'a, T: SpanProvider = SourceSpanProvider<'a>> {
+    /// The inner [`SpanProvider`] which will be used to determine the spans.
+    pub(crate) inner: &'a T,
+
     /// The byte offset in the document by which all given offsets are changed before computing the
     /// resulting [`RawUriSpan`] with the inner [`SpanProvider`].
     pub(crate) offset: usize,
-    /// The inner [`SpanProvider`] which will be used to determine the spans.
-    pub(crate) inner: &'a T,
 }
 
 impl<T: SpanProvider> SpanProvider for OffsetSpanProvider<'_, T> {
     fn span(&self, offset: usize) -> RawUriSpan {
         self.inner.span(self.offset + offset)
+    }
+}
+/// Test helper to create [`RawUriSpan`]s easily.
+#[cfg(test)]
+pub(crate) const fn span(line: usize, column: usize) -> RawUriSpan {
+    RawUriSpan {
+        line: NonZeroUsize::new(line).unwrap(),
+        column: Some(NonZeroUsize::new(column).unwrap()),
+    }
+}
+
+/// Test helper to create a [`RawUriSpan`] from just the line and leave the column unset.
+#[cfg(test)]
+pub(crate) const fn span_line(line: usize) -> RawUriSpan {
+    RawUriSpan {
+        line: std::num::NonZeroUsize::new(line).unwrap(),
+        column: None,
     }
 }

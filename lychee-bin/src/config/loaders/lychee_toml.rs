@@ -14,18 +14,15 @@
 //! timeout = 10
 //! ```
 
-use super::{ConfigLoader, ConfigMatch};
 use anyhow::{Context, Result};
+
+use super::{ConfigLoader, ConfigMatch};
 
 pub(crate) const LYCHEE_CONFIG_FILE: &str = "lychee.toml";
 
 pub(crate) struct LycheeTomlLoader;
 
 impl ConfigLoader for LycheeTomlLoader {
-    fn filename(&self) -> &str {
-        LYCHEE_CONFIG_FILE
-    }
-
     /// We strictly deserialize the entire file directly into our `Config` struct.
     /// Any failure here is a genuine configuration error that we want to bubble up.
     /// A dedicated `lychee.toml` file is assumed to always contain lychee configuration.
@@ -33,6 +30,10 @@ impl ConfigLoader for LycheeTomlLoader {
         let config =
             toml::from_str(contents).with_context(|| "Failed to parse configuration file")?;
         Ok(ConfigMatch::Found(Box::new(config)))
+    }
+
+    fn filename(&self) -> &str {
+        LYCHEE_CONFIG_FILE
     }
 }
 

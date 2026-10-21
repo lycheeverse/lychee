@@ -4,40 +4,37 @@
 //! (e.g. from the CLI or config files) and converting them into strongly
 //! typed `reqwest` headers.
 
+use std::{collections::HashMap, str::FromStr};
+
 use anyhow::{Error, Result, anyhow};
 use clap::builder::TypedValueParser;
 use http::{
     HeaderMap,
     header::{HeaderName, HeaderValue},
 };
-use std::{collections::HashMap, str::FromStr};
 
-/// Parse a single header into a [`HeaderName`] and [`HeaderValue`]
-///
-/// Headers are expected to be in format `Header-Name: Header-Value`.
-/// The header name and value are trimmed of whitespace.
-///
-/// If the header contains multiple colons, the part after the first colon is
-/// considered the value.
-///
-/// # Errors
-///
-/// This fails if the header does not contain exactly one `:` character or
-/// if the header name contains non-ASCII characters.
-pub(crate) fn parse_single_header(header: &str) -> Result<(HeaderName, HeaderValue)> {
-    let parts: Vec<&str> = header.splitn(2, ':').collect();
-    match parts.as_slice() {
-        [name, value] => {
-            let name = name.trim();
-            let name = HeaderName::from_str(name)
-                .map_err(|e| anyhow!("Unable to convert header name '{name}': {e}"))?;
-            let value = HeaderValue::from_str(value.trim())
-                .map_err(|e| anyhow!("Unable to read value of header with name '{name}': {e}"))?;
-            Ok((name, value))
+/// Extension trait for converting a map of header pairs to a `HeaderMap`
+pub(crate) trait HeaderMapExt {
+    /// Convert a collection of header key-value pairs to a `HeaderMap`
+    ///
+    /// # Errors
+    ///
+    /// This fails if any header name or value cannot be parsed into a valid
+    /// `HeaderName` or `HeaderValue` respectively.
+    fn from_header_pairs(headers: &HashMap<String, String>) -> Result<HeaderMap, Error>;
+}
+
+impl HeaderMapExt for HeaderMap {
+    fn from_header_pairs(headers: &HashMap<String, String>) -> Result<HeaderMap, Error> {
+        let mut header_map = HeaderMap::new();
+        for (name, value) in headers {
+            let header_name = HeaderName::from_bytes(name.as_bytes())
+                .map_err(|e| anyhow!("Invalid header name '{name}': {e}"))?;
+            let header_value = HeaderValue::from_str(value)
+                .map_err(|e| anyhow!("Invalid header value '{value}': {e}"))?;
+            header_map.insert(header_name, header_value);
         }
-        _ => Err(anyhow!(
-            "Invalid header format. Expected colon-separated string in the format 'HeaderName: HeaderValue'"
-        )),
+        Ok(header_map)
     }
 }
 
@@ -84,33 +81,38 @@ impl TypedValueParser for HeaderParser {
 
 impl clap::builder::ValueParserFactory for HeaderParser {
     type Parser = HeaderParser;
+
     fn value_parser() -> Self::Parser {
         HeaderParser
     }
 }
 
-/// Extension trait for converting a map of header pairs to a `HeaderMap`
-pub(crate) trait HeaderMapExt {
-    /// Convert a collection of header key-value pairs to a `HeaderMap`
-    ///
-    /// # Errors
-    ///
-    /// This fails if any header name or value cannot be parsed into a valid
-    /// `HeaderName` or `HeaderValue` respectively.
-    fn from_header_pairs(headers: &HashMap<String, String>) -> Result<HeaderMap, Error>;
-}
-
-impl HeaderMapExt for HeaderMap {
-    fn from_header_pairs(headers: &HashMap<String, String>) -> Result<HeaderMap, Error> {
-        let mut header_map = HeaderMap::new();
-        for (name, value) in headers {
-            let header_name = HeaderName::from_bytes(name.as_bytes())
-                .map_err(|e| anyhow!("Invalid header name '{name}': {e}"))?;
-            let header_value = HeaderValue::from_str(value)
-                .map_err(|e| anyhow!("Invalid header value '{value}': {e}"))?;
-            header_map.insert(header_name, header_value);
+/// Parse a single header into a [`HeaderName`] and [`HeaderValue`]
+///
+/// Headers are expected to be in format `Header-Name: Header-Value`.
+/// The header name and value are trimmed of whitespace.
+///
+/// If the header contains multiple colons, the part after the first colon is
+/// considered the value.
+///
+/// # Errors
+///
+/// This fails if the header does not contain exactly one `:` character or
+/// if the header name contains non-ASCII characters.
+pub(crate) fn parse_single_header(header: &str) -> Result<(HeaderName, HeaderValue)> {
+    let parts: Vec<&str> = header.splitn(2, ':').collect();
+    match parts.as_slice() {
+        [name, value] => {
+            let name = name.trim();
+            let name = HeaderName::from_str(name)
+                .map_err(|e| anyhow!("Unable to convert header name '{name}': {e}"))?;
+            let value = HeaderValue::from_str(value.trim())
+                .map_err(|e| anyhow!("Unable to read value of header with name '{name}': {e}"))?;
+            Ok((name, value))
         }
-        Ok(header_map)
+        _ => Err(anyhow!(
+            "Invalid header format. Expected colon-separated string in the format 'HeaderName: HeaderValue'"
+        )),
     }
 }
 

@@ -1,10 +1,10 @@
+mod wayback;
+
 use std::time::Duration;
 
 use reqwest::{Error, Url};
 use serde::Deserialize;
 use strum::{Display, EnumIter, EnumString, VariantNames};
-
-mod wayback;
 
 /// The different supported online archive sites for restoring broken links.
 #[non_exhaustive]

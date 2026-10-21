@@ -1,7 +1,8 @@
-use http::StatusCode;
-use log::warn;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
+
+use http::StatusCode;
+use log::warn;
 
 use crate::checker::fallback_candidates;
 use crate::checker::wikilink::resolver::WikilinkResolver;
@@ -17,8 +18,6 @@ use crate::{
 /// resolve as written, and optional fragment checking for HTML files.
 #[derive(Debug, Clone)]
 pub(crate) struct FileChecker {
-    /// List of file extensions to try if the original path doesn't exist.
-    fallback_extensions: Vec<String>,
     /// If specified, resolves to one of the given index files if the original path
     /// is a directory.
     ///
@@ -30,12 +29,17 @@ pub(crate) struct FileChecker {
     /// If `None`, index file checking is disabled and directory links are valid
     /// as long as the directory exists on disk.
     index_files: Option<Vec<String>>,
-    /// Controls which fragment types should be checked for local files.
-    fragment_checker_options: FragmentCheckerOptions,
-    /// Utility for performing fragment checks in HTML files.
-    fragment_checker: FragmentChecker,
+
     /// Utility for optionally resolving Wikilinks.
     wikilink_resolver: Option<WikilinkResolver>,
+
+    /// List of file extensions to try if the original path doesn't exist.
+    fallback_extensions: Vec<String>,
+
+    /// Utility for performing fragment checks in HTML files.
+    fragment_checker: FragmentChecker,
+    /// Controls which fragment types should be checked for local files.
+    fragment_checker_options: FragmentCheckerOptions,
 }
 
 impl FileChecker {
@@ -72,30 +76,6 @@ impl FileChecker {
             fragment_checker: FragmentChecker::new(),
             wikilink_resolver,
         })
-    }
-
-    /// Checks the given file URI for existence and validity.
-    ///
-    /// This method resolves the URI to a file path, checks if the file exists,
-    /// and optionally checks for the existence of fragments in HTML files.
-    ///
-    /// # Arguments
-    ///
-    /// * `uri` - The URI to check.
-    ///
-    /// # Returns
-    ///
-    /// Returns a `Status` indicating the result of the check.
-    pub(crate) async fn check(&self, uri: &Uri) -> Status {
-        let Ok(path) = uri.url.to_file_path() else {
-            return ErrorKind::InvalidFilePath(uri.clone()).into();
-        };
-
-        let path = self.resolve_local_path(&path, uri);
-        match path {
-            Ok(path) => self.check_file(path.as_ref(), uri).await,
-            Err(err) => err.into(),
-        }
     }
 
     /// Resolves the given local path by applying logic which is specific to local file
@@ -153,31 +133,6 @@ impl FileChecker {
         }
     }
 
-    /// Resolves a path to a file, applying fallback extensions if necessary.
-    ///
-    /// Returns the first candidate from [`fallback_candidates`] that exists and
-    /// is a file. The path itself is one of those candidates, but a directory
-    /// never matches.
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - The path to resolve.
-    /// * `uri` - The original URI, used for error reporting.
-    ///
-    /// # Returns
-    ///
-    /// Returns `Ok(PathBuf)` with the resolved file path, or `Err` if no valid file is found.
-    /// If `Ok` is returned, the contained `PathBuf` is guaranteed to exist and be a file.
-    fn apply_fallback_extensions(&self, path: &Path, uri: &Uri) -> Result<PathBuf> {
-        for candidate in fallback_candidates(path, &self.fallback_extensions) {
-            if candidate.is_file() {
-                return Ok(candidate);
-            }
-        }
-
-        Err(ErrorKind::InvalidFilePath(uri.clone()))
-    }
-
     /// Tries to find an index file in the given directory, returning the first match.
     /// The index file behavior is specified by [`FileChecker::index_files`].
     ///
@@ -232,7 +187,54 @@ impl FileChecker {
             })
             .ok_or_else(invalid_index_error)
     }
+    /// Resolves a path to a file, applying fallback extensions if necessary.
+    ///
+    /// Returns the first candidate from [`fallback_candidates`] that exists and
+    /// is a file. The path itself is one of those candidates, but a directory
+    /// never matches.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to resolve.
+    /// * `uri` - The original URI, used for error reporting.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(PathBuf)` with the resolved file path, or `Err` if no valid file is found.
+    /// If `Ok` is returned, the contained `PathBuf` is guaranteed to exist and be a file.
+    fn apply_fallback_extensions(&self, path: &Path, uri: &Uri) -> Result<PathBuf> {
+        for candidate in fallback_candidates(path, &self.fallback_extensions) {
+            if candidate.is_file() {
+                return Ok(candidate);
+            }
+        }
 
+        Err(ErrorKind::InvalidFilePath(uri.clone()))
+    }
+
+    /// Checks the given file URI for existence and validity.
+    ///
+    /// This method resolves the URI to a file path, checks if the file exists,
+    /// and optionally checks for the existence of fragments in HTML files.
+    ///
+    /// # Arguments
+    ///
+    /// * `uri` - The URI to check.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Status` indicating the result of the check.
+    pub(crate) async fn check(&self, uri: &Uri) -> Status {
+        let Ok(path) = uri.url.to_file_path() else {
+            return ErrorKind::InvalidFilePath(uri.clone()).into();
+        };
+
+        let path = self.resolve_local_path(&path, uri);
+        match path {
+            Ok(path) => self.check_file(path.as_ref(), uri).await,
+            Err(err) => err.into(),
+        }
+    }
     /// Checks a resolved file, optionally verifying fragments for HTML files.
     ///
     /// # Arguments
@@ -250,7 +252,6 @@ impl FileChecker {
             Status::Ok(StatusCode::OK)
         }
     }
-
     /// Checks for the existence of a fragment in a path.
     ///
     /// The given path may be a file or a directory. A directory

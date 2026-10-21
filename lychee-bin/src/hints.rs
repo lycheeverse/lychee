@@ -3,17 +3,6 @@ use lychee_lib::{ErrorKind, RequestError, Status, StatusCodeSelector, hint};
 
 use crate::{config::Config, formatters::stats::ResponseStats};
 
-/// Collect [`lychee_lib::Hint`]s based on the resulting statistics.
-pub(crate) fn handle_stats(stats: &ResponseStats, config: &Config) {
-    rate_limit(stats, config);
-    github_rate_limit(stats, config);
-    any_redirects(stats, config);
-    rejected_status_codes(stats, config);
-    unfollowed_redirects(stats, config);
-    root_relative_links(stats);
-    fragment_checks_with_non_get_method(config);
-}
-
 fn rate_limit(stats: &ResponseStats, config: &Config) {
     let default_host_config = config.hosts.is_empty();
     let first_rate_limited_domain = stats
@@ -33,6 +22,32 @@ fn rate_limit(stats: &ResponseStats, config: &Config) {
             "Encountered rate limit responses. \
             You might be able to work around this by adding `[hosts.\"{domain}\"]` to the TOML config \
             to adjust the `concurrency` and `request_interval` values."
+        );
+    }
+}
+
+/// Collect [`lychee_lib::Hint`]s based on the resulting statistics.
+pub(crate) fn handle_stats(stats: &ResponseStats, config: &Config) {
+    rate_limit(stats, config);
+    github_rate_limit(stats, config);
+    any_redirects(stats, config);
+    rejected_status_codes(stats, config);
+    unfollowed_redirects(stats, config);
+    root_relative_links(stats);
+    fragment_checks_with_non_get_method(config);
+}
+
+fn any_redirects(stats: &ResponseStats, config: &Config) {
+    let count = stats.redirects;
+    let has_redirects = count > 0;
+    let hides_redirects = config.verbose().log_level() < log::Level::Info;
+
+    if has_redirects && hides_redirects {
+        let noun = if count == 1 { "redirect" } else { "redirects" };
+        hint!(
+            "Followed {count} {noun}. \
+             You might want to consider replacing redirecting URLs with the resolved URLs. \
+             Use verbose mode (`-v`/`-vv`) to see redirection details."
         );
     }
 }
@@ -66,34 +81,22 @@ fn github_rate_limit(stats: &ResponseStats, config: &Config) {
     }
 }
 
-fn any_redirects(stats: &ResponseStats, config: &Config) {
-    let count = stats.redirects;
-    let has_redirects = count > 0;
-    let hides_redirects = config.verbose().log_level() < log::Level::Info;
+fn root_relative_links(stats: &ResponseStats) {
+    let any_root_relative_links = stats.error_map.values().flatten().any(|r| match &r.status {
+        Status::RequestError(RequestError::CreateRequestItem(_, _, e)) => {
+            matches!(**e, ErrorKind::RootRelativeLinkWithoutRoot(_))
+        }
+        _ => false,
+    });
 
-    if has_redirects && hides_redirects {
-        let noun = if count == 1 { "redirect" } else { "redirects" };
+    if any_root_relative_links {
         hint!(
-            "Followed {count} {noun}. \
-             You might want to consider replacing redirecting URLs with the resolved URLs. \
-             Use verbose mode (`-v`/`-vv`) to see redirection details."
+            "Unresolved root-relative links in local files. \
+            To resolve these links to a local directory, provide a root dir with `--root-dir`. \
+            Alternatively, if the site should be relocatable, consider using directory-relative links instead."
         );
     }
 }
-
-fn rejected_status_codes(stats: &ResponseStats, config: &Config) {
-    let is_default = config.accept() == StatusCodeSelector::default_accepted();
-    let any_rejected_codes = stats
-        .error_map
-        .values()
-        .flatten()
-        .any(|r| matches!(r.status, Status::Error(ErrorKind::RejectedStatusCode(_))));
-
-    if is_default && any_rejected_codes {
-        hint!("You can configure accepted/rejected response codes with `-a` or `--accept`");
-    }
-}
-
 fn unfollowed_redirects(stats: &ResponseStats, config: &Config) {
     let is_small_limit = config.max_redirects() <= lychee_lib::DEFAULT_MAX_REDIRECTS;
     let any_rejected_redirection_codes = stats.error_map.values().flatten().any(|r| {
@@ -112,6 +115,19 @@ fn unfollowed_redirects(stats: &ResponseStats, config: &Config) {
     }
 }
 
+fn rejected_status_codes(stats: &ResponseStats, config: &Config) {
+    let is_default = config.accept() == StatusCodeSelector::default_accepted();
+    let any_rejected_codes = stats
+        .error_map
+        .values()
+        .flatten()
+        .any(|r| matches!(r.status, Status::Error(ErrorKind::RejectedStatusCode(_))));
+
+    if is_default && any_rejected_codes {
+        hint!("You can configure accepted/rejected response codes with `-a` or `--accept`");
+    }
+}
+
 /// Fragment checks need the response body, which lychee only fetches for `GET`
 /// requests. If the primary (first) request method is not `GET`, links that
 /// succeed with that method skip fragment checking, which is easy to miss.
@@ -124,22 +140,5 @@ fn fragment_checks_with_non_get_method(config: &Config) {
 
     if checks_fragments && *primary_method != Method::GET {
         hint!("Fragments aren't checked for `{primary_method}` requests. Use `--method get`.");
-    }
-}
-
-fn root_relative_links(stats: &ResponseStats) {
-    let any_root_relative_links = stats.error_map.values().flatten().any(|r| match &r.status {
-        Status::RequestError(RequestError::CreateRequestItem(_, _, e)) => {
-            matches!(**e, ErrorKind::RootRelativeLinkWithoutRoot(_))
-        }
-        _ => false,
-    });
-
-    if any_root_relative_links {
-        hint!(
-            "Unresolved root-relative links in local files. \
-            To resolve these links to a local directory, provide a root dir with `--root-dir`. \
-            Alternatively, if the site should be relocatable, consider using directory-relative links instead."
-        );
     }
 }

@@ -19,13 +19,15 @@
 //! Thus, the parsing process becomes significantly more complex and we need to
 //! use a state machine to keep track of the current state.
 
-use log::info;
 use std::result::Result;
 
+use log::info;
+
 enum State {
-    InsideDescriptor,
-    AfterDescriptor,
     InsideParens,
+    InsideDescriptor,
+
+    AfterDescriptor,
 }
 
 /// Split an input string at the first character for which

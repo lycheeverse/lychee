@@ -9,8 +9,9 @@
 pub(crate) mod index;
 pub(crate) mod resolver;
 
-use crate::ErrorKind;
 use pulldown_cmark::CowStr;
+
+use crate::ErrorKind;
 
 /// In Markdown Links both '#' and '|' act as modifiers
 /// '#' links to a specific Header in a file

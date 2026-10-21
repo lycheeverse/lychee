@@ -1,6 +1,7 @@
+use std::io::Write;
+
 use env_logger::{Builder, Env};
 use log::LevelFilter;
-use std::io::Write;
 
 use crate::{
     config::OutputMode,

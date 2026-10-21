@@ -1,5 +1,6 @@
-use serde::Serialize;
 use std::fmt::Display;
+
+use serde::Serialize;
 use url::Url;
 
 /// A suggestion on how to replace a broken link with a link hosted by a web archive service.
@@ -7,6 +8,7 @@ use url::Url;
 pub(crate) struct Suggestion {
     /// The original `Url` that was identified to be broken
     pub(crate) original: Url,
+
     /// The suggested `Url` replacement, which should remadiate the broken link with the use of a digital archive service.
     pub(crate) suggestion: Url,
 }

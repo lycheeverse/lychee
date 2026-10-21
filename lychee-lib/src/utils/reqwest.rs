@@ -2,8 +2,9 @@ use std::error::Error;
 
 /// A rule for matching error message patterns to human-readable messages
 struct ErrorRule {
-    patterns: &'static [&'static str],
     message: &'static str,
+
+    patterns: &'static [&'static str],
 }
 
 impl ErrorRule {
@@ -26,6 +27,7 @@ impl ErrorRule {
 /// A builder for creating and matching against multiple error rules
 struct ErrorRules {
     rules: Vec<ErrorRule>,
+
     fallback: Option<String>,
 }
 
@@ -61,83 +63,6 @@ impl ErrorRules {
         self.fallback
             .unwrap_or_else(|| format!("Unhandled error: {error_msg}"))
     }
-}
-
-/// Analyze the error chain of a reqwest error and return a concise, actionable message.
-///
-/// This traverses the error chain to extract specific failure details and provides
-/// user-friendly explanations with actionable suggestions when possible.
-///
-/// The advantage of this approach is that we can be way more specific about the
-/// errors which can occur, rather than just returning a generic error message.
-/// The downside is that we have to maintain this code as reqwest and hyper
-/// evolve. However, this is a trade-off we are willing to make for better user
-/// experience.
-pub(crate) fn analyze_error_chain(error: &reqwest::Error) -> String {
-    // First check reqwest's built-in categorization
-    if let Some(basic_message) = analyze_basic_reqwest_error(error) {
-        return basic_message;
-    }
-
-    // Traverse error chain for detailed analysis
-    if let Some(chain_message) = analyze_error_source_chain(error) {
-        return chain_message;
-    }
-
-    // Fallback to basic reqwest error categorization
-    fallback_reqwest_analysis(error)
-}
-
-/// Analyze basic reqwest error types first
-fn analyze_basic_reqwest_error(error: &reqwest::Error) -> Option<String> {
-    if error.is_timeout() {
-        return Some(
-            "Request timed out. Try increasing timeout or check server status".to_string(),
-        );
-    }
-
-    if error.is_redirect() {
-        return Some("Too many redirects - check for redirect loops".to_string());
-    }
-
-    if let Some(status) = error.status() {
-        let reason = status.canonical_reason().unwrap_or("Unknown");
-        return Some(format!(
-            "HTTP {status}: {reason} - check URL and server status",
-        ));
-    }
-
-    None
-}
-
-/// Traverse the error chain for detailed analysis
-fn analyze_error_source_chain(error: &reqwest::Error) -> Option<String> {
-    let mut source = error.source();
-    while let Some(err) = source {
-        // Check for I/O errors (most network issues)
-        if let Some(io_error) = err.downcast_ref::<std::io::Error>() {
-            return Some(analyze_io_error(io_error));
-        }
-
-        // Check for hyper-specific errors
-        if let Some(hyper_error) = err.downcast_ref::<hyper::Error>() {
-            return Some(analyze_hyper_error(hyper_error));
-        }
-
-        // Check for URL parsing errors
-        if let Some(url_error) = err.downcast_ref::<url::ParseError>() {
-            return Some(analyze_url_parse_error(*url_error));
-        }
-
-        // Check for generic error types by examining their string representation
-        if let Some(generic_message) = analyze_generic_error_string(&err.to_string()) {
-            return Some(generic_message);
-        }
-
-        source = err.source();
-    }
-
-    None
 }
 
 /// Analyze I/O errors with specific categorization
@@ -196,63 +121,29 @@ fn analyze_io_error(io_error: &std::io::Error) -> String {
     }
 }
 
-/// Analyze I/O errors with kind "Other" using rule-based pattern matching
-fn analyze_io_other_error(io_error: &std::io::Error) -> String {
-    if let Some(inner) = io_error.get_ref() {
-        let inner_msg = inner.to_string();
-
-        // Special case: certificate errors need deeper analysis
-        if inner_msg.contains("certificate") {
-            return analyze_certificate_error(&inner_msg);
-        }
-
-        // Rule-based pattern matching for other inner error types
-        ErrorRules::new()
-            .rule(
-                &["failed to lookup address", "nodename nor servname"],
-                "DNS resolution failed. Check hostname and DNS settings",
-            )
-            .rule(
-                &["Temporary failure in name resolution"],
-                "DNS temporarily unavailable. Try again later",
-            )
-            .rule(
-                &["handshake"],
-                "TLS handshake failed. Check SSL/TLS configuration",
-            )
-            .fallback(format!("Network error: {inner_msg}"))
-            .match_error(&inner_msg)
-    } else {
-        "Connection failed. Check network connectivity and firewall settings".to_string()
+/// Analyze the error chain of a reqwest error and return a concise, actionable message.
+///
+/// This traverses the error chain to extract specific failure details and provides
+/// user-friendly explanations with actionable suggestions when possible.
+///
+/// The advantage of this approach is that we can be way more specific about the
+/// errors which can occur, rather than just returning a generic error message.
+/// The downside is that we have to maintain this code as reqwest and hyper
+/// evolve. However, this is a trade-off we are willing to make for better user
+/// experience.
+pub(crate) fn analyze_error_chain(error: &reqwest::Error) -> String {
+    // First check reqwest's built-in categorization
+    if let Some(basic_message) = analyze_basic_reqwest_error(error) {
+        return basic_message;
     }
-}
 
-/// Analyze certificate-related errors using pattern matching rules
-fn analyze_certificate_error(error_msg: &str) -> String {
-    ErrorRules::new()
-        .rule(
-            &[
-                "expired",
-                "NotValidAtThisTime",
-                "certificate has expired",
-                "certificate is not valid on",
-            ],
-            "SSL certificate expired. Site needs to renew certificate",
-        )
-        .rule(
-            &["hostname", "NotValidForName"],
-            "SSL certificate hostname mismatch. Check URL spelling",
-        )
-        .rule(
-            &["self signed", "UnknownIssuer", "not trusted"],
-            "SSL certificate not trusted. Use --insecure if site is trusted",
-        )
-        .rule(
-            &["verify failed"],
-            "SSL certificate verification failed. Check certificate validity",
-        )
-        .fallback("SSL certificate error. Check certificate validity")
-        .match_error(error_msg)
+    // Traverse error chain for detailed analysis
+    if let Some(chain_message) = analyze_error_source_chain(error) {
+        return chain_message;
+    }
+
+    // Fallback to basic reqwest error categorization
+    fallback_reqwest_analysis(error)
 }
 
 /// Analyze hyper-specific errors
@@ -314,6 +205,37 @@ fn analyze_hyper_error(hyper_error: &hyper::Error) -> String {
         .match_error(&hyper_msg)
 }
 
+/// Analyze I/O errors with kind "Other" using rule-based pattern matching
+fn analyze_io_other_error(io_error: &std::io::Error) -> String {
+    if let Some(inner) = io_error.get_ref() {
+        let inner_msg = inner.to_string();
+
+        // Special case: certificate errors need deeper analysis
+        if inner_msg.contains("certificate") {
+            return analyze_certificate_error(&inner_msg);
+        }
+
+        // Rule-based pattern matching for other inner error types
+        ErrorRules::new()
+            .rule(
+                &["failed to lookup address", "nodename nor servname"],
+                "DNS resolution failed. Check hostname and DNS settings",
+            )
+            .rule(
+                &["Temporary failure in name resolution"],
+                "DNS temporarily unavailable. Try again later",
+            )
+            .rule(
+                &["handshake"],
+                "TLS handshake failed. Check SSL/TLS configuration",
+            )
+            .fallback(format!("Network error: {inner_msg}"))
+            .match_error(&inner_msg)
+    } else {
+        "Connection failed. Check network connectivity and firewall settings".to_string()
+    }
+}
+
 /// Analyze URL parsing errors
 fn analyze_url_parse_error(url_error: url::ParseError) -> String {
     match url_error {
@@ -327,6 +249,86 @@ fn analyze_url_parse_error(url_error: url::ParseError) -> String {
         }
         _ => format!("Invalid URL format: {url_error}"),
     }
+}
+
+/// Analyze certificate-related errors using pattern matching rules
+fn analyze_certificate_error(error_msg: &str) -> String {
+    ErrorRules::new()
+        .rule(
+            &[
+                "expired",
+                "NotValidAtThisTime",
+                "certificate has expired",
+                "certificate is not valid on",
+            ],
+            "SSL certificate expired. Site needs to renew certificate",
+        )
+        .rule(
+            &["hostname", "NotValidForName"],
+            "SSL certificate hostname mismatch. Check URL spelling",
+        )
+        .rule(
+            &["self signed", "UnknownIssuer", "not trusted"],
+            "SSL certificate not trusted. Use --insecure if site is trusted",
+        )
+        .rule(
+            &["verify failed"],
+            "SSL certificate verification failed. Check certificate validity",
+        )
+        .fallback("SSL certificate error. Check certificate validity")
+        .match_error(error_msg)
+}
+
+/// Traverse the error chain for detailed analysis
+fn analyze_error_source_chain(error: &reqwest::Error) -> Option<String> {
+    let mut source = error.source();
+    while let Some(err) = source {
+        // Check for I/O errors (most network issues)
+        if let Some(io_error) = err.downcast_ref::<std::io::Error>() {
+            return Some(analyze_io_error(io_error));
+        }
+
+        // Check for hyper-specific errors
+        if let Some(hyper_error) = err.downcast_ref::<hyper::Error>() {
+            return Some(analyze_hyper_error(hyper_error));
+        }
+
+        // Check for URL parsing errors
+        if let Some(url_error) = err.downcast_ref::<url::ParseError>() {
+            return Some(analyze_url_parse_error(*url_error));
+        }
+
+        // Check for generic error types by examining their string representation
+        if let Some(generic_message) = analyze_generic_error_string(&err.to_string()) {
+            return Some(generic_message);
+        }
+
+        source = err.source();
+    }
+
+    None
+}
+
+/// Analyze basic reqwest error types first
+fn analyze_basic_reqwest_error(error: &reqwest::Error) -> Option<String> {
+    if error.is_timeout() {
+        return Some(
+            "Request timed out. Try increasing timeout or check server status".to_string(),
+        );
+    }
+
+    if error.is_redirect() {
+        return Some("Too many redirects - check for redirect loops".to_string());
+    }
+
+    if let Some(status) = error.status() {
+        let reason = status.canonical_reason().unwrap_or("Unknown");
+        return Some(format!(
+            "HTTP {status}: {reason} - check URL and server status",
+        ));
+    }
+
+    None
 }
 
 /// Analyze generic error strings using a rule-based pattern matching system

@@ -27,18 +27,17 @@ static RANGE_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
 /// failed due to various underlying reasons.
 #[derive(Debug, Error, PartialEq)]
 pub enum StatusRangeError {
-    /// The string input didn't contain any range pattern.
-    #[error("no range pattern found")]
-    NoRangePattern,
-
     /// The start or end index could not be parsed as an integer.
     #[error("failed to parse str as integer")]
     ParseIntError(#[from] ParseIntError),
 
+    /// The string input didn't contain any range pattern.
+    #[error("no range pattern found")]
+    NoRangePattern,
+
     /// The start index is larger than the end index.
     #[error("invalid range indices, only start < end supported")]
     InvalidRangeIndices,
-
     /// The u16 values must be representable as status code
     #[error("values must represent valid status codes between {MIN} and {MAX} (inclusive)")]
     InvalidStatusCodeValue,
@@ -50,6 +49,85 @@ pub enum StatusRangeError {
 /// invalid status codes (<100 or >999) are rejected.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StatusRange(RangeInclusive<u16>);
+
+impl StatusRange {
+    /// Creates a new [`StatusRange`] which matches values between `start` and
+    /// `end` (both inclusive).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `start` > `end`, `start` < 100 or `end` > 999.
+    pub const fn new(start: u16, end: u16) -> Result<Self, StatusRangeError> {
+        if start < MIN || end > MAX {
+            return Err(StatusRangeError::InvalidStatusCodeValue);
+        }
+
+        if start > end {
+            return Err(StatusRangeError::InvalidRangeIndices);
+        }
+
+        Ok(Self(RangeInclusive::new(start, end)))
+    }
+
+    /// Returns the `end` value of this [`StatusRange`].
+    #[must_use]
+    pub const fn end(&self) -> &u16 {
+        self.0.end()
+    }
+
+    /// Returns the `start` value of this [`StatusRange`].
+    #[must_use]
+    pub const fn start(&self) -> &u16 {
+        self.0.start()
+    }
+
+    pub(crate) fn merge(&mut self, other: &Self) -> bool {
+        // Merge when the end value of self overlaps with other's start
+        if self.end() >= other.start() && other.end() >= self.end() {
+            // We can ignore the result here, as it is guaranteed that
+            // start < new_end
+            let _ = self.update_end(*other.end());
+            return true;
+        }
+
+        // Merge when the start value of self overlaps with other's end
+        if self.start() <= other.end() && other.start() <= self.start() {
+            // We can ignore the result here, as it is guaranteed that
+            // start < new_end
+            let _ = self.update_start(*other.start());
+            return true;
+        }
+
+        false
+    }
+
+    /// Returns whether this [`StatusRange`] contains `value`.
+    #[must_use]
+    pub fn contains(&self, value: u16) -> bool {
+        self.0.contains(&value)
+    }
+
+    pub(crate) const fn update_end(&mut self, new_end: u16) -> Result<(), StatusRangeError> {
+        // Can't use `?` in const function as of 1.91.0
+        match Self::new(*self.start(), new_end) {
+            Ok(r) => {
+                self.0 = r.0;
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    }
+    pub(crate) const fn update_start(&mut self, new_start: u16) -> Result<(), StatusRangeError> {
+        // Can't use `?` in const function as of 1.91.0
+        match Self::new(new_start, *self.end()) {
+            Ok(r) => {
+                self.0 = r.0;
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    }
+}
 
 impl FromStr for StatusRange {
     type Err = StatusRangeError;
@@ -92,86 +170,6 @@ impl FromStr for StatusRange {
 impl Display for StatusRange {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}..={}", self.start(), self.end())
-    }
-}
-
-impl StatusRange {
-    /// Creates a new [`StatusRange`] which matches values between `start` and
-    /// `end` (both inclusive).
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `start` > `end`, `start` < 100 or `end` > 999.
-    pub const fn new(start: u16, end: u16) -> Result<Self, StatusRangeError> {
-        if start < MIN || end > MAX {
-            return Err(StatusRangeError::InvalidStatusCodeValue);
-        }
-
-        if start > end {
-            return Err(StatusRangeError::InvalidRangeIndices);
-        }
-
-        Ok(Self(RangeInclusive::new(start, end)))
-    }
-
-    /// Returns the `start` value of this [`StatusRange`].
-    #[must_use]
-    pub const fn start(&self) -> &u16 {
-        self.0.start()
-    }
-
-    /// Returns the `end` value of this [`StatusRange`].
-    #[must_use]
-    pub const fn end(&self) -> &u16 {
-        self.0.end()
-    }
-
-    /// Returns whether this [`StatusRange`] contains `value`.
-    #[must_use]
-    pub fn contains(&self, value: u16) -> bool {
-        self.0.contains(&value)
-    }
-
-    pub(crate) const fn update_start(&mut self, new_start: u16) -> Result<(), StatusRangeError> {
-        // Can't use `?` in const function as of 1.91.0
-        match Self::new(new_start, *self.end()) {
-            Ok(r) => {
-                self.0 = r.0;
-                Ok(())
-            }
-            Err(e) => Err(e),
-        }
-    }
-
-    pub(crate) const fn update_end(&mut self, new_end: u16) -> Result<(), StatusRangeError> {
-        // Can't use `?` in const function as of 1.91.0
-        match Self::new(*self.start(), new_end) {
-            Ok(r) => {
-                self.0 = r.0;
-                Ok(())
-            }
-            Err(e) => Err(e),
-        }
-    }
-
-    pub(crate) fn merge(&mut self, other: &Self) -> bool {
-        // Merge when the end value of self overlaps with other's start
-        if self.end() >= other.start() && other.end() >= self.end() {
-            // We can ignore the result here, as it is guaranteed that
-            // start < new_end
-            let _ = self.update_end(*other.end());
-            return true;
-        }
-
-        // Merge when the start value of self overlaps with other's end
-        if self.start() <= other.end() && other.start() <= self.start() {
-            // We can ignore the result here, as it is guaranteed that
-            // start < new_end
-            let _ = self.update_start(*other.start());
-            return true;
-        }
-
-        false
     }
 }
 

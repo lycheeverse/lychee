@@ -1,6 +1,8 @@
 //! Facility for cached asynchronous operations, with operations keyed by a
 //! key type and ensuring mutual exclusion of operations with the same key.
 
+mod entry;
+
 use std::borrow::Borrow;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -11,9 +13,8 @@ use std::sync::atomic::Ordering;
 use dashmap::DashMap;
 use dashmap::mapref::entry::Entry;
 
-mod entry;
-
 use dashmap::mapref::multiple::RefMulti;
+
 pub use entry::{CacheGetter, CacheSetter};
 
 /// Cache for asynchronous operations. Each operation is associated with a key,
@@ -22,6 +23,7 @@ pub use entry::{CacheGetter, CacheSetter};
 pub struct Cache<K, V> {
     /// Internal map of keys to the getter for that key.
     data: DashMap<K, CacheGetter<V>>,
+
     /// Number of cache hits (including hits to in-progress values). This
     /// corresponds to the number of [`CacheGetter`]s returned by the cache.
     pub num_hits: AtomicUsize,
@@ -39,6 +41,32 @@ impl<K: Hash + Eq, V> Cache<K, V> {
             num_hits: 0.into(),
             num_misses: 0.into(),
         }
+    }
+
+    /// Returns an iterator yielding borrowed key-value pairs for each
+    /// completed entry within the cache. See also [`Cache::into_iter_completed`].
+    pub fn iter(&self) -> <&Cache<K, V> as IntoIterator>::IntoIter {
+        self.into_iter()
+    }
+
+    /// Inserts the given key-value pair, overwriting any existing values.
+    /// Does not modify any counters in the cache.
+    fn insert(&self, key: K, value: V) {
+        self.data.insert(key, CacheGetter::ready(value));
+    }
+
+    /// Gets the cache entry with the given key, if it is completed
+    /// or in-progress. Returns [`None`] if the key does not exist.
+    ///
+    /// This acquires a read lock of the cache.
+    pub fn get_entry<Q>(&self, key: &Q) -> Option<CacheGetter<V>>
+    where
+        Q: Hash + Eq + ?Sized,
+        K: Borrow<Q>,
+    {
+        let getter = self.data.get(key.borrow())?;
+        self.num_hits.fetch_add(1, Ordering::Relaxed);
+        Some(getter.clone())
     }
 
     /// Locks the cache entry with the given key, adding it to the cache if
@@ -83,26 +111,6 @@ impl<K: Hash + Eq, V> Cache<K, V> {
         }
     }
 
-    /// Gets the cache entry with the given key, if it is completed
-    /// or in-progress. Returns [`None`] if the key does not exist.
-    ///
-    /// This acquires a read lock of the cache.
-    pub fn get_entry<Q>(&self, key: &Q) -> Option<CacheGetter<V>>
-    where
-        Q: Hash + Eq + ?Sized,
-        K: Borrow<Q>,
-    {
-        let getter = self.data.get(key.borrow())?;
-        self.num_hits.fetch_add(1, Ordering::Relaxed);
-        Some(getter.clone())
-    }
-
-    /// Returns an iterator yielding borrowed key-value pairs for each
-    /// completed entry within the cache. See also [`Cache::into_iter_completed`].
-    pub fn iter(&self) -> <&Cache<K, V> as IntoIterator>::IntoIter {
-        self.into_iter()
-    }
-
     /// Consumes the [`Cache`] and returns an iterator over (completed
     /// and non-shared) key-value pairs within the cache.
     ///
@@ -121,12 +129,6 @@ impl<K: Hash + Eq, V> Cache<K, V> {
         };
 
         Box::new(self.data.into_iter().filter_map(make_owned_pair))
-    }
-
-    /// Inserts the given key-value pair, overwriting any existing values.
-    /// Does not modify any counters in the cache.
-    fn insert(&self, key: K, value: V) {
-        self.data.insert(key, CacheGetter::ready(value));
     }
 }
 
@@ -178,7 +180,9 @@ impl<K: Hash + Eq, V> FromIterator<(K, V)> for Cache<K, V> {
 
 impl<'a, K: Hash + Eq, V: 'a> IntoIterator for &'a Cache<K, V> {
     type Item = RefMulti<'a, K, CacheGetter<V>>;
+
     type IntoIter = Box<dyn Iterator<Item = Self::Item> + 'a>;
+
     fn into_iter(self) -> Self::IntoIter {
         Box::new(self.data.iter())
     }

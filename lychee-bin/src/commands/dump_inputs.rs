@@ -1,12 +1,16 @@
-use lychee_lib::{FileExtensions, Input, Result};
 use std::collections::HashSet;
 use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
+
+use lychee_lib::{FileExtensions, Input, Result};
 use tokio_stream::StreamExt;
 
 use crate::ExitCode;
 
+fn write_out(writer: &mut Box<dyn Write>, out_str: &str) -> io::Result<()> {
+    writeln!(writer, "{out_str}")
+}
 /// Print all input sources to stdout, without extracting or checking links.
 ///
 /// This command outputs the resolved input sources that would be processed
@@ -51,8 +55,4 @@ pub(crate) async fn dump_inputs(
     }
 
     Ok(ExitCode::Success)
-}
-
-fn write_out(writer: &mut Box<dyn Write>, out_str: &str) -> io::Result<()> {
-    writeln!(writer, "{out_str}")
 }

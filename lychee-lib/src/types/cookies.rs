@@ -1,8 +1,10 @@
-use crate::{ErrorKind, Result};
-use log::info;
-use reqwest_cookie_store::{CookieStore as ReqwestCookieStore, CookieStoreMutex};
 use std::io::ErrorKind as IoErrorKind;
 use std::{path::PathBuf, sync::Arc};
+
+use log::info;
+use reqwest_cookie_store::{CookieStore as ReqwestCookieStore, CookieStoreMutex};
+
+use crate::{ErrorKind, Result};
 
 /// A wrapper around `reqwest_cookie_store::CookieStore`
 ///
@@ -11,6 +13,7 @@ use std::{path::PathBuf, sync::Arc};
 #[derive(Debug, Clone)]
 pub struct CookieJar {
     pub(crate) path: PathBuf,
+
     pub(crate) inner: Arc<CookieStoreMutex>,
 }
 
@@ -71,19 +74,20 @@ impl CookieJar {
     }
 }
 
-impl std::ops::Deref for CookieJar {
-    type Target = Arc<CookieStoreMutex>;
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
 impl PartialEq for CookieJar {
     fn eq(&self, other: &Self) -> bool {
         // Assume that the cookie jar is the same if the path is the same
         // Comparing the cookie stores directly is not possible because the
         // `CookieStore` struct does not implement `Eq`
         self.path == other.path
+    }
+}
+
+impl std::ops::Deref for CookieJar {
+    type Target = Arc<CookieStoreMutex>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
     }
 }
 

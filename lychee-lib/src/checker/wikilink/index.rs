@@ -1,9 +1,10 @@
-use log::info;
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::Path;
 use std::sync::Mutex;
 use std::{path::PathBuf, sync::Arc};
+
+use log::info;
 use walkdir::WalkDir;
 
 /// Indexes a given directory mapping filenames to their corresponding path.
@@ -14,6 +15,7 @@ use walkdir::WalkDir;
 #[derive(Clone, Debug)]
 pub(crate) struct WikilinkIndex {
     filenames: Arc<Mutex<HashMap<OsString, PathBuf>>>,
+
     /// Local base directory
     local_base: PathBuf,
 }
@@ -26,6 +28,16 @@ impl WikilinkIndex {
         };
         index.start_indexing();
         index
+    }
+
+    /// Checks the index for a filename. Returning the absolute path if the name is found,
+    /// otherwise returning None
+    pub(crate) fn contains_path(&self, path: &Path) -> Option<PathBuf> {
+        self.filenames
+            .lock()
+            .unwrap()
+            .get(path.file_name()?)
+            .cloned()
     }
 
     /// Populates the index of the `WikilinkIndex` on startup by walking
@@ -53,15 +65,5 @@ impl WikilinkIndex {
                     .insert(filename.to_os_string(), entry.path().to_path_buf());
             }
         }
-    }
-
-    /// Checks the index for a filename. Returning the absolute path if the name is found,
-    /// otherwise returning None
-    pub(crate) fn contains_path(&self, path: &Path) -> Option<PathBuf> {
-        self.filenames
-            .lock()
-            .unwrap()
-            .get(path.file_name()?)
-            .cloned()
     }
 }

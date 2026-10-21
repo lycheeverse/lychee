@@ -1,12 +1,14 @@
+use std::path::{Path, PathBuf};
+
 use crate::{
     BaseInfo, ErrorKind, Uri,
     checker::{fallback_candidates, wikilink::index::WikilinkIndex},
 };
-use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug)]
 pub(crate) struct WikilinkResolver {
     checker: WikilinkIndex,
+
     fallback_extensions: Vec<String>,
 }
 
@@ -35,6 +37,7 @@ impl WikilinkResolver {
             fallback_extensions,
         })
     }
+
     /// Resolves a wikilink by searching the index for each
     /// [`fallback_candidates`] entry.
     pub(crate) fn resolve(&self, path: &Path, uri: &Uri) -> Result<PathBuf, ErrorKind> {

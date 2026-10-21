@@ -2,12 +2,12 @@
 //!
 //! This module contains all checkers, which are responsible for checking the status of a URL.
 
-use std::path::{Path, PathBuf};
-
 pub(crate) mod file;
 pub(crate) mod mail;
 pub(crate) mod website;
 pub(crate) mod wikilink;
+
+use std::path::{Path, PathBuf};
 
 /// Returns the candidates to try for `path`, in the order they should be tried.
 ///

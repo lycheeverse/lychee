@@ -1,12 +1,13 @@
 use std::{collections::HashSet, fmt::Display};
 
+use http::StatusCode;
+use serde::ser::SerializeStruct;
+use serde::{Serialize, Serializer};
+
 use super::CacheStatus;
 use crate::ErrorKind;
 use crate::RequestError;
 use crate::ratelimit::CacheableResponse;
-use http::StatusCode;
-use serde::ser::SerializeStruct;
-use serde::{Serialize, Serializer};
 
 const ICON_OK: &str = "✔";
 const ICON_EXCLUDED: &str = "?";
@@ -22,66 +23,33 @@ const ICON_CACHED: &str = "↻";
 pub enum Status {
     /// Request was successful
     Ok(StatusCode),
+
     /// Failed request
     Error(ErrorKind),
-    /// Request could not be built
-    RequestError(RequestError),
+
+    /// Cached request status from previous run
+    Cached(CacheStatus),
+
     /// Request timed out
     Timeout(Option<StatusCode>),
+
+    /// Resource was excluded from checking
+    Excluded,
+
+    /// The request type is currently not supported,
+    /// for example when the URL scheme is `slack://`.
+    /// See <https://github.com/lycheeverse/lychee/issues/199>
+    Unsupported(ErrorKind),
+
+    /// Request could not be built
+    RequestError(RequestError),
+
     /// The given status code is not known by lychee
     UnknownStatusCode(StatusCode),
     /// The given mail address could not be reliably identified.
     /// This normally happens due to restrictive measures by
     /// mail servers (blocklisting) or your ISP (port filtering).
     UnknownMailStatus(String),
-    /// Resource was excluded from checking
-    Excluded,
-    /// The request type is currently not supported,
-    /// for example when the URL scheme is `slack://`.
-    /// See <https://github.com/lycheeverse/lychee/issues/199>
-    Unsupported(ErrorKind),
-    /// Cached request status from previous run
-    Cached(CacheStatus),
-}
-
-impl Display for Status {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Status::Ok(code) => write!(f, "{code}"),
-            Status::UnknownStatusCode(code) => write!(f, "Unknown status ({code})"),
-            Status::UnknownMailStatus(_) => write!(f, "Unknown mail status"),
-            Status::Timeout(Some(code)) => write!(f, "Timeout ({code})"),
-            Status::Timeout(None) => f.write_str("Timeout"),
-            Status::Unsupported(e) => write!(f, "Unsupported: {e}"),
-            Status::Error(e) => write!(f, "{e}"),
-            Status::RequestError(e) => write!(f, "{e}"),
-            Status::Cached(status) => write!(f, "{status}"),
-            Status::Excluded => f.write_str("Excluded"),
-        }
-    }
-}
-
-impl Serialize for Status {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let s;
-
-        if let Some(code) = self.code() {
-            s = serializer.serialize_struct("Status", 2)?;
-            let mut s = s;
-            s.serialize_field("text", &self.to_string())?;
-            s.serialize_field("code", &code.as_u16())?;
-            s.end()
-        } else {
-            s = serializer.serialize_struct("Status", 2)?;
-            let mut s = s;
-            s.serialize_field("text", &self.to_string())?;
-            s.serialize_field("details", &self.details())?;
-            s.end()
-        }
-    }
 }
 
 impl Status {
@@ -96,22 +64,17 @@ impl Status {
         }
     }
 
-    /// Create a status object from a cached status (from a previous run of
-    /// lychee) and the set of accepted status codes.
-    ///
-    /// Reevaluate cached HTTP codes against the current accept set, which can
-    /// change between runs. Cached statuses without an HTTP code are preserved.
+    /// Return a unicode icon to visualize the status
     #[must_use]
-    pub fn from_cache_status(s: CacheStatus, accepted: &HashSet<StatusCode>) -> Self {
-        match s {
-            CacheStatus::Ok(code) | CacheStatus::Error(Some(code)) => {
-                if accepted.contains(&code) {
-                    Self::Cached(CacheStatus::Ok(code))
-                } else {
-                    Self::Cached(CacheStatus::Error(Some(code)))
-                }
-            }
-            _ => Self::Cached(s),
+    pub const fn icon(&self) -> &str {
+        match self {
+            Status::Ok(_) => ICON_OK,
+            Status::UnknownStatusCode(_) | Status::UnknownMailStatus(_) => ICON_UNKNOWN,
+            Status::Excluded => ICON_EXCLUDED,
+            Status::Error(_) | Status::RequestError(_) => ICON_ERROR,
+            Status::Timeout(_) => ICON_TIMEOUT,
+            Status::Unsupported(_) => ICON_UNSUPPORTED,
+            Status::Cached(_) => ICON_CACHED,
         }
     }
 
@@ -138,78 +101,6 @@ impl Status {
         }
     }
 
-    /// Returns `true` if the check was successful
-    #[inline]
-    #[must_use]
-    pub const fn is_success(&self) -> bool {
-        matches!(self, Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)))
-    }
-
-    /// Returns `true` if the check was not successful
-    #[inline]
-    #[must_use]
-    pub const fn is_error(&self) -> bool {
-        matches!(
-            self,
-            Status::Error(_)
-                | Status::RequestError(_)
-                | Status::Cached(CacheStatus::Error(_))
-                | Status::Timeout(_)
-        )
-    }
-
-    /// Returns `true` if the check was excluded
-    #[inline]
-    #[must_use]
-    pub const fn is_excluded(&self) -> bool {
-        matches!(
-            self,
-            Status::Excluded | Status::Cached(CacheStatus::Excluded)
-        )
-    }
-
-    /// Returns `true` if a check took too long to complete
-    #[inline]
-    #[must_use]
-    pub const fn is_timeout(&self) -> bool {
-        matches!(self, Status::Timeout(_))
-    }
-
-    /// Returns `true` if a URI is unsupported
-    #[inline]
-    #[must_use]
-    pub const fn is_unsupported(&self) -> bool {
-        matches!(
-            self,
-            Status::Unsupported(_) | Status::Cached(CacheStatus::Unsupported)
-        )
-    }
-
-    /// Returns true if the status code is unknown
-    /// (i.e. not a valid HTTP status code)
-    ///
-    /// For example, `200` is a valid HTTP status code,
-    /// while `999` is not.
-    #[inline]
-    #[must_use]
-    pub const fn is_unknown(&self) -> bool {
-        matches!(self, Status::UnknownStatusCode(_))
-    }
-
-    /// Return a unicode icon to visualize the status
-    #[must_use]
-    pub const fn icon(&self) -> &str {
-        match self {
-            Status::Ok(_) => ICON_OK,
-            Status::UnknownStatusCode(_) | Status::UnknownMailStatus(_) => ICON_UNKNOWN,
-            Status::Excluded => ICON_EXCLUDED,
-            Status::Error(_) | Status::RequestError(_) => ICON_ERROR,
-            Status::Timeout(_) => ICON_TIMEOUT,
-            Status::Unsupported(_) => ICON_UNSUPPORTED,
-            Status::Cached(_) => ICON_CACHED,
-        }
-    }
-
     /// Return the HTTP status code (if any)
     #[must_use]
     pub fn code(&self) -> Option<StatusCode> {
@@ -228,7 +119,6 @@ impl Status {
             _ => None,
         }
     }
-
     /// Return the HTTP status code as string (if any)
     #[must_use]
     pub fn code_as_string(&self) -> String {
@@ -263,6 +153,95 @@ impl Status {
             },
         }
     }
+
+    /// Returns `true` if the check was not successful
+    #[inline]
+    #[must_use]
+    pub const fn is_error(&self) -> bool {
+        matches!(
+            self,
+            Status::Error(_)
+                | Status::RequestError(_)
+                | Status::Cached(CacheStatus::Error(_))
+                | Status::Timeout(_)
+        )
+    }
+    /// Returns `true` if the check was successful
+    #[inline]
+    #[must_use]
+    pub const fn is_success(&self) -> bool {
+        matches!(self, Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)))
+    }
+    /// Returns `true` if a check took too long to complete
+    #[inline]
+    #[must_use]
+    pub const fn is_timeout(&self) -> bool {
+        matches!(self, Status::Timeout(_))
+    }
+    /// Returns true if the status code is unknown
+    /// (i.e. not a valid HTTP status code)
+    ///
+    /// For example, `200` is a valid HTTP status code,
+    /// while `999` is not.
+    #[inline]
+    #[must_use]
+    pub const fn is_unknown(&self) -> bool {
+        matches!(self, Status::UnknownStatusCode(_))
+    }
+    /// Returns `true` if the check was excluded
+    #[inline]
+    #[must_use]
+    pub const fn is_excluded(&self) -> bool {
+        matches!(
+            self,
+            Status::Excluded | Status::Cached(CacheStatus::Excluded)
+        )
+    }
+    /// Returns `true` if a URI is unsupported
+    #[inline]
+    #[must_use]
+    pub const fn is_unsupported(&self) -> bool {
+        matches!(
+            self,
+            Status::Unsupported(_) | Status::Cached(CacheStatus::Unsupported)
+        )
+    }
+
+    /// Create a status object from a cached status (from a previous run of
+    /// lychee) and the set of accepted status codes.
+    ///
+    /// Reevaluate cached HTTP codes against the current accept set, which can
+    /// change between runs. Cached statuses without an HTTP code are preserved.
+    #[must_use]
+    pub fn from_cache_status(s: CacheStatus, accepted: &HashSet<StatusCode>) -> Self {
+        match s {
+            CacheStatus::Ok(code) | CacheStatus::Error(Some(code)) => {
+                if accepted.contains(&code) {
+                    Self::Cached(CacheStatus::Ok(code))
+                } else {
+                    Self::Cached(CacheStatus::Error(Some(code)))
+                }
+            }
+            _ => Self::Cached(s),
+        }
+    }
+}
+
+impl Display for Status {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Status::Ok(code) => write!(f, "{code}"),
+            Status::UnknownStatusCode(code) => write!(f, "Unknown status ({code})"),
+            Status::UnknownMailStatus(_) => write!(f, "Unknown mail status"),
+            Status::Timeout(Some(code)) => write!(f, "Timeout ({code})"),
+            Status::Timeout(None) => f.write_str("Timeout"),
+            Status::Unsupported(e) => write!(f, "Unsupported: {e}"),
+            Status::Error(e) => write!(f, "{e}"),
+            Status::RequestError(e) => write!(f, "{e}"),
+            Status::Cached(status) => write!(f, "{status}"),
+            Status::Excluded => f.write_str("Excluded"),
+        }
+    }
 }
 
 impl From<ErrorKind> for Status {
@@ -283,6 +262,29 @@ impl From<ErrorKind> for Status {
                 }
             }
             e => Self::Error(e),
+        }
+    }
+}
+
+impl Serialize for Status {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let s;
+
+        if let Some(code) = self.code() {
+            s = serializer.serialize_struct("Status", 2)?;
+            let mut s = s;
+            s.serialize_field("text", &self.to_string())?;
+            s.serialize_field("code", &code.as_u16())?;
+            s.end()
+        } else {
+            s = serializer.serialize_struct("Status", 2)?;
+            let mut s = s;
+            s.serialize_field("text", &self.to_string())?;
+            s.serialize_field("details", &self.details())?;
+            s.end()
         }
     }
 }

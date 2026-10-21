@@ -12,14 +12,11 @@ pub(crate) mod output;
 mod schema;
 pub(crate) mod tls;
 
-pub(crate) use header::*;
-pub(crate) use output::*;
-pub(crate) use tls::*;
+use std::collections::{HashMap, HashSet};
+use std::num::NonZeroUsize;
+use std::path::Path;
+use std::{path::PathBuf, time::Duration};
 
-use crate::files_from::FilesFrom;
-use crate::generate::GenerateMode;
-use crate::parse::parse_base_info;
-use crate::verbosity::Verbosity;
 use anyhow::{Context, Result, anyhow};
 use clap::Parser;
 use clap::builder::{PossibleValuesParser, TypedValueParser};
@@ -34,11 +31,18 @@ use lychee_lib::{DEFAULT_USER_AGENT, Preprocessor};
 use schemars::JsonSchema;
 use secrecy::SecretString;
 use serde::{Deserialize, Deserializer};
-use std::collections::{HashMap, HashSet};
-use std::num::NonZeroUsize;
-use std::path::Path;
-use std::{path::PathBuf, time::Duration};
 use strum::{EnumString, VariantNames};
+
+use clap::Arg;
+
+use crate::files_from::FilesFrom;
+use crate::generate::GenerateMode;
+use crate::parse::parse_base_info;
+use crate::verbosity::Verbosity;
+
+pub(crate) use header::*;
+pub(crate) use output::*;
+pub(crate) use tls::*;
 
 pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
 pub(crate) const LYCHEE_CACHE_FILE: &str = ".lycheecache";
@@ -58,8 +62,6 @@ occurrences take precedence over previous occurrences.
 [default: {}]",
     loaders::lychee_toml::LYCHEE_CONFIG_FILE
 );
-
-use clap::Arg;
 
 /// Extension trait for `clap::Arg` to add a custom method for boolean flags that can be specified without a value (e.g. `--flag` is equivalent to `--flag=true`).
 trait ArgBoolOptionalExt {
@@ -82,100 +84,12 @@ impl ArgBoolOptionalExt for Arg {
 #[strum(serialize_all = "kebab-case")]
 enum FragmentMode {
     None, // User explicitly does not want to check fragments. This is needed for merging configs, to distinguish from the case where the user simply didn't specify the option.
-    AnchorOnly, // Check only anchor fragments (e.g. `#section`)
-    TextOnly, // Check only text fragments (e.g. `#:~:text=example`)
+
     Full, // Check both anchor and text fragments
-}
 
-impl From<FragmentMode> for FragmentCheckerOptions {
-    fn from(mode: FragmentMode) -> Self {
-        match mode {
-            FragmentMode::None => FragmentCheckerOptions::default(),
-            FragmentMode::AnchorOnly => FragmentCheckerOptions {
-                check_anchor_fragments: true,
-                check_text_fragments: false,
-            },
-            FragmentMode::TextOnly => FragmentCheckerOptions {
-                check_anchor_fragments: false,
-                check_text_fragments: true,
-            },
-            FragmentMode::Full => FragmentCheckerOptions {
-                check_anchor_fragments: true,
-                check_text_fragments: true,
-            },
-        }
-    }
-}
+    TextOnly, // Check only text fragments (e.g. `#:~:text=example`)
 
-/// lychee is a fast, asynchronous link checker which detects broken URLs and mail addresses
-/// in local files and websites. It supports Markdown and HTML and works with other file formats.
-///
-/// lychee is powered by lychee-lib, the Rust library for link checking.
-#[derive(Parser, Debug)]
-#[command(version, about, next_display_order = None)]
-pub(crate) struct LycheeOptions {
-    /// Inputs for link checking (where to get links to check from).
-    /// These can be: files (e.g. `README.md`), file globs (e.g. `'~/git/*/README.md'`),
-    /// remote URLs (e.g. `https://example.com/README.md`), or standard input (`-`).
-    /// Alternatively, use `--files-from` to read inputs from a file.
-    ///
-    /// NOTE: Use `--` to separate inputs from options that allow multiple arguments.
-    #[arg(
-        name = "inputs",
-        required_unless_present = "files_from",
-        required_unless_present = "generate",
-        verbatim_doc_comment
-    )]
-    raw_inputs: Vec<String>,
-
-    /// Configuration file to use
-    #[arg(short, long = "config", value_name = "FILE_PATH")]
-    #[arg(help = HELP_MSG_CONFIG_FILE)]
-    pub(crate) config_files: Vec<PathBuf>,
-
-    #[clap(flatten)]
-    pub(crate) config: Config,
-}
-
-impl LycheeOptions {
-    /// Get parsed inputs from options.
-    // This depends on the config, which is why a method is required (we could
-    // accept a `Vec<Input>` in `LycheeOptions` and do the conversion there, but
-    // we wouldn't get access to `glob_ignore_case`.
-    pub(crate) fn inputs(&self) -> Result<HashSet<Input>> {
-        let mut all_inputs = self.raw_inputs.clone();
-
-        // If --files-from is specified, read inputs from the file
-        if let Some(files_from_path) = &self.config.files_from {
-            let files_from = FilesFrom::try_from(files_from_path.as_path())
-                .context("Cannot read inputs from --files-from")?;
-            all_inputs.extend(files_from.inputs);
-        }
-
-        // Convert default extension to FileType if provided
-        let default_file_type = self
-            .config
-            .default_extension
-            .as_deref()
-            .and_then(FileType::from_extension);
-
-        all_inputs
-            .iter()
-            .map(|raw_input| {
-                Input::new(raw_input, default_file_type, self.config.glob_ignore_case())
-            })
-            .collect::<Result<_, _>>()
-            .context("Cannot parse inputs from arguments")
-    }
-}
-
-// Custom deserializer function for the header field
-fn deserialize_headers<'de, D>(deserializer: D) -> Result<Vec<(String, String)>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let map = HashMap::<String, String>::deserialize(deserializer)?;
-    Ok(map.into_iter().collect())
+    AnchorOnly, // Check only anchor fragments (e.g. `#section`)
 }
 
 /// The main configuration for lychee
@@ -187,200 +101,22 @@ where
 #[derive(Parser, Debug, Deserialize, Clone, Default, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Config {
-    /// Read input filenames from the given file or stdin (if path is '-').
+    /// Set the output display mode. Determines how results are presented in the terminal
     ///
-    /// This is useful when you have a large number of inputs that would be
-    /// cumbersome to specify on the command line directly.
-    ///
-    /// Examples:
-    ///
-    /// ```text
-    /// lychee --files-from list.txt
-    /// find . -name '*.md' | lychee --files-from -
-    /// echo 'README.md' | lychee --files-from -
-    /// ```
-    ///
-    /// File Format:
-    /// - Each line should contain one input (file path, URL, or glob pattern).
-    /// - Lines starting with '#' are treated as comments and ignored.
-    /// - Empty lines are also ignored.
-    #[arg(long, value_name = "PATH", verbatim_doc_comment)]
-    files_from: Option<PathBuf>,
+    /// [default: color]
+    #[arg(long, value_parser = PossibleValuesParser::new(OutputMode::VARIANTS).map(|s| s.parse::<OutputMode>().unwrap()))]
+    mode: Option<OutputMode>,
 
-    /// Verbose program output
-    #[clap(flatten)]
-    #[schemars(with = "Option<schema::Verbosity>")]
-    verbose: Option<Verbosity>,
-
-    /// Do not show progress bar.
-    /// This is recommended for non-interactive shells (e.g. for continuous integration)
-    #[arg(short, long, verbatim_doc_comment, optional_bool_flag())]
+    /// Remap URI matching pattern to different URI
     #[serde(default)]
-    no_progress: Option<bool>,
-
-    /// Show per-host statistics at the end of the run
-    #[arg(long, optional_bool_flag())]
-    #[serde(default)]
-    host_stats: Option<bool>,
-
-    /// A list of file extensions. Files not matching the specified extensions are skipped.
-    ///
-    /// Multiple extensions can be separated by commas. Note that if you want to check filetypes,
-    /// which have multiple extensions, e.g. HTML files with both .html and .htm extensions, you need to
-    /// specify both extensions explicitly.
-    /// An example is: `--extensions html,htm,php,asp,aspx,jsp,cgi`.
-    ///
-    /// This is useful when the default extensions are not enough and you don't
-    /// want to provide a long list of inputs (e.g. file1.html, file2.md, etc.)
-    ///
-    /// [default: md,markdown,mdx,qmd,rmd,mkd,mkdn,mdwn,mdown,mkdown,html,htm,css,txt,xml]
-    #[arg(long, verbatim_doc_comment)]
-    #[schemars(with = "Option<Vec<String>>")]
-    extensions: Option<FileExtensions>,
-
-    /// Parse input sources without a recognised file type by using the given
-    /// file extension.
-    ///
-    /// This affects how links are extracted from certain input sources. This
-    /// is useful for stdin inputs, files without extensions, and files with
-    /// unknown extensions.
-    ///
-    /// Examples:
-    ///   --default-extension md
-    ///   --default-extension html
-    ///
-    /// To automatically append file extensions when locating files, see
-    /// `--fallback-extensions`.
-    #[arg(long, value_name = "EXTENSION", verbatim_doc_comment)]
-    default_extension: Option<String>,
-
-    #[arg(help = HELP_MSG_CACHE)]
-    #[arg(long, optional_bool_flag())]
-    #[serde(default)]
-    cache: Option<bool>,
-
-    /// Discard all cached requests older than this duration
-    ///
-    /// [default: 1d]
-    #[arg(long, value_parser = humantime::parse_duration)]
-    #[serde(default, with = "humantime_serde")]
-    #[schemars(with = "Option<String>")]
-    max_cache_age: Option<Duration>,
-
-    /// A list of status codes that will be ignored from the cache
-    ///
-    /// The following exclude range syntax is supported: `[start]..[[=]end]|code`. Some valid
-    /// examples are:
-    ///
-    /// - 429 (excludes the 429 status code only)
-    /// - 500.. (excludes any status code >= 500)
-    /// - ..100 (excludes any status code < 100)
-    /// - 500..=599 (excludes any status code from 500 to 599 inclusive)
-    /// - 500..600 (excludes any status code from 500 to 600 excluding 600, same as 500..=599)
-    ///
-    /// Use `lychee --cache-exclude-status '429, 500..502' <inputs>...` to provide a
-    /// comma-separated list of excluded status codes. This example will not cache results
-    /// with a status code of 429, 500 and 501.
-    #[arg(long, verbatim_doc_comment)]
-    #[schemars(with = "Option<schema::StatusCodeSelector>")]
-    cache_exclude_status: Option<StatusCodeSelector>,
-
-    /// Filesystem path used to store the on-disk request cache
-    ///
-    /// [default: .lycheecache]
-    #[arg(long, value_name = "PATH")]
-    cache_location: Option<PathBuf>,
-
-    /// Don't perform any link checking.
-    /// Instead, dump all the links extracted from inputs that would be checked
-    #[arg(long, optional_bool_flag())]
-    #[serde(default)]
-    dump: Option<bool>,
-
-    /// Don't perform any link extraction and checking.
-    /// Instead, dump all input sources from which links would be collected
-    #[arg(long, optional_bool_flag())]
-    #[serde(default)]
-    dump_inputs: Option<bool>,
-
-    /// Web archive to use to provide suggestions for `--suggest`.
-    ///
-    /// [default: wayback]
-    #[arg(long, value_parser = PossibleValuesParser::new(Archive::VARIANTS).map(|s| s.parse::<Archive>().unwrap()))]
-    #[schemars(with = "Option<schema::Archive>")]
-    archive: Option<Archive>,
-
-    /// Suggest link replacements for broken links, using a web archive.
-    /// The web archive can be specified with `--archive`
-    #[arg(long, optional_bool_flag())]
-    #[serde(default)]
-    suggest: Option<bool>,
-
-    /// Maximum number of allowed redirects
-    ///
-    /// [default: 10]
-    #[arg(short, long)]
-    max_redirects: Option<usize>,
-
-    /// Maximum number of retries per request
-    ///
-    /// [default: 3]
     #[arg(long)]
-    max_retries: Option<u64>,
+    pub(crate) remap: Vec<String>,
 
-    /// Minimum accepted TLS Version
-    #[arg(long, value_parser = PossibleValuesParser::new(TlsVersion::VARIANTS).map(|s| s.parse::<TlsVersion>().unwrap()))]
-    pub(crate) min_tls: Option<TlsVersion>,
-
-    /// Maximum number of concurrent network requests
-    ///
-    /// [default: 128]
-    #[arg(long)]
-    max_concurrency: Option<NonZeroUsize>,
-
-    /// Default maximum concurrent requests per host (default: 10)
-    ///
-    /// This limits the maximum amount of requests that are sent simultaneously
-    /// to the same host. This helps to prevent overwhelming servers and
-    /// running into rate-limits. Use the `hosts` option to configure this
-    /// on a per-host basis.
-    ///
-    /// Examples:
-    ///   --host-concurrency 2   # Conservative for slow APIs
-    ///   --host-concurrency 20  # Aggressive for fast APIs
-    #[arg(long, verbatim_doc_comment)]
-    pub(crate) host_concurrency: Option<usize>,
-
-    /// Minimum interval between requests to the same host (default: 50ms)
-    ///
-    /// Sets a baseline delay between consecutive requests to prevent
-    /// overloading servers. The adaptive algorithm may increase this based
-    /// on server responses (rate limits, errors). Use the `hosts` option
-    /// to configure this on a per-host basis.
-    ///
-    /// Examples:
-    ///   --host-request-interval 50ms   # Fast for robust APIs
-    ///   --host-request-interval 1s     # Conservative for rate-limited APIs
-    #[arg(long, value_parser = humantime::parse_duration, verbatim_doc_comment)]
-    #[serde(default, with = "humantime_serde")]
-    #[schemars(with = "Option<String>")]
-    pub(crate) host_request_interval: Option<Duration>,
-
-    /// Number of threads to utilize.
-    /// Defaults to number of cores available to the system
-    #[arg(short = 'T', long)]
-    pub(crate) threads: Option<NonZeroUsize>,
-
-    /// User agent
-    ///
-    /// [default: lychee/x.y.z]
-    #[arg(short, long)]
-    user_agent: Option<String>,
-
-    /// Proceed for server connections considered insecure (invalid TLS)
-    #[arg(short, long, optional_bool_flag())]
+    /// Host-specific configurations from config file
+    #[arg(skip)]
     #[serde(default)]
-    insecure: Option<bool>,
+    #[schemars(with = "std::collections::HashMap<String, schema::HostConfig>")]
+    pub(crate) hosts: HostConfigs,
 
     /// Only test links with the given schemes (e.g. https).
     /// Omit to check links with any other scheme.
@@ -388,103 +124,6 @@ pub(crate) struct Config {
     #[arg(short, long, verbatim_doc_comment)]
     #[serde(default)]
     pub(crate) scheme: Vec<String>,
-
-    /// Only check local files and block network requests.
-    #[arg(long, optional_bool_flag())]
-    #[serde(default)]
-    offline: Option<bool>,
-
-    /// URLs to check (supports regex). Has preference over all excludes.
-    #[arg(long)]
-    #[serde(default)]
-    pub(crate) include: Vec<String>,
-
-    /// Exclude URLs and mail addresses from checking.
-    /// The values are treated as regular expressions.
-    #[arg(long)]
-    #[serde(default)]
-    pub(crate) exclude: Vec<String>,
-
-    /// Exclude paths from getting checked.
-    /// The values are treated as regular expressions.
-    #[arg(long)]
-    #[serde(default)]
-    pub(crate) exclude_path: Vec<String>,
-
-    /// Exclude all private IPs from checking.
-    /// Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
-    #[arg(short = 'E', long, verbatim_doc_comment, optional_bool_flag())]
-    #[serde(default)]
-    exclude_all_private: Option<bool>,
-
-    /// Exclude private IP address ranges from checking
-    #[arg(long, optional_bool_flag())]
-    #[serde(default)]
-    exclude_private: Option<bool>,
-
-    /// Exclude link-local IP address range from checking
-    #[arg(long, optional_bool_flag())]
-    #[serde(default)]
-    exclude_link_local: Option<bool>,
-
-    /// Exclude loopback IP address range and localhost from checking
-    #[arg(long, optional_bool_flag())]
-    #[serde(default)]
-    exclude_loopback: Option<bool>,
-
-    /// Also check email addresses
-    #[arg(long, optional_bool_flag())]
-    #[serde(default)]
-    include_mail: Option<bool>,
-
-    /// Remap URI matching pattern to different URI
-    #[serde(default)]
-    #[arg(long)]
-    pub(crate) remap: Vec<String>,
-
-    /// When checking locally, attempts to locate missing files by trying the given
-    /// fallback extensions. Multiple extensions can be separated by commas. Extensions
-    /// will be checked in order of appearance.
-    ///
-    /// The path itself is tried first, then every extension appended to the full
-    /// file name, then every extension replacing an existing one. So `a.b` with
-    /// `html,htm` is looked up as `a.b`, `a.b.html`, `a.b.htm`, `a.html`,
-    /// `a.htm`. An existing extension containing ASCII whitespace is never
-    /// replaced, since replacing it could discard part of the file name.
-    ///
-    /// Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi
-    ///
-    /// Note: This option takes effect on `file://` URIs which do not exist and on
-    ///       `file://` URIs pointing to directories which resolve to themself (by the
-    ///       --index-files logic).
-    #[serde(default)]
-    #[arg(long, value_delimiter = ',', verbatim_doc_comment)]
-    pub(crate) fallback_extensions: Vec<String>,
-
-    /// When checking locally, resolves directory links to a separate index file.
-    /// The argument is a comma-separated list of index file names to search for. Index
-    /// names are relative to the link's directory and attempted in the order given.
-    ///
-    /// If `--index-files` is specified, then at least one index file must exist in
-    /// order for a directory link to be considered valid. Additionally, the special
-    /// name `.` can be used in the list to refer to the directory itself.
-    ///
-    /// If unspecified (the default behavior), index files are disabled and directory
-    /// links are considered valid as long as the directory exists on disk.
-    ///
-    /// Example 1: `--index-files index.html,readme.md` looks for index.html or readme.md
-    ///            and requires that at least one exists.
-    ///
-    /// Example 2: `--index-files index.html,.` will use index.html if it exists, but
-    ///            still accept the directory link regardless.
-    ///
-    /// Example 3: `--index-files ''` will reject all directory links because there are
-    ///            no valid index files. This will require every link to explicitly name
-    ///            a file.
-    ///
-    /// Note: This option only takes effect on `file://` URIs which exist and point to a directory.
-    #[arg(long, value_delimiter = ',', verbatim_doc_comment)]
-    pub(crate) index_files: Option<Vec<String>>,
 
     /// Set custom header for requests.
     ///
@@ -514,67 +153,6 @@ pub(crate) struct Config {
     )]
     header: Vec<(String, String)>,
 
-    /// A List of accepted status codes for valid links
-    ///
-    /// The following accept range syntax is supported: `[start]..[[=]end]|code`.
-    /// Some valid examples are:
-    ///
-    /// - 200 (accepts the 200 status code only)
-    /// - ..204 (accepts any status code < 204)
-    /// - ..=204 (accepts any status code <= 204)
-    /// - 200..=204 (accepts any status code from 200 to 204 inclusive)
-    /// - 200..205 (accepts any status code from 200 to 205 excluding 205, same as 200..=204)
-    ///
-    /// Use `lychee --accept '200..=204, 429, 500' <inputs>...` to provide a comma-
-    /// separated list of accepted status codes. This example will accept 200, 201,
-    /// 202, 203, 204, 429, and 500 as valid status codes.
-    ///
-    /// [default: 100..=103,200..=299]
-    #[arg(short, long, verbatim_doc_comment)]
-    #[schemars(with = "Option<schema::StatusCodeSelector>")]
-    accept: Option<StatusCodeSelector>,
-
-    /// Accept timed out requests and return exit code 0
-    /// when encountering timeouts but not any other errors.
-    #[arg(long, optional_bool_flag())]
-    #[serde(default)]
-    accept_timeouts: Option<bool>,
-
-    /// Enable the checking of fragments in links.
-    ///
-    /// Use `none` to disable fragment checks, `anchor-only` for anchor fragments
-    /// like `#section`, `text-only` for text fragments like `#:~:text=example`,
-    /// or `full` to check both.
-    ///
-    /// If provided without a value, defaults to `anchor-only`.
-    ///
-    /// Fragment checking does not work for every URL. In general, the target
-    /// content needs to be Markdown or HTML and follow common conventions.
-    /// Anchors that only appear after JavaScript execution may be missed, since
-    /// lychee does not run a browser engine.
-    #[arg(
-        long,
-        default_missing_value = "anchor-only",
-        num_args = 0..=1,
-        require_equals = true,
-        value_name = "none|anchor-only|text-only|full",
-        verbatim_doc_comment,
-    )]
-    #[serde(default)]
-    include_fragments: Option<FragmentMode>,
-
-    /// Website timeout in seconds from connect to response finished
-    ///
-    /// [default: 20]
-    #[arg(short, long)]
-    timeout: Option<u64>,
-
-    /// Minimum wait time in seconds between retries of failed requests
-    ///
-    /// [default: 1]
-    #[arg(short, long)]
-    retry_wait_time: Option<u64>,
-
     /// Request method(s)
     ///
     /// Accepts a single method or a comma-separated list. When multiple methods
@@ -591,6 +169,75 @@ pub(crate) struct Config {
     #[arg(short = 'X', long)]
     #[schemars(with = "Option<schema::Methods>")]
     method: Option<Methods>,
+
+    /// Do not skip hidden directories and files.
+    #[arg(long, optional_bool_flag())]
+    #[serde(default)]
+    hidden: Option<bool>,
+
+    /// Output file of status report
+    #[arg(short, long, value_parser)]
+    pub(crate) output: Option<PathBuf>,
+
+    /// Output format of final status report
+    ///
+    /// [default: compact]
+    #[arg(short, long, value_parser = PossibleValuesParser::new(StatsFormat::VARIANTS).map(|s| s.parse::<StatsFormat>().unwrap()))]
+    format: Option<StatsFormat>,
+
+    /// Verbose program output
+    #[clap(flatten)]
+    #[schemars(with = "Option<schema::Verbosity>")]
+    verbose: Option<Verbosity>,
+
+    /// Web archive to use to provide suggestions for `--suggest`.
+    ///
+    /// [default: wayback]
+    #[arg(long, value_parser = PossibleValuesParser::new(Archive::VARIANTS).map(|s| s.parse::<Archive>().unwrap()))]
+    #[schemars(with = "Option<schema::Archive>")]
+    archive: Option<Archive>,
+
+    /// Suggest link replacements for broken links, using a web archive.
+    /// The web archive can be specified with `--archive`
+    #[arg(long, optional_bool_flag())]
+    #[serde(default)]
+    suggest: Option<bool>,
+
+    /// Minimum accepted TLS Version
+    #[arg(long, value_parser = PossibleValuesParser::new(TlsVersion::VARIANTS).map(|s| s.parse::<TlsVersion>().unwrap()))]
+    pub(crate) min_tls: Option<TlsVersion>,
+
+    /// Number of threads to utilize.
+    /// Defaults to number of cores available to the system
+    #[arg(short = 'T', long)]
+    pub(crate) threads: Option<NonZeroUsize>,
+
+    /// Only check local files and block network requests.
+    #[arg(long, optional_bool_flag())]
+    #[serde(default)]
+    offline: Option<bool>,
+
+    /// Website timeout in seconds from connect to response finished
+    ///
+    /// [default: 20]
+    #[arg(short, long)]
+    timeout: Option<u64>,
+
+    /// Don't perform any link checking.
+    /// Instead, dump all the links extracted from inputs that would be checked
+    #[arg(long, optional_bool_flag())]
+    #[serde(default)]
+    dump: Option<bool>,
+    /// Don't perform any link extraction and checking.
+    /// Instead, dump all input sources from which links would be collected
+    #[arg(long, optional_bool_flag())]
+    #[serde(default)]
+    dump_inputs: Option<bool>,
+
+    /// Proceed for server connections considered insecure (invalid TLS)
+    #[arg(short, long, optional_bool_flag())]
+    #[serde(default)]
+    insecure: Option<bool>,
 
     /// Base URL to use when resolving relative URLs in local files. If specified,
     /// relative links in local files are interpreted as being relative to the given
@@ -635,79 +282,72 @@ pub(crate) struct Config {
     #[arg(long, verbatim_doc_comment)]
     pub(crate) root_dir: Option<PathBuf>,
 
-    /// Basic authentication support. E.g. `http://example.com username:password`
-    #[arg(long)]
-    #[schemars(with = "Option<Vec<schema::BasicAuthSelector>>")]
-    pub(crate) basic_auth: Option<Vec<BasicAuthSelector>>,
+    /// Generate special output (e.g. the man page) instead of performing link checking
+    #[arg(long, value_parser = PossibleValuesParser::new(GenerateMode::VARIANTS).map(|s| s.parse::<GenerateMode>().unwrap()))]
+    pub(crate) generate: Option<GenerateMode>,
 
-    /// GitHub API token to use when checking github.com links, to avoid rate limiting
-    #[arg(long, env = "GITHUB_TOKEN", hide_env_values = true)]
-    #[schemars(with = "Option<String>")]
-    pub(crate) github_token: Option<SecretString>,
-
-    /// Skip missing input files (default is to error if they don't exist)
-    #[arg(long, optional_bool_flag())]
-    #[serde(default)]
-    skip_missing: Option<bool>,
+    /// Read input filenames from the given file or stdin (if path is '-').
+    ///
+    /// This is useful when you have a large number of inputs that would be
+    /// cumbersome to specify on the command line directly.
+    ///
+    /// Examples:
+    ///
+    /// ```text
+    /// lychee --files-from list.txt
+    /// find . -name '*.md' | lychee --files-from -
+    /// echo 'README.md' | lychee --files-from -
+    /// ```
+    ///
+    /// File Format:
+    /// - Each line should contain one input (file path, URL, or glob pattern).
+    /// - Lines starting with '#' are treated as comments and ignored.
+    /// - Empty lines are also ignored.
+    #[arg(long, value_name = "PATH", verbatim_doc_comment)]
+    files_from: Option<PathBuf>,
 
     /// Do not skip files that would otherwise be ignored by
     /// '.gitignore', '.ignore', or the global ignore file.
     #[arg(long, optional_bool_flag())]
     #[serde(default)]
     no_ignore: Option<bool>,
-
-    /// Do not skip hidden directories and files.
-    #[arg(long, optional_bool_flag())]
+    /// Do not show progress bar.
+    /// This is recommended for non-interactive shells (e.g. for continuous integration)
+    #[arg(short, long, verbatim_doc_comment, optional_bool_flag())]
     #[serde(default)]
-    hidden: Option<bool>,
+    no_progress: Option<bool>,
 
-    /// Find links in verbatim sections like `pre`- and `code` blocks
-    #[arg(long, optional_bool_flag())]
-    #[serde(default)]
-    include_verbatim: Option<bool>,
-
-    /// Ignore case when expanding filesystem path glob inputs
-    #[arg(long, optional_bool_flag())]
-    #[serde(default)]
-    glob_ignore_case: Option<bool>,
-
-    /// Output file of status report
-    #[arg(short, long, value_parser)]
-    pub(crate) output: Option<PathBuf>,
-
-    /// Set the output display mode. Determines how results are presented in the terminal
+    /// A list of file extensions. Files not matching the specified extensions are skipped.
     ///
-    /// [default: color]
-    #[arg(long, value_parser = PossibleValuesParser::new(OutputMode::VARIANTS).map(|s| s.parse::<OutputMode>().unwrap()))]
-    mode: Option<OutputMode>,
-
-    /// Output format of final status report
+    /// Multiple extensions can be separated by commas. Note that if you want to check filetypes,
+    /// which have multiple extensions, e.g. HTML files with both .html and .htm extensions, you need to
+    /// specify both extensions explicitly.
+    /// An example is: `--extensions html,htm,php,asp,aspx,jsp,cgi`.
     ///
-    /// [default: compact]
-    #[arg(short, long, value_parser = PossibleValuesParser::new(StatsFormat::VARIANTS).map(|s| s.parse::<StatsFormat>().unwrap()))]
-    format: Option<StatsFormat>,
+    /// This is useful when the default extensions are not enough and you don't
+    /// want to provide a long list of inputs (e.g. file1.html, file2.md, etc.)
+    ///
+    /// [default: md,markdown,mdx,qmd,rmd,mkd,mkdn,mdwn,mdown,mkdown,html,htm,css,txt,xml]
+    #[arg(long, verbatim_doc_comment)]
+    #[schemars(with = "Option<Vec<String>>")]
+    extensions: Option<FileExtensions>,
 
-    /// Generate special output (e.g. the man page) instead of performing link checking
-    #[arg(long, value_parser = PossibleValuesParser::new(GenerateMode::VARIANTS).map(|s| s.parse::<GenerateMode>().unwrap()))]
-    pub(crate) generate: Option<GenerateMode>,
+    /// User agent
+    ///
+    /// [default: lychee/x.y.z]
+    #[arg(short, long)]
+    user_agent: Option<String>,
 
-    /// When HTTPS is available, treat HTTP links as errors
-    #[arg(long, optional_bool_flag())]
-    #[serde(default)]
-    require_https: Option<bool>,
+    /// Basic authentication support. E.g. `http://example.com username:password`
+    #[arg(long)]
+    #[schemars(with = "Option<Vec<schema::BasicAuthSelector>>")]
+    pub(crate) basic_auth: Option<Vec<BasicAuthSelector>>,
 
     /// Read and write cookies using the given file. Cookies will be stored in the
     /// cookie jar and sent with requests. New cookies will be stored in the cookie jar
     /// and existing cookies will be updated.
     #[arg(long, verbatim_doc_comment)]
     pub(crate) cookie_jar: Option<PathBuf>,
-
-    #[allow(clippy::doc_markdown)]
-    /// Check WikiLinks in Markdown files, this requires specifying --base-url
-    #[clap(requires = "base_url")]
-    #[arg(long, optional_bool_flag())]
-    #[serde(default)]
-    include_wikilinks: Option<bool>,
 
     /// Preprocess input files with the given command.
     ///
@@ -738,40 +378,286 @@ pub(crate) struct Config {
     #[schemars(with = "Option<schema::Preprocessor>")]
     pub(crate) preprocess: Option<Preprocessor>,
 
-    /// Host-specific configurations from config file
-    #[arg(skip)]
+    /// A List of accepted status codes for valid links
+    ///
+    /// The following accept range syntax is supported: `[start]..[[=]end]|code`.
+    /// Some valid examples are:
+    ///
+    /// - 200 (accepts the 200 status code only)
+    /// - ..204 (accepts any status code < 204)
+    /// - ..=204 (accepts any status code <= 204)
+    /// - 200..=204 (accepts any status code from 200 to 204 inclusive)
+    /// - 200..205 (accepts any status code from 200 to 205 excluding 205, same as 200..=204)
+    ///
+    /// Use `lychee --accept '200..=204, 429, 500' <inputs>...` to provide a comma-
+    /// separated list of accepted status codes. This example will accept 200, 201,
+    /// 202, 203, 204, 429, and 500 as valid status codes.
+    ///
+    /// [default: 100..=103,200..=299]
+    #[arg(short, long, verbatim_doc_comment)]
+    #[schemars(with = "Option<schema::StatusCodeSelector>")]
+    accept: Option<StatusCodeSelector>,
+    /// Accept timed out requests and return exit code 0
+    /// when encountering timeouts but not any other errors.
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
-    #[schemars(with = "std::collections::HashMap<String, schema::HostConfig>")]
-    pub(crate) hosts: HostConfigs,
+    accept_timeouts: Option<bool>,
+
+    /// When checking locally, resolves directory links to a separate index file.
+    /// The argument is a comma-separated list of index file names to search for. Index
+    /// names are relative to the link's directory and attempted in the order given.
+    ///
+    /// If `--index-files` is specified, then at least one index file must exist in
+    /// order for a directory link to be considered valid. Additionally, the special
+    /// name `.` can be used in the list to refer to the directory itself.
+    ///
+    /// If unspecified (the default behavior), index files are disabled and directory
+    /// links are considered valid as long as the directory exists on disk.
+    ///
+    /// Example 1: `--index-files index.html,readme.md` looks for index.html or readme.md
+    ///            and requires that at least one exists.
+    ///
+    /// Example 2: `--index-files index.html,.` will use index.html if it exists, but
+    ///            still accept the directory link regardless.
+    ///
+    /// Example 3: `--index-files ''` will reject all directory links because there are
+    ///            no valid index files. This will require every link to explicitly name
+    ///            a file.
+    ///
+    /// Note: This option only takes effect on `file://` URIs which exist and point to a directory.
+    #[arg(long, value_delimiter = ',', verbatim_doc_comment)]
+    pub(crate) index_files: Option<Vec<String>>,
+
+    /// GitHub API token to use when checking github.com links, to avoid rate limiting
+    #[arg(long, env = "GITHUB_TOKEN", hide_env_values = true)]
+    #[schemars(with = "Option<String>")]
+    pub(crate) github_token: Option<SecretString>,
+
+    /// Skip missing input files (default is to error if they don't exist)
+    #[arg(long, optional_bool_flag())]
+    #[serde(default)]
+    skip_missing: Option<bool>,
+
+    #[arg(help = HELP_MSG_CACHE)]
+    #[arg(long, optional_bool_flag())]
+    #[serde(default)]
+    cache: Option<bool>,
+    /// Filesystem path used to store the on-disk request cache
+    ///
+    /// [default: .lycheecache]
+    #[arg(long, value_name = "PATH")]
+    cache_location: Option<PathBuf>,
+    /// A list of status codes that will be ignored from the cache
+    ///
+    /// The following exclude range syntax is supported: `[start]..[[=]end]|code`. Some valid
+    /// examples are:
+    ///
+    /// - 429 (excludes the 429 status code only)
+    /// - 500.. (excludes any status code >= 500)
+    /// - ..100 (excludes any status code < 100)
+    /// - 500..=599 (excludes any status code from 500 to 599 inclusive)
+    /// - 500..600 (excludes any status code from 500 to 600 excluding 600, same as 500..=599)
+    ///
+    /// Use `lychee --cache-exclude-status '429, 500..502' <inputs>...` to provide a
+    /// comma-separated list of excluded status codes. This example will not cache results
+    /// with a status code of 429, 500 and 501.
+    #[arg(long, verbatim_doc_comment)]
+    #[schemars(with = "Option<schema::StatusCodeSelector>")]
+    cache_exclude_status: Option<StatusCodeSelector>,
+
+    /// Maximum number of retries per request
+    ///
+    /// [default: 3]
+    #[arg(long)]
+    max_retries: Option<u64>,
+    /// Discard all cached requests older than this duration
+    ///
+    /// [default: 1d]
+    #[arg(long, value_parser = humantime::parse_duration)]
+    #[serde(default, with = "humantime_serde")]
+    #[schemars(with = "Option<String>")]
+    max_cache_age: Option<Duration>,
+    /// Maximum number of allowed redirects
+    ///
+    /// [default: 10]
+    #[arg(short, long)]
+    max_redirects: Option<usize>,
+    /// Maximum number of concurrent network requests
+    ///
+    /// [default: 128]
+    #[arg(long)]
+    max_concurrency: Option<NonZeroUsize>,
+
+    /// When HTTPS is available, treat HTTP links as errors
+    #[arg(long, optional_bool_flag())]
+    #[serde(default)]
+    require_https: Option<bool>,
+
+    /// URLs to check (supports regex). Has preference over all excludes.
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) include: Vec<String>,
+    /// Also check email addresses
+    #[arg(long, optional_bool_flag())]
+    #[serde(default)]
+    include_mail: Option<bool>,
+    /// Find links in verbatim sections like `pre`- and `code` blocks
+    #[arg(long, optional_bool_flag())]
+    #[serde(default)]
+    include_verbatim: Option<bool>,
+    /// Enable the checking of fragments in links.
+    ///
+    /// Use `none` to disable fragment checks, `anchor-only` for anchor fragments
+    /// like `#section`, `text-only` for text fragments like `#:~:text=example`,
+    /// or `full` to check both.
+    ///
+    /// If provided without a value, defaults to `anchor-only`.
+    ///
+    /// Fragment checking does not work for every URL. In general, the target
+    /// content needs to be Markdown or HTML and follow common conventions.
+    /// Anchors that only appear after JavaScript execution may be missed, since
+    /// lychee does not run a browser engine.
+    #[arg(
+        long,
+        default_missing_value = "anchor-only",
+        num_args = 0..=1,
+        require_equals = true,
+        value_name = "none|anchor-only|text-only|full",
+        verbatim_doc_comment,
+    )]
+    #[serde(default)]
+    include_fragments: Option<FragmentMode>,
+    #[allow(clippy::doc_markdown)]
+    /// Check WikiLinks in Markdown files, this requires specifying --base-url
+    #[clap(requires = "base_url")]
+    #[arg(long, optional_bool_flag())]
+    #[serde(default)]
+    include_wikilinks: Option<bool>,
+
+    /// Exclude URLs and mail addresses from checking.
+    /// The values are treated as regular expressions.
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) exclude: Vec<String>,
+    /// Exclude paths from getting checked.
+    /// The values are treated as regular expressions.
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) exclude_path: Vec<String>,
+    /// Exclude private IP address ranges from checking
+    #[arg(long, optional_bool_flag())]
+    #[serde(default)]
+    exclude_private: Option<bool>,
+    /// Exclude loopback IP address range and localhost from checking
+    #[arg(long, optional_bool_flag())]
+    #[serde(default)]
+    exclude_loopback: Option<bool>,
+    /// Exclude link-local IP address range from checking
+    #[arg(long, optional_bool_flag())]
+    #[serde(default)]
+    exclude_link_local: Option<bool>,
+    /// Exclude all private IPs from checking.
+    /// Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
+    #[arg(short = 'E', long, verbatim_doc_comment, optional_bool_flag())]
+    #[serde(default)]
+    exclude_all_private: Option<bool>,
+
+    /// Minimum wait time in seconds between retries of failed requests
+    ///
+    /// [default: 1]
+    #[arg(short, long)]
+    retry_wait_time: Option<u64>,
+
+    /// Show per-host statistics at the end of the run
+    #[arg(long, optional_bool_flag())]
+    #[serde(default)]
+    host_stats: Option<bool>,
+    /// Default maximum concurrent requests per host (default: 10)
+    ///
+    /// This limits the maximum amount of requests that are sent simultaneously
+    /// to the same host. This helps to prevent overwhelming servers and
+    /// running into rate-limits. Use the `hosts` option to configure this
+    /// on a per-host basis.
+    ///
+    /// Examples:
+    ///   --host-concurrency 2   # Conservative for slow APIs
+    ///   --host-concurrency 20  # Aggressive for fast APIs
+    #[arg(long, verbatim_doc_comment)]
+    pub(crate) host_concurrency: Option<usize>,
+    /// Minimum interval between requests to the same host (default: 50ms)
+    ///
+    /// Sets a baseline delay between consecutive requests to prevent
+    /// overloading servers. The adaptive algorithm may increase this based
+    /// on server responses (rate limits, errors). Use the `hosts` option
+    /// to configure this on a per-host basis.
+    ///
+    /// Examples:
+    ///   --host-request-interval 50ms   # Fast for robust APIs
+    ///   --host-request-interval 1s     # Conservative for rate-limited APIs
+    #[arg(long, value_parser = humantime::parse_duration, verbatim_doc_comment)]
+    #[serde(default, with = "humantime_serde")]
+    #[schemars(with = "Option<String>")]
+    pub(crate) host_request_interval: Option<Duration>,
+
+    /// Ignore case when expanding filesystem path glob inputs
+    #[arg(long, optional_bool_flag())]
+    #[serde(default)]
+    glob_ignore_case: Option<bool>,
+
+    /// Parse input sources without a recognised file type by using the given
+    /// file extension.
+    ///
+    /// This affects how links are extracted from certain input sources. This
+    /// is useful for stdin inputs, files without extensions, and files with
+    /// unknown extensions.
+    ///
+    /// Examples:
+    ///   --default-extension md
+    ///   --default-extension html
+    ///
+    /// To automatically append file extensions when locating files, see
+    /// `--fallback-extensions`.
+    #[arg(long, value_name = "EXTENSION", verbatim_doc_comment)]
+    default_extension: Option<String>,
+
+    /// When checking locally, attempts to locate missing files by trying the given
+    /// fallback extensions. Multiple extensions can be separated by commas. Extensions
+    /// will be checked in order of appearance.
+    ///
+    /// The path itself is tried first, then every extension appended to the full
+    /// file name, then every extension replacing an existing one. So `a.b` with
+    /// `html,htm` is looked up as `a.b`, `a.b.html`, `a.b.htm`, `a.html`,
+    /// `a.htm`. An existing extension containing ASCII whitespace is never
+    /// replaced, since replacing it could discard part of the file name.
+    ///
+    /// Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi
+    ///
+    /// Note: This option takes effect on `file://` URIs which do not exist and on
+    ///       `file://` URIs pointing to directories which resolve to themself (by the
+    ///       --index-files logic).
+    #[serde(default)]
+    #[arg(long, value_delimiter = ',', verbatim_doc_comment)]
+    pub(crate) fallback_extensions: Vec<String>,
 }
 
 impl Config {
-    /// Try to load configuration from a file and merge into `self`.
-    /// `self` has precedence over `config_file`.
-    pub(crate) fn merge_file(self, config_file: &Path) -> Result<Config> {
-        let config = Config::load_from_file(config_file).map_err(|e| {
-            anyhow!(
-                "Cannot load configuration file `{}`: {e:?}",
-                config_file.display()
-            )
-        })?;
-
-        Ok(self.merge(config))
+    /// Mode to use for formatting the output
+    pub(crate) fn mode(&self) -> OutputMode {
+        self.mode.clone().unwrap_or_default()
     }
 
-    fn load_from_file(path: &Path) -> Result<Config> {
-        loaders::load_from_file(path)
+    /// Format to use for the output report
+    pub(crate) fn format(&self) -> StatsFormat {
+        self.format.clone().unwrap_or_default()
+    }
+
+    pub(crate) fn hidden(&self) -> bool {
+        self.hidden.unwrap_or(false)
     }
 
     /// Request timeout
     pub(crate) fn timeout(&self) -> Duration {
         let seconds = self.timeout.unwrap_or(DEFAULT_TIMEOUT_SECS);
-        Duration::from_secs(seconds)
-    }
-
-    /// Minimum wait time between retries of failed requests
-    pub(crate) fn retry_wait_time(&self) -> Duration {
-        let seconds = self.retry_wait_time.unwrap_or(DEFAULT_RETRY_WAIT_TIME_SECS);
         Duration::from_secs(seconds)
     }
 
@@ -786,20 +672,9 @@ impl Config {
             .unwrap_or_else(|| http::Method::GET.into())
     }
 
-    /// Maximum age of cache entries
-    pub(crate) fn max_cache_age(&self) -> std::time::Duration {
-        const DEFAULT_MAX_CACHE_AGE: Duration = Duration::from_secs(60 * 60 * 24); // one day
-        self.max_cache_age.unwrap_or(DEFAULT_MAX_CACHE_AGE)
-    }
-
     /// Level of verbosity for the output
     pub(crate) fn verbose(&self) -> Verbosity {
         self.verbose.clone().unwrap_or_default()
-    }
-
-    /// Selected file extensions to check
-    pub(crate) fn extensions(&self) -> FileExtensions {
-        self.extensions.clone().unwrap_or_default()
     }
 
     /// Archive to use for fallback
@@ -807,152 +682,12 @@ impl Config {
         self.archive.clone().unwrap_or_default()
     }
 
-    /// Mode to use for formatting the output
-    pub(crate) fn mode(&self) -> OutputMode {
-        self.mode.clone().unwrap_or_default()
-    }
-
-    /// Format to use for the output report
-    pub(crate) fn format(&self) -> StatsFormat {
-        self.format.clone().unwrap_or_default()
-    }
-
-    pub(crate) const fn set_max_concurrency(&mut self, concurrency: NonZeroUsize) {
-        self.max_concurrency = Some(concurrency);
-    }
-
-    /// Maximum number of concurrent network requests
-    pub(crate) fn max_concurrency(&self) -> NonZeroUsize {
-        const DEFAULT_MAX_CONCURRENCY: NonZeroUsize = NonZeroUsize::new(128).unwrap();
-        self.max_concurrency.unwrap_or(DEFAULT_MAX_CONCURRENCY)
-    }
-
-    /// Maximum number of allowed redirects
-    pub(crate) fn max_redirects(&self) -> usize {
-        self.max_redirects.unwrap_or(DEFAULT_MAX_REDIRECTS)
-    }
-
-    /// Maximum number of retries per request
-    pub(crate) fn max_retries(&self) -> u64 {
-        self.max_retries.unwrap_or(DEFAULT_MAX_RETRIES)
-    }
-
-    /// User agent used for requests
-    pub(crate) fn user_agent(&self) -> String {
-        self.user_agent
-            .clone()
-            .unwrap_or(DEFAULT_USER_AGENT.to_string())
-    }
-
-    /// Status codes that shouldn't be cached
-    pub(crate) fn cache_exclude_status(&self) -> StatusCodeSelector {
-        self.cache_exclude_status
-            .clone()
-            .unwrap_or(StatusCodeSelector::empty())
-    }
-
-    /// Whether to use the on-disk request cache
-    pub(crate) fn cache(&self) -> bool {
-        self.cache.unwrap_or(false)
-    }
-
-    /// Filesystem path used to store the on-disk request cache
-    pub(crate) fn cache_location(&self) -> PathBuf {
-        self.cache_location
-            .clone()
-            .unwrap_or_else(|| PathBuf::from(LYCHEE_CACHE_FILE))
-    }
-
-    pub(crate) fn dump(&self) -> bool {
-        self.dump.unwrap_or(false)
-    }
-
-    pub(crate) fn dump_inputs(&self) -> bool {
-        self.dump_inputs.unwrap_or(false)
-    }
-
-    pub(crate) fn exclude_all_private(&self) -> bool {
-        self.exclude_all_private.unwrap_or(false)
-    }
-
-    pub(crate) fn exclude_link_local(&self) -> bool {
-        self.exclude_link_local.unwrap_or(false)
-    }
-
-    pub(crate) fn exclude_loopback(&self) -> bool {
-        self.exclude_loopback.unwrap_or(false)
-    }
-
-    pub(crate) fn exclude_private(&self) -> bool {
-        self.exclude_private.unwrap_or(false)
-    }
-
-    pub(crate) fn glob_ignore_case(&self) -> bool {
-        self.glob_ignore_case.unwrap_or(false)
-    }
-
-    pub(crate) fn hidden(&self) -> bool {
-        self.hidden.unwrap_or(false)
-    }
-
-    pub(crate) fn host_stats(&self) -> bool {
-        self.host_stats.unwrap_or(false)
-    }
-
-    pub(crate) fn fragment_checker_options(&self) -> FragmentCheckerOptions {
-        self.include_fragments.unwrap_or(FragmentMode::None).into()
-    }
-
-    pub(crate) fn include_mail(&self) -> bool {
-        self.include_mail.unwrap_or(false)
-    }
-
-    pub(crate) fn include_verbatim(&self) -> bool {
-        self.include_verbatim.unwrap_or(false)
-    }
-
-    pub(crate) fn include_wikilinks(&self) -> bool {
-        self.include_wikilinks.unwrap_or(false)
-    }
-
-    pub(crate) fn insecure(&self) -> bool {
-        self.insecure.unwrap_or(false)
-    }
-
-    pub(crate) fn no_ignore(&self) -> bool {
-        self.no_ignore.unwrap_or(false)
-    }
-
-    pub(crate) fn no_progress(&self) -> bool {
-        self.no_progress.unwrap_or(false)
-    }
-
     pub(crate) fn offline(&self) -> bool {
         self.offline.unwrap_or(false)
     }
 
-    pub(crate) fn require_https(&self) -> bool {
-        self.require_https.unwrap_or(false)
-    }
-
-    pub(crate) fn skip_missing(&self) -> bool {
-        self.skip_missing.unwrap_or(false)
-    }
-
     pub(crate) fn suggest(&self) -> bool {
         self.suggest.unwrap_or(false)
-    }
-
-    /// Status codes that are considered successful
-    pub(crate) fn accept(&self) -> StatusCodeSelector {
-        self.accept
-            .clone()
-            .unwrap_or(StatusCodeSelector::default_accepted())
-    }
-
-    /// Whether to accept timeouts as valid results
-    pub(crate) fn accept_timeouts(&self) -> bool {
-        self.accept_timeouts.unwrap_or(false)
     }
 
     /// Custom headers to send with requests
@@ -1046,6 +781,242 @@ impl Config {
             },
         )
     }
+    /// Try to load configuration from a file and merge into `self`.
+    /// `self` has precedence over `config_file`.
+    pub(crate) fn merge_file(self, config_file: &Path) -> Result<Config> {
+        let config = Config::load_from_file(config_file).map_err(|e| {
+            anyhow!(
+                "Cannot load configuration file `{}`: {e:?}",
+                config_file.display()
+            )
+        })?;
+
+        Ok(self.merge(config))
+    }
+
+    pub(crate) fn dump(&self) -> bool {
+        self.dump.unwrap_or(false)
+    }
+    pub(crate) fn dump_inputs(&self) -> bool {
+        self.dump_inputs.unwrap_or(false)
+    }
+
+    pub(crate) fn insecure(&self) -> bool {
+        self.insecure.unwrap_or(false)
+    }
+
+    /// Selected file extensions to check
+    pub(crate) fn extensions(&self) -> FileExtensions {
+        self.extensions.clone().unwrap_or_default()
+    }
+
+    /// User agent used for requests
+    pub(crate) fn user_agent(&self) -> String {
+        self.user_agent
+            .clone()
+            .unwrap_or(DEFAULT_USER_AGENT.to_string())
+    }
+
+    pub(crate) fn host_stats(&self) -> bool {
+        self.host_stats.unwrap_or(false)
+    }
+
+    pub(crate) fn no_ignore(&self) -> bool {
+        self.no_ignore.unwrap_or(false)
+    }
+    pub(crate) fn no_progress(&self) -> bool {
+        self.no_progress.unwrap_or(false)
+    }
+
+    /// Status codes that are considered successful
+    pub(crate) fn accept(&self) -> StatusCodeSelector {
+        self.accept
+            .clone()
+            .unwrap_or(StatusCodeSelector::default_accepted())
+    }
+    /// Whether to accept timeouts as valid results
+    pub(crate) fn accept_timeouts(&self) -> bool {
+        self.accept_timeouts.unwrap_or(false)
+    }
+
+    pub(crate) fn skip_missing(&self) -> bool {
+        self.skip_missing.unwrap_or(false)
+    }
+
+    /// Maximum number of retries per request
+    pub(crate) fn max_retries(&self) -> u64 {
+        self.max_retries.unwrap_or(DEFAULT_MAX_RETRIES)
+    }
+    /// Maximum age of cache entries
+    pub(crate) fn max_cache_age(&self) -> std::time::Duration {
+        const DEFAULT_MAX_CACHE_AGE: Duration = Duration::from_secs(60 * 60 * 24); // one day
+        self.max_cache_age.unwrap_or(DEFAULT_MAX_CACHE_AGE)
+    }
+    /// Maximum number of allowed redirects
+    pub(crate) fn max_redirects(&self) -> usize {
+        self.max_redirects.unwrap_or(DEFAULT_MAX_REDIRECTS)
+    }
+    /// Maximum number of concurrent network requests
+    pub(crate) fn max_concurrency(&self) -> NonZeroUsize {
+        const DEFAULT_MAX_CONCURRENCY: NonZeroUsize = NonZeroUsize::new(128).unwrap();
+        self.max_concurrency.unwrap_or(DEFAULT_MAX_CONCURRENCY)
+    }
+
+    /// Whether to use the on-disk request cache
+    pub(crate) fn cache(&self) -> bool {
+        self.cache.unwrap_or(false)
+    }
+    /// Filesystem path used to store the on-disk request cache
+    pub(crate) fn cache_location(&self) -> PathBuf {
+        self.cache_location
+            .clone()
+            .unwrap_or_else(|| PathBuf::from(LYCHEE_CACHE_FILE))
+    }
+    /// Status codes that shouldn't be cached
+    pub(crate) fn cache_exclude_status(&self) -> StatusCodeSelector {
+        self.cache_exclude_status
+            .clone()
+            .unwrap_or(StatusCodeSelector::empty())
+    }
+
+    pub(crate) fn require_https(&self) -> bool {
+        self.require_https.unwrap_or(false)
+    }
+
+    fn load_from_file(path: &Path) -> Result<Config> {
+        loaders::load_from_file(path)
+    }
+
+    /// Minimum wait time between retries of failed requests
+    pub(crate) fn retry_wait_time(&self) -> Duration {
+        let seconds = self.retry_wait_time.unwrap_or(DEFAULT_RETRY_WAIT_TIME_SECS);
+        Duration::from_secs(seconds)
+    }
+
+    pub(crate) fn include_mail(&self) -> bool {
+        self.include_mail.unwrap_or(false)
+    }
+    pub(crate) fn include_verbatim(&self) -> bool {
+        self.include_verbatim.unwrap_or(false)
+    }
+    pub(crate) fn include_wikilinks(&self) -> bool {
+        self.include_wikilinks.unwrap_or(false)
+    }
+
+    pub(crate) fn glob_ignore_case(&self) -> bool {
+        self.glob_ignore_case.unwrap_or(false)
+    }
+
+    pub(crate) fn exclude_private(&self) -> bool {
+        self.exclude_private.unwrap_or(false)
+    }
+    pub(crate) fn exclude_loopback(&self) -> bool {
+        self.exclude_loopback.unwrap_or(false)
+    }
+    pub(crate) fn exclude_link_local(&self) -> bool {
+        self.exclude_link_local.unwrap_or(false)
+    }
+    pub(crate) fn exclude_all_private(&self) -> bool {
+        self.exclude_all_private.unwrap_or(false)
+    }
+
+    pub(crate) const fn set_max_concurrency(&mut self, concurrency: NonZeroUsize) {
+        self.max_concurrency = Some(concurrency);
+    }
+
+    pub(crate) fn fragment_checker_options(&self) -> FragmentCheckerOptions {
+        self.include_fragments.unwrap_or(FragmentMode::None).into()
+    }
+}
+
+/// lychee is a fast, asynchronous link checker which detects broken URLs and mail addresses
+/// in local files and websites. It supports Markdown and HTML and works with other file formats.
+///
+/// lychee is powered by lychee-lib, the Rust library for link checking.
+#[derive(Parser, Debug)]
+#[command(version, about, next_display_order = None)]
+pub(crate) struct LycheeOptions {
+    #[clap(flatten)]
+    pub(crate) config: Config,
+    /// Configuration file to use
+    #[arg(short, long = "config", value_name = "FILE_PATH")]
+    #[arg(help = HELP_MSG_CONFIG_FILE)]
+    pub(crate) config_files: Vec<PathBuf>,
+
+    /// Inputs for link checking (where to get links to check from).
+    /// These can be: files (e.g. `README.md`), file globs (e.g. `'~/git/*/README.md'`),
+    /// remote URLs (e.g. `https://example.com/README.md`), or standard input (`-`).
+    /// Alternatively, use `--files-from` to read inputs from a file.
+    ///
+    /// NOTE: Use `--` to separate inputs from options that allow multiple arguments.
+    #[arg(
+        name = "inputs",
+        required_unless_present = "files_from",
+        required_unless_present = "generate",
+        verbatim_doc_comment
+    )]
+    raw_inputs: Vec<String>,
+}
+
+impl LycheeOptions {
+    /// Get parsed inputs from options.
+    // This depends on the config, which is why a method is required (we could
+    // accept a `Vec<Input>` in `LycheeOptions` and do the conversion there, but
+    // we wouldn't get access to `glob_ignore_case`.
+    pub(crate) fn inputs(&self) -> Result<HashSet<Input>> {
+        let mut all_inputs = self.raw_inputs.clone();
+
+        // If --files-from is specified, read inputs from the file
+        if let Some(files_from_path) = &self.config.files_from {
+            let files_from = FilesFrom::try_from(files_from_path.as_path())
+                .context("Cannot read inputs from --files-from")?;
+            all_inputs.extend(files_from.inputs);
+        }
+
+        // Convert default extension to FileType if provided
+        let default_file_type = self
+            .config
+            .default_extension
+            .as_deref()
+            .and_then(FileType::from_extension);
+
+        all_inputs
+            .iter()
+            .map(|raw_input| {
+                Input::new(raw_input, default_file_type, self.config.glob_ignore_case())
+            })
+            .collect::<Result<_, _>>()
+            .context("Cannot parse inputs from arguments")
+    }
+}
+
+impl From<FragmentMode> for FragmentCheckerOptions {
+    fn from(mode: FragmentMode) -> Self {
+        match mode {
+            FragmentMode::None => FragmentCheckerOptions::default(),
+            FragmentMode::AnchorOnly => FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
+            FragmentMode::TextOnly => FragmentCheckerOptions {
+                check_anchor_fragments: false,
+                check_text_fragments: true,
+            },
+            FragmentMode::Full => FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: true,
+            },
+        }
+    }
+}
+
+// Custom deserializer function for the header field
+fn deserialize_headers<'de, D>(deserializer: D) -> Result<Vec<(String, String)>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let map = HashMap::<String, String>::deserialize(deserializer)?;
+    Ok(map.into_iter().collect())
 }
 
 #[cfg(test)]
