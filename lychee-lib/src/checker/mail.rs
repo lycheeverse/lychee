@@ -1,8 +1,9 @@
-use crate::{Status, Uri};
 use std::time::Duration;
 
 #[cfg(feature = "email-check")]
 use mailify_lib::{Client, Config};
+
+use crate::{Status, Uri};
 
 /// A utility for checking the validity of email addresses.
 ///

@@ -17,8 +17,9 @@ pub enum BasicAuthExtractorError {
 /// associated with a different domain regex.
 #[derive(Debug, Clone, Default)]
 pub struct BasicAuthExtractor {
-    credentials: Vec<BasicAuthCredentials>,
     regex_set: RegexSet,
+
+    credentials: Vec<BasicAuthCredentials>,
 }
 
 impl BasicAuthExtractor {

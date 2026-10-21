@@ -43,6 +43,26 @@ impl<T> CacheSetter<T> {
 pub struct CacheGetter<T>(Receiver<Option<Arc<T>>>);
 
 impl<T> CacheGetter<T> {
+    /// Returns the value without waiting, if possible, otherwise returns [`None`].
+    #[must_use]
+    pub fn get(&self) -> Option<Arc<T>> {
+        self.0.borrow().as_ref().cloned()
+    }
+
+    /// Constructs a new [`CacheGetter`] which is immediately ready with the
+    /// given value.
+    pub fn ready(value: T) -> Self {
+        let (_, recv) = channel(Some(Arc::new(value)));
+        CacheGetter(recv)
+    }
+
+    /// Returns the value without waiting, consuming this [`CacheGetter`] in the process.
+    /// Returns [`None`] if the value is not ready.
+    #[must_use]
+    pub fn into_inner(self) -> Option<Arc<T>> {
+        self.get()
+    }
+
     /// Waits until the cache value is computed and stored by the corresponding
     /// [`CacheSetter`]. If the value has already been computed and stored, this
     /// function will complete immediately.
@@ -55,26 +75,6 @@ impl<T> CacheGetter<T> {
 
         #[expect(clippy::missing_panics_doc, reason = "impossible due to is_some check")]
         Ok(received.as_ref().unwrap().clone())
-    }
-
-    /// Returns the value without waiting, if possible, otherwise returns [`None`].
-    #[must_use]
-    pub fn get(&self) -> Option<Arc<T>> {
-        self.0.borrow().as_ref().cloned()
-    }
-
-    /// Returns the value without waiting, consuming this [`CacheGetter`] in the process.
-    /// Returns [`None`] if the value is not ready.
-    #[must_use]
-    pub fn into_inner(self) -> Option<Arc<T>> {
-        self.get()
-    }
-
-    /// Constructs a new [`CacheGetter`] which is immediately ready with the
-    /// given value.
-    pub fn ready(value: T) -> Self {
-        let (_, recv) = channel(Some(Arc::new(value)));
-        CacheGetter(recv)
     }
 }
 

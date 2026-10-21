@@ -6,97 +6,26 @@ use html5ever::{
     tokenizer::{Tag, TagKind, Token, TokenSink, TokenSinkResult, Tokenizer, TokenizerOpts},
 };
 
+use crate::types::uri::raw::{RawUri, RawUriSpan, SourceSpanProvider, SpanProvider};
+
 use super::{
     super::{css::extract_css_with_default_span, plaintext::extract_raw_uri_from_plaintext},
     is_email_link, is_verbatim_elem, srcset,
 };
-use crate::types::uri::raw::{RawUri, RawUriSpan, SourceSpanProvider, SpanProvider};
-
-/// A [`SpanProvider`] which applies a given line offset.
-struct LineOffsetSpanProvider<'a> {
-    /// The number of lines each span will be offset by.
-    lines_before: usize,
-    /// The inner [`SpanProvider`] which will be responsible for computing the spans.
-    inner: &'a SourceSpanProvider<'a>,
-}
-
-impl SpanProvider for LineOffsetSpanProvider<'_> {
-    fn span(&self, offset: usize) -> RawUriSpan {
-        let mut span = self.inner.span(offset);
-        // if we stay in the same line the column information is wrong, since we didn't know the
-        // column beforehand and likely did not start at a linebreak.
-        // This can be improved in the future by using the computed length of lines.
-        if span.line.get() == 1 {
-            span.column = None;
-        }
-        span.line = span
-            .line
-            .saturating_add(self.lines_before.saturating_sub(1));
-        span
-    }
-}
 
 #[derive(Clone)]
 struct LinkExtractor {
     links: RefCell<Vec<RawUri>>,
-    include_verbatim: bool,
-    current_verbatim_element_name: RefCell<Option<String>>,
+
     /// Whether we're currently inside a `<style>` tag.
     in_style_tag: RefCell<bool>,
+
     /// Accumulated CSS content from within a `<style>` tag.
     style_content: RefCell<String>,
-}
 
-impl TokenSink for LinkExtractor {
-    type Handle = ();
+    include_verbatim: bool,
 
-    #[allow(clippy::match_same_arms)]
-    fn process_token(&self, token: Token, line_number: u64) -> TokenSinkResult<()> {
-        debug_assert_ne!(line_number, 0);
-        let line_number =
-            usize::try_from(line_number).expect("Unable to convert u64 line_number to usize");
-
-        match token {
-            Token::CharacterTokens(raw) => {
-                // If we're inside a style tag, accumulate the CSS content
-                if *self.in_style_tag.borrow() {
-                    self.style_content.borrow_mut().push_str(&raw);
-                    return TokenSinkResult::Continue;
-                }
-
-                if self.current_verbatim_element_name.borrow().is_some() {
-                    return TokenSinkResult::Continue;
-                }
-                if self.include_verbatim {
-                    self.links
-                        .borrow_mut()
-                        .extend(extract_raw_uri_from_plaintext(
-                            &raw,
-                            &LineOffsetSpanProvider {
-                                lines_before: respect_multiline_tendril(line_number, &raw),
-                                inner: &SourceSpanProvider::from_input(&raw),
-                            },
-                        ));
-                }
-            }
-            Token::TagToken(tag) => return self.process_tag(tag, line_number),
-            Token::ParseError(_err) => {
-                // Silently ignore parse errors
-            }
-            Token::CommentToken(_raw) => (),
-            Token::NullCharacterToken => (),
-            Token::DoctypeToken(_doctype) => (),
-            Token::EOFToken => (),
-        }
-        TokenSinkResult::Continue
-    }
-}
-
-/// Offset line number by line breaks included in the raw text.
-/// This is necessary since html5ever version 0.35.0.
-/// Previously html5ever did not supply us with multiline `Tendril`s.
-fn respect_multiline_tendril(line_number: usize, raw: &Tendril<UTF8>) -> usize {
-    line_number.saturating_sub(raw.chars().filter(|c| *c == '\n').count())
+    current_verbatim_element_name: RefCell<Option<String>>,
 }
 
 impl LinkExtractor {
@@ -297,6 +226,76 @@ impl LinkExtractor {
     }
 }
 
+impl TokenSink for LinkExtractor {
+    type Handle = ();
+
+    #[allow(clippy::match_same_arms)]
+    fn process_token(&self, token: Token, line_number: u64) -> TokenSinkResult<()> {
+        debug_assert_ne!(line_number, 0);
+        let line_number =
+            usize::try_from(line_number).expect("Unable to convert u64 line_number to usize");
+
+        match token {
+            Token::CharacterTokens(raw) => {
+                // If we're inside a style tag, accumulate the CSS content
+                if *self.in_style_tag.borrow() {
+                    self.style_content.borrow_mut().push_str(&raw);
+                    return TokenSinkResult::Continue;
+                }
+
+                if self.current_verbatim_element_name.borrow().is_some() {
+                    return TokenSinkResult::Continue;
+                }
+                if self.include_verbatim {
+                    self.links
+                        .borrow_mut()
+                        .extend(extract_raw_uri_from_plaintext(
+                            &raw,
+                            &LineOffsetSpanProvider {
+                                lines_before: respect_multiline_tendril(line_number, &raw),
+                                inner: &SourceSpanProvider::from_input(&raw),
+                            },
+                        ));
+                }
+            }
+            Token::TagToken(tag) => return self.process_tag(tag, line_number),
+            Token::ParseError(_err) => {
+                // Silently ignore parse errors
+            }
+            Token::CommentToken(_raw) => (),
+            Token::NullCharacterToken => (),
+            Token::DoctypeToken(_doctype) => (),
+            Token::EOFToken => (),
+        }
+        TokenSinkResult::Continue
+    }
+}
+
+/// A [`SpanProvider`] which applies a given line offset.
+struct LineOffsetSpanProvider<'a> {
+    /// The inner [`SpanProvider`] which will be responsible for computing the spans.
+    inner: &'a SourceSpanProvider<'a>,
+
+    /// The number of lines each span will be offset by.
+    lines_before: usize,
+}
+
+impl SpanProvider for LineOffsetSpanProvider<'_> {
+    fn span(&self, offset: usize) -> RawUriSpan {
+        let mut span = self.inner.span(offset);
+        // if we stay in the same line the column information is wrong, since we didn't know the
+        // column beforehand and likely did not start at a linebreak.
+        // This can be improved in the future by using the computed length of lines.
+        if span.line.get() == 1 {
+            span.column = None;
+        }
+        span.line = span
+            .line
+            .saturating_add(self.lines_before.saturating_sub(1));
+        span
+    }
+}
+
 /// Extract unparsed URL strings from an HTML string.
 pub(crate) fn extract_html(buf: &str, include_verbatim: bool) -> Vec<RawUri> {
     let input = BufferQueue::default();
@@ -310,6 +309,13 @@ pub(crate) fn extract_html(buf: &str, include_verbatim: bool) -> Vec<RawUri> {
     tokenizer.end();
 
     tokenizer.sink.links.into_inner()
+}
+
+/// Offset line number by line breaks included in the raw text.
+/// This is necessary since html5ever version 0.35.0.
+/// Previously html5ever did not supply us with multiline `Tendril`s.
+fn respect_multiline_tendril(line_number: usize, raw: &Tendril<UTF8>) -> usize {
+    line_number.saturating_sub(raw.chars().filter(|c| *c == '\n').count())
 }
 
 #[cfg(test)]

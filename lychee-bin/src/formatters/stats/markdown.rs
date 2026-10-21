@@ -3,11 +3,11 @@ use std::{
     fmt::{self, Display},
 };
 
-use super::StatsFormatter;
+use std::fmt::Write;
+
 use anyhow::Result;
 use http::StatusCode;
 use lychee_lib::{InputSource, ResponseBody, Status};
-use std::fmt::Write;
 use tabled::{
     Table, Tabled,
     settings::{Alignment, Modify, Style, object::Segment},
@@ -18,12 +18,68 @@ use crate::formatters::{
     stats::{OutputStats, ResponseStats},
 };
 
+use super::StatsFormatter;
+
+pub(crate) struct Markdown;
+
+impl Markdown {
+    pub(crate) const fn new() -> Self {
+        Self {}
+    }
+}
+
+impl StatsFormatter for Markdown {
+    fn format(&self, stats: OutputStats) -> Result<String> {
+        let response_stats = MarkdownResponseStats(stats.response_stats);
+        let host_stats = MarkdownHostStats {
+            host_stats: stats.host_stats,
+        };
+
+        Ok(format!("{response_stats}\n{host_stats}"))
+    }
+}
+
+struct MarkdownResponseStats(ResponseStats);
+
+impl Display for MarkdownResponseStats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let stats = &self.0;
+
+        writeln!(f, "# Summary")?;
+        writeln!(f)?;
+        writeln!(f, "{}", stats_table(&self.0))?;
+
+        write_stats_per_input(f, "Errors", &stats.error_map, |response| {
+            markdown_response(response).map_err(|_| fmt::Error)
+        })?;
+
+        write_stats_per_input(f, "Timeouts", &stats.timeout_map, |response| {
+            markdown_response(response).map_err(|_| fmt::Error)
+        })?;
+
+        write_stats_per_input(f, "Ignored", &stats.unsupported_map, |response| {
+            markdown_response(response).map_err(|_| fmt::Error)
+        })?;
+
+        write_stats_per_input(f, "Redirects", &stats.redirect_map, |redirects| {
+            Ok(format!("* {redirects}"))
+        })?;
+
+        write_stats_per_input(f, "Suggestions", &stats.suggestion_map, |suggestion| {
+            Ok(format!("* {suggestion}"))
+        })?;
+
+        Ok(())
+    }
+}
+
 #[derive(Tabled)]
 struct StatsTableEntry {
-    #[tabled(rename = "Status")]
-    status: &'static str,
     #[tabled(rename = "Count")]
     count: usize,
+
+    #[tabled(rename = "Status")]
+    status: &'static str,
 }
 
 fn stats_table(stats: &ResponseStats) -> String {
@@ -102,40 +158,6 @@ fn markdown_response(response: &ResponseBody) -> Result<String> {
     Ok(formatted)
 }
 
-struct MarkdownResponseStats(ResponseStats);
-
-impl Display for MarkdownResponseStats {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let stats = &self.0;
-
-        writeln!(f, "# Summary")?;
-        writeln!(f)?;
-        writeln!(f, "{}", stats_table(&self.0))?;
-
-        write_stats_per_input(f, "Errors", &stats.error_map, |response| {
-            markdown_response(response).map_err(|_| fmt::Error)
-        })?;
-
-        write_stats_per_input(f, "Timeouts", &stats.timeout_map, |response| {
-            markdown_response(response).map_err(|_| fmt::Error)
-        })?;
-
-        write_stats_per_input(f, "Ignored", &stats.unsupported_map, |response| {
-            markdown_response(response).map_err(|_| fmt::Error)
-        })?;
-
-        write_stats_per_input(f, "Redirects", &stats.redirect_map, |redirects| {
-            Ok(format!("* {redirects}"))
-        })?;
-
-        write_stats_per_input(f, "Suggestions", &stats.suggestion_map, |suggestion| {
-            Ok(format!("* {suggestion}"))
-        })?;
-
-        Ok(())
-    }
-}
-
 fn write_stats_per_input<T, F>(
     f: &mut fmt::Formatter<'_>,
     name: &'static str,
@@ -157,25 +179,6 @@ where
     }
 
     Ok(())
-}
-
-pub(crate) struct Markdown;
-
-impl Markdown {
-    pub(crate) const fn new() -> Self {
-        Self {}
-    }
-}
-
-impl StatsFormatter for Markdown {
-    fn format(&self, stats: OutputStats) -> Result<String> {
-        let response_stats = MarkdownResponseStats(stats.response_stats);
-        let host_stats = MarkdownHostStats {
-            host_stats: stats.host_stats,
-        };
-
-        Ok(format!("{response_stats}\n{host_stats}"))
-    }
 }
 
 #[cfg(test)]

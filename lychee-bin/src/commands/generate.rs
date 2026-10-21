@@ -24,10 +24,6 @@ const BUG_SECTION: &str =
 
 Questions can also be asked on <https://github.com/lycheeverse/lychee/discussions>";
 
-type Description = &'static str;
-type Commands = &'static [&'static str];
-type Example = (Description, Commands);
-
 /// Used to render the EXAMPLES section in the man page.
 const EXAMPLES: &[Example] = &[
     (
@@ -72,6 +68,10 @@ const EXIT_CODE_SECTION: &str = "
 3   Encountered errors in the config file.
 ";
 
+type Description = &'static str;
+type Commands = &'static [&'static str];
+type Example = (Description, Commands);
+
 /// What to generate when providing the --generate flag
 #[derive(
     Debug, Deserialize, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq, JsonSchema,
@@ -82,18 +82,20 @@ const EXIT_CODE_SECTION: &str = "
 pub(crate) enum GenerateMode {
     /// Generate roff used for the man page
     Man,
+
     /// Generate a JSON schema for the configuration file
     ConfigSchema,
-    /// Generate shell completion for Bash
-    CompleteBash,
-    /// Generate shell completion for Elvish
-    CompleteElvish,
-    /// Generate shell completion for Fish
-    CompleteFish,
-    /// Generate shell completion for PowerShell
-    CompletePowershell,
+
     /// Generate shell completion for Zsh
     CompleteZsh,
+    /// Generate shell completion for Bash
+    CompleteBash,
+    /// Generate shell completion for Fish
+    CompleteFish,
+    /// Generate shell completion for Elvish
+    CompleteElvish,
+    /// Generate shell completion for PowerShell
+    CompletePowershell,
 }
 
 /// Generate special output according to the [`GenerateMode`]
@@ -107,26 +109,6 @@ pub(crate) fn generate(mode: &GenerateMode) -> Result<String> {
         GenerateMode::CompletePowershell => shell_completion(Shell::PowerShell),
         GenerateMode::CompleteZsh => shell_completion(Shell::Zsh),
     }
-}
-
-/// Generate a JSON schema for the `lychee.toml` configuration file.
-///
-/// The schema is derived from [`Config`]. Reference it with a Taplo
-/// `#:schema` directive or an editor setting for autocompletion and validation.
-fn config_schema() -> Result<String> {
-    // Draft 7 is widely supported by editors and recommended by SchemaStore.
-    let schema = schemars::generate::SchemaSettings::draft07()
-        .into_generator()
-        .into_root_schema_for::<Config>();
-    Ok(serde_json::to_string_pretty(&schema)?)
-}
-
-/// Generate shell completion for the given shell
-fn shell_completion(shell: Shell) -> Result<String> {
-    let mut cmd = LycheeOptions::command();
-    let mut buffer = Vec::new();
-    generate_completion(shell, &mut cmd, "lychee", &mut buffer);
-    Ok(String::from_utf8(buffer)?)
 }
 
 /// Generate the lychee man page in roff format using [`clap_mangen`]
@@ -151,8 +133,32 @@ fn man_page() -> Result<String> {
     Ok(String::from_utf8(buffer.clone())?)
 }
 
-fn render_exit_codes(buffer: &mut Vec<u8>) -> Result<()> {
-    render_section("EXIT CODES", EXIT_CODE_SECTION, buffer)
+/// Generate a JSON schema for the `lychee.toml` configuration file.
+///
+/// The schema is derived from [`Config`]. Reference it with a Taplo
+/// `#:schema` directive or an editor setting for autocompletion and validation.
+fn config_schema() -> Result<String> {
+    // Draft 7 is widely supported by editors and recommended by SchemaStore.
+    let schema = schemars::generate::SchemaSettings::draft07()
+        .into_generator()
+        .into_root_schema_for::<Config>();
+    Ok(serde_json::to_string_pretty(&schema)?)
+}
+
+/// Generate shell completion for the given shell
+fn shell_completion(shell: Shell) -> Result<String> {
+    let mut cmd = LycheeOptions::command();
+    let mut buffer = Vec::new();
+    generate_completion(shell, &mut cmd, "lychee", &mut buffer);
+    Ok(String::from_utf8(buffer)?)
+}
+
+fn render_section(title: &str, content: &str, buffer: &mut Vec<u8>) -> Result<()> {
+    let mut roff = Roff::default();
+    roff.control("SH", [title]);
+    roff.text([roman(content)]);
+    roff.to_writer(buffer)?;
+    Ok(())
 }
 
 fn render_examples(buffer: &mut Vec<u8>) -> Result<()> {
@@ -171,16 +177,12 @@ fn render_examples(buffer: &mut Vec<u8>) -> Result<()> {
     render_section("EXAMPLES", &section, buffer)
 }
 
-fn render_bug_reporting(buffer: &mut Vec<u8>) -> Result<()> {
-    render_section("REPORTING BUGS", BUG_SECTION, buffer)
+fn render_exit_codes(buffer: &mut Vec<u8>) -> Result<()> {
+    render_section("EXIT CODES", EXIT_CODE_SECTION, buffer)
 }
 
-fn render_section(title: &str, content: &str, buffer: &mut Vec<u8>) -> Result<()> {
-    let mut roff = Roff::default();
-    roff.control("SH", [title]);
-    roff.text([roman(content)]);
-    roff.to_writer(buffer)?;
-    Ok(())
+fn render_bug_reporting(buffer: &mut Vec<u8>) -> Result<()> {
+    render_section("REPORTING BUGS", BUG_SECTION, buffer)
 }
 
 #[cfg(test)]

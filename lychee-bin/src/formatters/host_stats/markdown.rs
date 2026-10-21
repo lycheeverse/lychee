@@ -1,11 +1,12 @@
 use std::fmt::{self, Display};
 
-use super::host_heading;
 use lychee_lib::ratelimit::HostStatsMap;
 use tabled::{
     Table, Tabled,
     settings::{Alignment, Modify, Style, object::Segment},
 };
+
+use super::host_heading;
 
 pub(crate) struct MarkdownHostStats {
     pub(crate) host_stats: Option<HostStatsMap>,
@@ -29,14 +30,19 @@ impl Display for MarkdownHostStats {
 struct HostStatsTableEntry {
     #[tabled(rename = "Host")]
     host: String,
+
     #[tabled(rename = "Requests")]
     requests: u64,
-    #[tabled(rename = "Success Rate")]
-    success_rate: String,
-    #[tabled(rename = "Network Errors")]
-    network_errors: u64,
+
     #[tabled(rename = "Median Time")]
     median_time: String,
+
+    #[tabled(rename = "Success Rate")]
+    success_rate: String,
+
+    #[tabled(rename = "Network Errors")]
+    network_errors: u64,
+
     #[tabled(rename = "Cache Hit Rate")]
     cache_hit_rate: String,
 }

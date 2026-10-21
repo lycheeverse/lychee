@@ -1,14 +1,16 @@
-use crate::{
-    Status,
-    chain::{ChainResult, Handler},
-};
+use std::{collections::HashMap, sync::LazyLock};
+
 use async_trait::async_trait;
 use header::HeaderValue;
 use http::header;
 use log::debug;
 use regex::{Captures, Regex};
 use reqwest::{Request, Url};
-use std::{collections::HashMap, sync::LazyLock};
+
+use crate::{
+    Status,
+    chain::{ChainResult, Handler},
+};
 
 static CRATES_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(https?://)?(www\.)?crates.io").unwrap());
@@ -25,21 +27,34 @@ static GITHUB_BLOB_LINE_FRAGMENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
         .unwrap()
 });
 
-// Retrieve a map of query params for the given request
-fn query(request: &Request) -> HashMap<String, String> {
-    request.url().query_pairs().into_owned().collect()
-}
-
 #[derive(Debug, Clone)]
 pub(crate) struct Quirk {
     pub(crate) name: &'static str,
+
     pub(crate) pattern: &'static LazyLock<Regex>,
+
     pub(crate) rewrite: fn(Request, Captures) -> Request,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct Quirks {
     quirks: Vec<Quirk>,
+}
+
+impl Quirks {
+    /// Apply quirks to the given request, if applicable.
+    ///
+    /// Quirks are applied in sequence. The URL produced by earlier quirks can
+    /// be transformed by later quirks.
+    pub(crate) fn apply(&self, mut request: Request) -> Request {
+        for quirk in &self.quirks {
+            if let Some(captures) = quirk.pattern.captures(request.url().clone().as_str()) {
+                debug!("Applied quirk '{}' to {}", quirk.name, request.url());
+                request = (quirk.rewrite)(request, captures);
+            }
+        }
+        request
+    }
 }
 
 impl Default for Quirks {
@@ -117,27 +132,16 @@ impl Default for Quirks {
     }
 }
 
-impl Quirks {
-    /// Apply quirks to the given request, if applicable.
-    ///
-    /// Quirks are applied in sequence. The URL produced by earlier quirks can
-    /// be transformed by later quirks.
-    pub(crate) fn apply(&self, mut request: Request) -> Request {
-        for quirk in &self.quirks {
-            if let Some(captures) = quirk.pattern.captures(request.url().clone().as_str()) {
-                debug!("Applied quirk '{}' to {}", quirk.name, request.url());
-                request = (quirk.rewrite)(request, captures);
-            }
-        }
-        request
-    }
-}
-
 #[async_trait]
 impl Handler<Request, Status> for Quirks {
     async fn handle(&mut self, input: Request) -> ChainResult<Request, Status> {
         ChainResult::Next(self.apply(input))
     }
+}
+
+// Retrieve a map of query params for the given request
+fn query(request: &Request) -> HashMap<String, String> {
+    request.url().query_pairs().into_owned().collect()
 }
 
 #[cfg(test)]

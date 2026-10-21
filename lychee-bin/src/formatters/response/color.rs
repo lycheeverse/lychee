@@ -43,7 +43,6 @@ impl ColorFormatter {
 
         format!("{}[{}]", " ".repeat(padding), status_code_or_text)
     }
-
     /// Color and format the response status.
     fn format_response_status(status: &Status) -> String {
         let status_color = ColorFormatter::status_color(status);

@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 use std::sync::LazyLock;
+
 use thiserror::Error;
 
 use crate::{ErrorKind, RawUri, Response, Status, Uri};
@@ -12,10 +13,6 @@ static ERROR_URI: LazyLock<Uri> = LazyLock::new(|| Uri::try_from("error:").unwra
 /// source.
 #[derive(Error, Debug, PartialEq, Eq, Hash)]
 pub enum RequestError {
-    /// Unable to construct a URL for a link appearing within the given source.
-    #[error("Error building URL for {0}: {2}")]
-    CreateRequestItem(Box<RawUri>, ResolvedInputSource, #[source] Box<ErrorKind>),
-
     /// Unable to load the content of an input source.
     #[error("Error reading input '{0}': {1}")]
     GetInputContent(InputSource, #[source] Box<ErrorKind>),
@@ -28,6 +25,10 @@ pub enum RequestError {
     /// This is for errors that happen after the input content was loaded.
     #[error("Error processing input '{0}': {1}")]
     InputSourceError(InputSource, #[source] Box<ErrorKind>),
+
+    /// Unable to construct a URL for a link appearing within the given source.
+    #[error("Error building URL for {0}: {2}")]
+    CreateRequestItem(Box<RawUri>, ResolvedInputSource, #[source] Box<ErrorKind>),
 }
 
 impl RequestError {
@@ -52,18 +53,6 @@ impl RequestError {
             | Self::InputSourceError(_, e) => *e,
         }
     }
-
-    /// Get (a clone of) the input source within which the error happened.
-    #[must_use]
-    pub fn input_source(&self) -> InputSource {
-        match self {
-            Self::CreateRequestItem(_, src, _) => src.clone().into(),
-            Self::GetInputContent(src, _)
-            | Self::UserInputContent(src, _)
-            | Self::InputSourceError(src, _) => src.clone(),
-        }
-    }
-
     /// Convert this request error into a (failed) [`Response`] for reporting
     /// purposes.
     ///
@@ -92,6 +81,17 @@ impl RequestError {
                     None,
                 ))
             }
+        }
+    }
+
+    /// Get (a clone of) the input source within which the error happened.
+    #[must_use]
+    pub fn input_source(&self) -> InputSource {
+        match self {
+            Self::CreateRequestItem(_, src, _) => src.clone().into(),
+            Self::GetInputContent(src, _)
+            | Self::UserInputContent(src, _)
+            | Self::InputSourceError(src, _) => src.clone(),
         }
     }
 }

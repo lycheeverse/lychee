@@ -1,6 +1,6 @@
-use async_trait::async_trait;
 use std::str::FromStr;
 
+use async_trait::async_trait;
 use headers::authorization::Credentials;
 use headers::{Authorization, authorization::Basic};
 use http::header::AUTHORIZATION;
@@ -12,19 +12,18 @@ use crate::chain::{ChainResult, Handler};
 
 #[derive(Copy, Clone, Debug, Error, PartialEq)]
 pub enum BasicAuthCredentialsParseError {
+    #[error(
+        "Too many values separated by colon. Expected 2, got {0}. Valid form is '<username>:<password>'"
+    )]
+    TooManyParts(usize),
+
     #[error("Invalid basic auth credentials syntax")]
     InvalidSyntax,
 
     #[error("Missing basic auth password")]
     MissingPassword,
-
     #[error("Missing basic auth username")]
     MissingUsername,
-
-    #[error(
-        "Too many values separated by colon. Expected 2, got {0}. Valid form is '<username>:<password>'"
-    )]
-    TooManyParts(usize),
 }
 
 /// [`BasicAuthCredentials`] contains a pair of basic auth values consisting of
@@ -36,6 +35,21 @@ pub struct BasicAuthCredentials {
 
     /// Basic auth password
     pub password: String,
+}
+
+impl BasicAuthCredentials {
+    /// Returns the credentials as [`Authorization<Basic>`].
+    #[must_use]
+    pub fn to_authorization(&self) -> Authorization<Basic> {
+        Authorization::basic(&self.username, &self.password)
+    }
+
+    /// Append the credentials as headers to a `Request`
+    pub fn append_to_request(&self, request: &mut Request) {
+        request
+            .headers_mut()
+            .append(AUTHORIZATION, self.to_authorization().0.encode());
+    }
 }
 
 impl FromStr for BasicAuthCredentials {
@@ -64,21 +78,6 @@ impl FromStr for BasicAuthCredentials {
             username: parts[0].to_string(),
             password: parts[1].to_string(),
         })
-    }
-}
-
-impl BasicAuthCredentials {
-    /// Returns the credentials as [`Authorization<Basic>`].
-    #[must_use]
-    pub fn to_authorization(&self) -> Authorization<Basic> {
-        Authorization::basic(&self.username, &self.password)
-    }
-
-    /// Append the credentials as headers to a `Request`
-    pub fn append_to_request(&self, request: &mut Request) {
-        request
-            .headers_mut()
-            .append(AUTHORIZATION, self.to_authorization().0.encode());
     }
 }
 

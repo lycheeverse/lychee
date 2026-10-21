@@ -28,6 +28,8 @@ macro_rules! color {
     };
 }
 
+pub(crate) use color;
+
 /// Returns the appropriate color for a given log level.
 pub(crate) fn color_for_level(level: Level) -> &'static Style {
     match level {
@@ -38,4 +40,3 @@ pub(crate) fn color_for_level(level: Level) -> &'static Style {
     }
 }
 
-pub(crate) use color;

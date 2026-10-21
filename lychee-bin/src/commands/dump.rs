@@ -1,10 +1,11 @@
+use std::fs;
+use std::io::{self, Write};
+
 use log::debug;
 use log::error;
 use log::warn;
 use lychee_lib::Request;
 use lychee_lib::RequestError;
-use std::fs;
-use std::io::{self, Write};
 use tokio_stream::StreamExt;
 
 use crate::ExitCode;
@@ -12,6 +13,39 @@ use crate::verbosity::Verbosity;
 
 use super::CommandParams;
 
+/// Dump request to stdout
+fn write(
+    writer: &mut Box<dyn Write>,
+    request: &Request,
+    verbosity: &Verbosity,
+    excluded: bool,
+) -> io::Result<()> {
+    // Only print `data:` URIs if verbose mode is at least `info`.
+    if request.uri.is_data() && verbosity.log_level() < log::Level::Info {
+        return Ok(());
+    }
+
+    // Only print source if verbose mode is at least `info`. This way the normal
+    // link output can be fed into another tool without data mangling.
+    let request = if verbosity.log_level() >= log::Level::Info {
+        request.to_string()
+    } else {
+        request.uri.to_string()
+    };
+
+    // Mark excluded links
+    let out_str = if excluded {
+        format!("{request} [excluded]")
+    } else {
+        request
+    };
+
+    write_out(writer, &out_str)
+}
+
+fn write_out(writer: &mut Box<dyn Write>, out_str: &str) -> io::Result<()> {
+    writeln!(writer, "{out_str}")
+}
 /// Dump all detected links to stdout without checking them
 pub(crate) async fn dump<S>(params: CommandParams<S>) -> lychee_lib::Result<ExitCode>
 where
@@ -67,36 +101,3 @@ where
     Ok(ExitCode::Success)
 }
 
-/// Dump request to stdout
-fn write(
-    writer: &mut Box<dyn Write>,
-    request: &Request,
-    verbosity: &Verbosity,
-    excluded: bool,
-) -> io::Result<()> {
-    // Only print `data:` URIs if verbose mode is at least `info`.
-    if request.uri.is_data() && verbosity.log_level() < log::Level::Info {
-        return Ok(());
-    }
-
-    // Only print source if verbose mode is at least `info`. This way the normal
-    // link output can be fed into another tool without data mangling.
-    let request = if verbosity.log_level() >= log::Level::Info {
-        request.to_string()
-    } else {
-        request.uri.to_string()
-    };
-
-    // Mark excluded links
-    let out_str = if excluded {
-        format!("{request} [excluded]")
-    } else {
-        request
-    };
-
-    write_out(writer, &out_str)
-}
-
-fn write_out(writer: &mut Box<dyn Write>, out_str: &str) -> io::Result<()> {
-    writeln!(writer, "{out_str}")
-}

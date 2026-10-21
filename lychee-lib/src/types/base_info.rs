@@ -1,10 +1,11 @@
 //! Parses and resolves [`RawUri`] into into fully-qualified [`Uri`] by
 //! applying base URL and root dir mappings.
 
-use reqwest::Url;
-use serde::Deserialize;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
+
+use reqwest::Url;
+use serde::Deserialize;
 use url::ParseError;
 
 use crate::ErrorKind;
@@ -36,12 +37,6 @@ pub enum BaseInfo {
     #[default]
     None,
 
-    /// A base which cannot resolve root-relative links. This is for
-    /// `file:` URLs where the root directory is not known. As such, you can
-    /// traverse relative to the current URL (by traversing the filesystem),
-    /// but you cannot jump to the "root".
-    NoRoot(Url),
-
     /// A full base made up of `origin` and `path`. This can resolve
     /// all kinds of relative links.
     ///
@@ -58,19 +53,36 @@ pub enum BaseInfo {
     /// In all cases, the fields should satisfy `origin.join(path) == input_source_url`
     /// where `input_source_url` is the URL of the originating input source.
     Full {
-        /// A `file:` or *can be a base* URL which acts as the origin. If this is
-        /// a `file:` URL, root-relative links will resolve to subpaths of this URL.
-        /// See the [`BaseInfo::Full`] for more information.
-        origin: Url,
-
         /// The `path` field is conditionally joined with `origin` to resolve
         /// links. This is a (possibly-empty) locally- or root-relative link
         /// and should not be a full URL or a scheme-relative link.
         path: String,
+
+        /// A `file:` or *can be a base* URL which acts as the origin. If this is
+        /// a `file:` URL, root-relative links will resolve to subpaths of this URL.
+        /// See the [`BaseInfo::Full`] for more information.
+        origin: Url,
     },
+
+    /// A base which cannot resolve root-relative links. This is for
+    /// `file:` URLs where the root directory is not known. As such, you can
+    /// traverse relative to the current URL (by traversing the filesystem),
+    /// but you cannot jump to the "root".
+    NoRoot(Url),
 }
 
 impl BaseInfo {
+    /// Returns the URL for the current [`BaseInfo`], joining the origin and path
+    /// if needed.
+    #[must_use]
+    pub fn url(&self) -> Option<Url> {
+        match self {
+            Self::None => None,
+            Self::NoRoot(url) => Some(url.clone()),
+            Self::Full { origin, path } => origin.join(path).ok(),
+        }
+    }
+
     /// Constructs [`BaseInfo::None`].
     #[must_use]
     pub const fn none() -> Self {
@@ -83,51 +95,46 @@ impl BaseInfo {
         Self::Full { origin, path }
     }
 
-    /// Constructs a [`BaseInfo`], with the variant being determined by the given URL.
-    ///
-    /// - A [`Url::cannot_be_a_base`] URL will yield [`BaseInfo::None`].
-    /// - A `file:` URL will yield [`BaseInfo::NoRoot`].
-    /// - For other URLs, a [`BaseInfo::Full`] will be constructed from the URL's
-    ///   origin and path.
-    ///
-    /// Compared to [`BaseInfo::from_base_url`], this function is more lenient in
-    /// what it accepts because this function should return *a* result for all
-    /// input source URLs.
+    /// Returns the scheme of the underlying URL.
     #[must_use]
-    pub fn from_source_url(url: &Url) -> Self {
-        if url.scheme() == "file" {
-            Self::NoRoot(url.clone())
-        } else {
-            match Self::split_url_origin_and_path(url) {
-                Some((origin, path)) => Self::full(origin, path),
-                None => Self::none(),
-            }
+    pub fn scheme(&self) -> Option<&str> {
+        match self {
+            Self::None => None,
+            Self::NoRoot(url) | Self::Full { origin: url, .. } => Some(url.scheme()),
         }
     }
 
-    /// Split URL into its origin and path, if possible. Will fail and return
-    /// `None` for URLs which *cannot be a base*.
-    fn split_url_origin_and_path(url: &Url) -> Option<(Url, String)> {
-        let origin = url.join("/").ok()?;
-        let subpath = origin.make_relative(url)?;
-        Some((origin, subpath))
+    /// Returns whether this value is [`BaseInfo::None`].
+    #[must_use]
+    pub const fn is_none(&self) -> bool {
+        matches!(self, Self::None)
     }
 
-    /// Constructs a [`BaseInfo`] from the given URL, requiring that the given path be acceptable as a
-    /// base URL. That is, it cannot be a special scheme like `data:`.
+    /// Returns the [`BaseInfo`] which has _more information_
+    /// between `self` and the given `fallback`.
     ///
-    /// # Errors
-    ///
-    /// Errors if the given URL cannot be a base.
-    pub fn from_base_url(url: &Url) -> Result<BaseInfo, ErrorKind> {
-        if url.cannot_be_a_base() {
-            return Err(ErrorKind::InvalidBase(
-                url.to_string(),
-                "The given URL cannot be used as a base URL".to_string(),
-            ));
+    /// [`BaseInfo::Full`] is preferred over [`BaseInfo::NoRoot`]
+    /// which is preferred over [`BaseInfo::None`]. If both `self`
+    /// and `fallback` are the same variant, then `self` will be preferred.
+    #[must_use]
+    #[allow(clippy::match_same_arms)]
+    pub const fn or_fallback<'a>(&'a self, fallback: &'a Self) -> &'a Self {
+        match (self, fallback) {
+            (x @ Self::Full { .. }, _) => x,
+            (_, x @ Self::Full { .. }) => x,
+            (x @ Self::NoRoot(_), _) => x,
+            (_, x @ Self::NoRoot(_)) => x,
+            (x @ Self::None, Self::None) => x,
         }
+    }
 
-        Ok(Self::from_source_url(url))
+    /// Returns the filesystem path for the current [`BaseInfo`] if the underlying
+    /// URL is a `file:` URL.
+    #[must_use]
+    pub fn to_file_path(&self) -> Option<PathBuf> {
+        self.url()
+            .filter(|url| url.scheme() == "file")
+            .and_then(|x| x.to_file_path().ok())
     }
 
     /// Constructs a [`BaseInfo`] from the given filesystem path, requiring that
@@ -149,6 +156,43 @@ impl BaseInfo {
         };
 
         Self::from_base_url(&url).map(|x| x.use_fs_path_as_origin().into_owned())
+    }
+    /// Constructs a [`BaseInfo`] from the given URL, requiring that the given path be acceptable as a
+    /// base URL. That is, it cannot be a special scheme like `data:`.
+    ///
+    /// # Errors
+    ///
+    /// Errors if the given URL cannot be a base.
+    pub fn from_base_url(url: &Url) -> Result<BaseInfo, ErrorKind> {
+        if url.cannot_be_a_base() {
+            return Err(ErrorKind::InvalidBase(
+                url.to_string(),
+                "The given URL cannot be used as a base URL".to_string(),
+            ));
+        }
+
+        Ok(Self::from_source_url(url))
+    }
+    /// Constructs a [`BaseInfo`], with the variant being determined by the given URL.
+    ///
+    /// - A [`Url::cannot_be_a_base`] URL will yield [`BaseInfo::None`].
+    /// - A `file:` URL will yield [`BaseInfo::NoRoot`].
+    /// - For other URLs, a [`BaseInfo::Full`] will be constructed from the URL's
+    ///   origin and path.
+    ///
+    /// Compared to [`BaseInfo::from_base_url`], this function is more lenient in
+    /// what it accepts because this function should return *a* result for all
+    /// input source URLs.
+    #[must_use]
+    pub fn from_source_url(url: &Url) -> Self {
+        if url.scheme() == "file" {
+            Self::NoRoot(url.clone())
+        } else {
+            match Self::split_url_origin_and_path(url) {
+                Some((origin, path)) => Self::full(origin, path),
+                None => Self::none(),
+            }
+        }
     }
 
     /// If this is a [`BaseInfo::NoRoot`], promote it to a [`BaseInfo::Full`]
@@ -175,7 +219,6 @@ impl BaseInfo {
 
         Cow::Owned(Self::full(fs_root, subpath))
     }
-
     /// If this is a [`BaseInfo::NoRoot`], promote it to a [`BaseInfo::Full`]
     /// by using the entire filesystem path as the "origin" for root-relative links.
     /// Root-relative links will go to the URL that was previously within `NoRoot`.
@@ -191,73 +234,6 @@ impl BaseInfo {
         };
 
         Cow::Owned(Self::full(url.clone(), String::new()))
-    }
-
-    /// Returns the URL for the current [`BaseInfo`], joining the origin and path
-    /// if needed.
-    #[must_use]
-    pub fn url(&self) -> Option<Url> {
-        match self {
-            Self::None => None,
-            Self::NoRoot(url) => Some(url.clone()),
-            Self::Full { origin, path } => origin.join(path).ok(),
-        }
-    }
-
-    /// Returns the filesystem path for the current [`BaseInfo`] if the underlying
-    /// URL is a `file:` URL.
-    #[must_use]
-    pub fn to_file_path(&self) -> Option<PathBuf> {
-        self.url()
-            .filter(|url| url.scheme() == "file")
-            .and_then(|x| x.to_file_path().ok())
-    }
-
-    /// Returns the scheme of the underlying URL.
-    #[must_use]
-    pub fn scheme(&self) -> Option<&str> {
-        match self {
-            Self::None => None,
-            Self::NoRoot(url) | Self::Full { origin: url, .. } => Some(url.scheme()),
-        }
-    }
-
-    /// Returns whether this value is [`BaseInfo::None`].
-    #[must_use]
-    pub const fn is_none(&self) -> bool {
-        matches!(self, Self::None)
-    }
-
-    /// Returns whether this [`BaseInfo`] variant supports resolving root-relative links.
-    ///
-    /// If true, implies [`BaseInfo::supports_locally_relative`].
-    #[must_use]
-    pub const fn supports_root_relative(&self) -> bool {
-        matches!(self, Self::Full { .. })
-    }
-
-    /// Returns whether this [`BaseInfo`] variant supports resolving locally-relative links.
-    #[must_use]
-    pub const fn supports_locally_relative(&self) -> bool {
-        !self.is_none()
-    }
-
-    /// Returns the [`BaseInfo`] which has _more information_
-    /// between `self` and the given `fallback`.
-    ///
-    /// [`BaseInfo::Full`] is preferred over [`BaseInfo::NoRoot`]
-    /// which is preferred over [`BaseInfo::None`]. If both `self`
-    /// and `fallback` are the same variant, then `self` will be preferred.
-    #[must_use]
-    #[allow(clippy::match_same_arms)]
-    pub const fn or_fallback<'a>(&'a self, fallback: &'a Self) -> &'a Self {
-        match (self, fallback) {
-            (x @ Self::Full { .. }, _) => x,
-            (_, x @ Self::Full { .. }) => x,
-            (x @ Self::NoRoot(_), _) => x,
-            (_, x @ Self::NoRoot(_)) => x,
-            (x @ Self::None, Self::None) => x,
-        }
     }
 
     /// Parses the given URL text into a fully-qualified URL, including
@@ -276,6 +252,44 @@ impl BaseInfo {
             Ok(ParsedUri::Absolute(uri)) => Ok(uri.url),
             Ok(ParsedUri::Relative(rel)) => self.resolve_relative_link(&rel),
             Err(e) => Err(e),
+        }
+    }
+    /// Parses the given URL text into a fully-qualified URL, including
+    /// resolving relative links if supported by the current [`BaseInfo`]
+    /// and applying the given root-dir if necessary.
+    ///
+    /// The root-dir is applied if the current `BaseInfo` is [`BaseInfo::None`]
+    /// or has a `file:` URL and if the given text is a root-relative link.
+    /// In these cases, the given `root_dir` will *override* the original
+    /// `BaseInfo`.
+    ///
+    /// # Errors
+    ///
+    /// Propagates errors from [`BaseInfo::parse_url_text`].
+    pub fn parse_url_text_with_root_dir(
+        &self,
+        text: &str,
+        root_dir: Option<&Url>,
+    ) -> Result<Url, ErrorKind> {
+        // HACK: if root-dir is specified, apply it by fudging around with
+        // file:// URLs. eventually, someone up the stack should construct
+        // the BaseInfo::Full for root-dir and this function should be deleted.
+
+        let rel = match ParsedUri::try_from(text) {
+            Ok(ParsedUri::Absolute(uri)) => return Ok(uri.url),
+            Err(e) => return Err(e),
+            Ok(ParsedUri::Relative(rel)) => rel,
+        };
+
+        // NOTE: also applies root-dir for BaseInfo::None :)
+        if let Some(root_dir) = root_dir
+            && let RelativeUri::Root(_) = rel
+            && let None | Some("file") = self.scheme()
+        {
+            let root_dir_base = Self::full(root_dir.clone(), String::new());
+            root_dir_base.resolve_relative_link(&rel)
+        } else {
+            self.resolve_relative_link(&rel)
         }
     }
 
@@ -324,43 +338,25 @@ impl BaseInfo {
         .map_err(|e| ErrorKind::ParseUrl(e, rel.link_text().to_string()))
     }
 
-    /// Parses the given URL text into a fully-qualified URL, including
-    /// resolving relative links if supported by the current [`BaseInfo`]
-    /// and applying the given root-dir if necessary.
+    /// Returns whether this [`BaseInfo`] variant supports resolving root-relative links.
     ///
-    /// The root-dir is applied if the current `BaseInfo` is [`BaseInfo::None`]
-    /// or has a `file:` URL and if the given text is a root-relative link.
-    /// In these cases, the given `root_dir` will *override* the original
-    /// `BaseInfo`.
-    ///
-    /// # Errors
-    ///
-    /// Propagates errors from [`BaseInfo::parse_url_text`].
-    pub fn parse_url_text_with_root_dir(
-        &self,
-        text: &str,
-        root_dir: Option<&Url>,
-    ) -> Result<Url, ErrorKind> {
-        // HACK: if root-dir is specified, apply it by fudging around with
-        // file:// URLs. eventually, someone up the stack should construct
-        // the BaseInfo::Full for root-dir and this function should be deleted.
+    /// If true, implies [`BaseInfo::supports_locally_relative`].
+    #[must_use]
+    pub const fn supports_root_relative(&self) -> bool {
+        matches!(self, Self::Full { .. })
+    }
+    /// Returns whether this [`BaseInfo`] variant supports resolving locally-relative links.
+    #[must_use]
+    pub const fn supports_locally_relative(&self) -> bool {
+        !self.is_none()
+    }
 
-        let rel = match ParsedUri::try_from(text) {
-            Ok(ParsedUri::Absolute(uri)) => return Ok(uri.url),
-            Err(e) => return Err(e),
-            Ok(ParsedUri::Relative(rel)) => rel,
-        };
-
-        // NOTE: also applies root-dir for BaseInfo::None :)
-        if let Some(root_dir) = root_dir
-            && let RelativeUri::Root(_) = rel
-            && let None | Some("file") = self.scheme()
-        {
-            let root_dir_base = Self::full(root_dir.clone(), String::new());
-            root_dir_base.resolve_relative_link(&rel)
-        } else {
-            self.resolve_relative_link(&rel)
-        }
+    /// Split URL into its origin and path, if possible. Will fail and return
+    /// `None` for URLs which *cannot be a base*.
+    fn split_url_origin_and_path(url: &Url) -> Option<(Url, String)> {
+        let origin = url.join("/").ok()?;
+        let subpath = origin.make_relative(url)?;
+        Some((origin, subpath))
     }
 }
 
@@ -392,6 +388,7 @@ impl TryFrom<&str> for BaseInfo {
 
 impl TryFrom<String> for BaseInfo {
     type Error = ErrorKind;
+
     fn try_from(value: String) -> Result<Self, ErrorKind> {
         BaseInfo::try_from(value.as_ref())
     }

@@ -30,10 +30,11 @@ use crate::{ErrorKind, Result, Uri};
 /// Records a single [`Uri`] remapping
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
 pub struct Remap {
-    /// The original [`Uri`] before remapping
-    pub original: Uri,
     /// The new [`Uri`] after applying [`Remaps`]
     pub new: Uri,
+
+    /// The original [`Uri`] before remapping
+    pub original: Uri,
 }
 
 impl Display for Remap {
@@ -60,6 +61,12 @@ impl Remaps {
     #[must_use]
     pub const fn new(patterns: Vec<(Regex, String)>) -> Self {
         Self { patterns }
+    }
+
+    /// Get the number of remap rules.
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.patterns.len()
     }
 
     /// Returns an iterator over the rules.
@@ -99,12 +106,6 @@ impl Remaps {
     #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.patterns.is_empty()
-    }
-
-    /// Get the number of remap rules.
-    #[must_use]
-    pub const fn len(&self) -> usize {
-        self.patterns.len()
     }
 }
 

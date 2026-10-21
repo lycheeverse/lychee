@@ -1,6 +1,7 @@
-use lychee_lib::archive::Archive;
 use std::error::Error;
 use std::time::Duration;
+
+use lychee_lib::archive::Archive;
 use url::Url;
 
 #[tokio::main]

@@ -21,18 +21,25 @@
 //! max_redirects = 5
 //! ```
 
-use super::{ConfigLoader, ConfigMatch};
-use crate::config::Config;
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
+use crate::config::Config;
+use super::{ConfigLoader, ConfigMatch};
+
 pub(crate) const CARGO_CONFIG_FILE: &str = "Cargo.toml";
+
+#[derive(Deserialize)]
+struct Metadata {
+    lychee: Option<Config>,
+}
 
 /// The lychee config can be defined in either
 /// `[package.metadata.lychee]` or `[workspace.metadata.lychee]`.
 #[derive(Deserialize)]
 struct CargoToml {
     package: Option<CargoSection>,
+
     workspace: Option<CargoSection>,
 }
 
@@ -41,18 +48,9 @@ struct CargoSection {
     metadata: Option<Metadata>,
 }
 
-#[derive(Deserialize)]
-struct Metadata {
-    lychee: Option<Config>,
-}
-
 pub(crate) struct CargoTomlLoader;
 
 impl ConfigLoader for CargoTomlLoader {
-    fn filename(&self) -> &str {
-        CARGO_CONFIG_FILE
-    }
-
     fn load(&self, contents: &str) -> Result<ConfigMatch> {
         let cargo = toml::from_str::<CargoToml>(contents)
             .with_context(|| "Failed to parse lychee config from Cargo.toml")?;
@@ -69,6 +67,10 @@ impl ConfigLoader for CargoTomlLoader {
             Some(config) => Ok(ConfigMatch::Found(Box::new(config))),
             None => Ok(ConfigMatch::NotFound),
         }
+    }
+
+    fn filename(&self) -> &str {
+        CARGO_CONFIG_FILE
     }
 }
 

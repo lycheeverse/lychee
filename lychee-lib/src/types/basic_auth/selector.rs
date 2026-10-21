@@ -10,19 +10,19 @@ pub enum BasicAuthSelectorParseError {
     #[error("Empty selector input")]
     EmptyInput,
 
-    #[error("Missing basic auth credentials or URI. Valid form is '<uri> <username>:<password>'")]
-    InvalidSyntax,
+    #[error("Regex compile error")]
+    RegexError(#[from] regex::Error),
 
     #[error(
         "Too many space separated values. Expected 2, got {0}. Valid form is '<uri> <username>:<password>'"
     )]
     TooManyParts(usize),
 
+    #[error("Missing basic auth credentials or URI. Valid form is '<uri> <username>:<password>'")]
+    InvalidSyntax,
+
     #[error("Basic auth credentials error")]
     BasicAuthCredentialsParseError(#[from] BasicAuthCredentialsParseError),
-
-    #[error("Regex compile error")]
-    RegexError(#[from] regex::Error),
 }
 
 /// [`BasicAuthSelector`] provides basic auth credentials for URLs which match

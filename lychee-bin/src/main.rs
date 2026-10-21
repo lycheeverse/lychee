@@ -58,26 +58,6 @@
 #![deny(anonymous_parameters, macro_use_extern_crate)]
 #![deny(missing_docs)]
 
-use std::fs::{self, File};
-use std::io::{self, BufRead, BufReader, ErrorKind, IsTerminal, stdin};
-use std::num::NonZeroUsize;
-
-use anyhow::{Context, Error, Result};
-use clap::{Parser, crate_version};
-use commands::{CommandParams, generate};
-use formatters::log::init_logging;
-use http::HeaderMap;
-use log::{error, info, warn};
-
-use lychee_lib::filter::PathExcludes;
-
-use config::HeaderMapExt;
-use ring as _; // required for apple silicon
-
-use lychee_lib::BasicAuthExtractor;
-use lychee_lib::Collector;
-use lychee_lib::CookieJar;
-
 mod cache;
 mod client;
 mod commands;
@@ -90,6 +70,23 @@ mod progress;
 mod time;
 mod verbosity;
 
+use std::fs::{self, File};
+use std::io::{self, BufRead, BufReader, ErrorKind, IsTerminal, stdin};
+use std::num::NonZeroUsize;
+
+use anyhow::{Context, Error, Result};
+use clap::{Parser, crate_version};
+use http::HeaderMap;
+use log::{error, info, warn};
+
+use lychee_lib::filter::PathExcludes;
+
+use ring as _; // required for apple silicon
+
+use lychee_lib::BasicAuthExtractor;
+use lychee_lib::Collector;
+use lychee_lib::CookieJar;
+
 use crate::formatters::stats::{OutputStats, output_hints, output_statistics};
 use crate::{
     cache::Cache,
@@ -97,6 +94,13 @@ use crate::{
     formatters::duration::Duration,
     generate::generate,
 };
+
+use commands::{CommandParams, generate};
+use formatters::log::init_logging;
+use config::HeaderMapExt;
+
+/// Ignore lines starting with this marker in `.lycheeignore` files
+const LYCHEEIGNORE_COMMENT_MARKER: &str = "#";
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -112,9 +116,6 @@ enum ExitCode {
     ConfigFile = 3,
 }
 
-/// Ignore lines starting with this marker in `.lycheeignore` files
-const LYCHEEIGNORE_COMMENT_MARKER: &str = "#";
-
 fn main() -> Result<()> {
     // std::process::exit doesn't guarantee that all destructors will be run,
     // therefore we wrap the main code in another function to ensure that.
@@ -122,144 +123,6 @@ fn main() -> Result<()> {
     // Also see: https://www.youtube.com/watch?v=zQC8T71Y8e4
     let exit_code = run_main()?;
     std::process::exit(exit_code);
-}
-
-/// Read lines from file; ignore empty lines
-fn read_lines(file: &File) -> Result<Vec<String>> {
-    let lines: Vec<_> = BufReader::new(file).lines().collect::<Result<_, _>>()?;
-    Ok(lines
-        .into_iter()
-        .filter(|line| {
-            !line.is_empty() && !line.trim_start().starts_with(LYCHEEIGNORE_COMMENT_MARKER)
-        })
-        .collect())
-}
-
-/// Handle the system's `RLIMIT_NOFILE` limit to prevent
-/// opening too many file descriptors and encountering runtime errors.
-/// (see <https://github.com/lycheeverse/lychee/issues/1248>)
-///
-/// 1. We try to increase the soft limit.
-/// 2. If the soft limit is low we reduce lychee's `max_concurrency` accordingly
-fn handle_fd_limits(opts: &mut LycheeOptions) {
-    use rlimit::increase_nofile_limit;
-
-    /// Baseline overhead estimate to account for file descriptors
-    /// which are opened before lychee actually does any link checking.
-    /// Estimate is based on observing `lsof -p $(pgrep lychee)`.
-    const BASELINE_OVERHEAD: u64 = 20;
-
-    if let Ok(soft_limit) = increase_nofile_limit(u64::MAX) {
-        // The relation between `concurrency` and `soft_limit` is roughly:
-        // `soft_limit` ≈ `baseline_overhead` + `concurrency`
-        #[expect(
-            clippy::cast_possible_truncation,
-            reason = "max_concurrency is small in practice"
-        )]
-        let concurrency = soft_limit.saturating_sub(BASELINE_OVERHEAD) as usize;
-        let concurrency = NonZeroUsize::new(concurrency).unwrap_or(NonZeroUsize::MIN);
-
-        let requested_concurrency = opts.config.max_concurrency();
-        if requested_concurrency > concurrency {
-            warn!(
-                "System file descriptor limit is {soft_limit} which is too low for the requested \
-                concurrency of {requested_concurrency}. Lowering `max_concurrency` to \
-                {concurrency} to prevent 'Too many open files' errors.",
-            );
-            opts.config.set_max_concurrency(concurrency);
-        }
-    }
-}
-
-/// Merge all provided config options into one.
-/// This includes the command-line args,
-/// the config file and the secrets file in that order.
-fn load_config() -> Result<LycheeOptions> {
-    // Merge by precedence, parsed CLI args have highest precedence
-    let mut opts = LycheeOptions::parse();
-
-    init_logging(&opts.config.verbose(), &opts.config.mode());
-
-    if opts.config_files.is_empty() {
-        // No config files provided via CLI; fall back on trying to load the
-        // default config files from the current directory
-        if let Some(default_config) = config::loaders::default_config_file()? {
-            opts.config = opts.config.merge(default_config);
-        }
-    } else {
-        let configs = opts.config_files.iter().rev(); // reverse so that later args have precedence
-        for config_file in configs {
-            opts.config = opts.config.merge_file(config_file)?;
-        }
-    }
-
-    if let Ok(lycheeignore) = File::open(LYCHEE_IGNORE_FILE) {
-        opts.config.exclude.append(&mut read_lines(&lycheeignore)?);
-    }
-
-    handle_fd_limits(&mut opts);
-
-    Ok(opts)
-}
-
-/// Load cookie jar from path (if exists)
-fn load_cookie_jar(cfg: &Config) -> Result<Option<CookieJar>> {
-    match &cfg.cookie_jar {
-        Some(path) => Ok(CookieJar::load(path.clone()).map(Some)?),
-        None => Ok(None),
-    }
-}
-
-/// Load cache (if exists and is still valid)
-/// This returns an `Option` as starting without a cache is a common scenario
-/// and we silently discard errors on purpose
-#[must_use]
-fn load_cache(cfg: &Config) -> Option<Cache> {
-    if !cfg.cache() {
-        return None;
-    }
-
-    let max_cache_age = cfg.max_cache_age();
-
-    // Discard entire cache if it hasn't been updated since `max_cache_age`.
-    // This is an optimization, which avoids iterating over the file and
-    // checking the age of each entry.
-    match fs::metadata(cfg.cache_location()) {
-        Err(_e) => {
-            // No cache found; silently start with empty cache
-            return None;
-        }
-        Ok(metadata) => {
-            let modified = metadata.modified().ok()?;
-            let elapsed = modified.elapsed().ok()?;
-            if elapsed > max_cache_age {
-                warn!(
-                    "Cache is too old (age: {}, max age: {}). Discarding and recreating.",
-                    Duration::from_secs(elapsed.as_secs()),
-                    Duration::from_secs(max_cache_age.as_secs())
-                );
-                return None;
-            }
-            info!(
-                "Cache is recent (age: {}, max age: {}). Using.",
-                Duration::from_secs(elapsed.as_secs()),
-                Duration::from_secs(max_cache_age.as_secs())
-            );
-        }
-    }
-
-    let cache = Cache::load(
-        cfg.cache_location(),
-        max_cache_age.as_secs(),
-        &cfg.cache_exclude_status(),
-    );
-    match cache {
-        Ok(cache) => Some(cache),
-        Err(e) => {
-            warn!("Error while loading cache: {e}. Continuing without.");
-            None
-        }
-    }
 }
 
 /// Set up runtime and call lychee entrypoint
@@ -317,6 +180,144 @@ fn run_main() -> Result<i32> {
             exit(ExitCode::Success as i32);
         }
         res => res,
+    }
+}
+
+/// Read lines from file; ignore empty lines
+fn read_lines(file: &File) -> Result<Vec<String>> {
+    let lines: Vec<_> = BufReader::new(file).lines().collect::<Result<_, _>>()?;
+    Ok(lines
+        .into_iter()
+        .filter(|line| {
+            !line.is_empty() && !line.trim_start().starts_with(LYCHEEIGNORE_COMMENT_MARKER)
+        })
+        .collect())
+}
+
+/// Load cache (if exists and is still valid)
+/// This returns an `Option` as starting without a cache is a common scenario
+/// and we silently discard errors on purpose
+#[must_use]
+fn load_cache(cfg: &Config) -> Option<Cache> {
+    if !cfg.cache() {
+        return None;
+    }
+
+    let max_cache_age = cfg.max_cache_age();
+
+    // Discard entire cache if it hasn't been updated since `max_cache_age`.
+    // This is an optimization, which avoids iterating over the file and
+    // checking the age of each entry.
+    match fs::metadata(cfg.cache_location()) {
+        Err(_e) => {
+            // No cache found; silently start with empty cache
+            return None;
+        }
+        Ok(metadata) => {
+            let modified = metadata.modified().ok()?;
+            let elapsed = modified.elapsed().ok()?;
+            if elapsed > max_cache_age {
+                warn!(
+                    "Cache is too old (age: {}, max age: {}). Discarding and recreating.",
+                    Duration::from_secs(elapsed.as_secs()),
+                    Duration::from_secs(max_cache_age.as_secs())
+                );
+                return None;
+            }
+            info!(
+                "Cache is recent (age: {}, max age: {}). Using.",
+                Duration::from_secs(elapsed.as_secs()),
+                Duration::from_secs(max_cache_age.as_secs())
+            );
+        }
+    }
+
+    let cache = Cache::load(
+        cfg.cache_location(),
+        max_cache_age.as_secs(),
+        &cfg.cache_exclude_status(),
+    );
+    match cache {
+        Ok(cache) => Some(cache),
+        Err(e) => {
+            warn!("Error while loading cache: {e}. Continuing without.");
+            None
+        }
+    }
+}
+
+/// Merge all provided config options into one.
+/// This includes the command-line args,
+/// the config file and the secrets file in that order.
+fn load_config() -> Result<LycheeOptions> {
+    // Merge by precedence, parsed CLI args have highest precedence
+    let mut opts = LycheeOptions::parse();
+
+    init_logging(&opts.config.verbose(), &opts.config.mode());
+
+    if opts.config_files.is_empty() {
+        // No config files provided via CLI; fall back on trying to load the
+        // default config files from the current directory
+        if let Some(default_config) = config::loaders::default_config_file()? {
+            opts.config = opts.config.merge(default_config);
+        }
+    } else {
+        let configs = opts.config_files.iter().rev(); // reverse so that later args have precedence
+        for config_file in configs {
+            opts.config = opts.config.merge_file(config_file)?;
+        }
+    }
+
+    if let Ok(lycheeignore) = File::open(LYCHEE_IGNORE_FILE) {
+        opts.config.exclude.append(&mut read_lines(&lycheeignore)?);
+    }
+
+    handle_fd_limits(&mut opts);
+
+    Ok(opts)
+}
+
+/// Load cookie jar from path (if exists)
+fn load_cookie_jar(cfg: &Config) -> Result<Option<CookieJar>> {
+    match &cfg.cookie_jar {
+        Some(path) => Ok(CookieJar::load(path.clone()).map(Some)?),
+        None => Ok(None),
+    }
+}
+
+/// Handle the system's `RLIMIT_NOFILE` limit to prevent
+/// opening too many file descriptors and encountering runtime errors.
+/// (see <https://github.com/lycheeverse/lychee/issues/1248>)
+///
+/// 1. We try to increase the soft limit.
+/// 2. If the soft limit is low we reduce lychee's `max_concurrency` accordingly
+fn handle_fd_limits(opts: &mut LycheeOptions) {
+    use rlimit::increase_nofile_limit;
+
+    /// Baseline overhead estimate to account for file descriptors
+    /// which are opened before lychee actually does any link checking.
+    /// Estimate is based on observing `lsof -p $(pgrep lychee)`.
+    const BASELINE_OVERHEAD: u64 = 20;
+
+    if let Ok(soft_limit) = increase_nofile_limit(u64::MAX) {
+        // The relation between `concurrency` and `soft_limit` is roughly:
+        // `soft_limit` ≈ `baseline_overhead` + `concurrency`
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "max_concurrency is small in practice"
+        )]
+        let concurrency = soft_limit.saturating_sub(BASELINE_OVERHEAD) as usize;
+        let concurrency = NonZeroUsize::new(concurrency).unwrap_or(NonZeroUsize::MIN);
+
+        let requested_concurrency = opts.config.max_concurrency();
+        if requested_concurrency > concurrency {
+            warn!(
+                "System file descriptor limit is {soft_limit} which is too low for the requested \
+                concurrency of {requested_concurrency}. Lowering `max_concurrency` to \
+                {concurrency} to prevent 'Too many open files' errors.",
+            );
+            opts.config.set_max_concurrency(concurrency);
+        }
     }
 }
 

@@ -4,8 +4,9 @@ use anyhow::{Context, Result};
 use lychee_lib::{InputSource, ResponseBody};
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestSuite};
 
-use super::StatsFormatter;
 use crate::formatters::stats::{OutputStats, ResponseStats};
+
+use super::StatsFormatter;
 
 /// The `JUnit` XML report format.
 /// This format can be imported on code forges (e.g. GitHub & GitLab)

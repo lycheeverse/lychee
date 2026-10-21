@@ -12,6 +12,9 @@ pub struct Request {
     /// which can be checked with lychee
     pub uri: Uri,
 
+    /// Where the URI is located
+    pub span: Option<RawUriSpan>,
+
     /// The resource which contains the given URI
     pub source: ResolvedInputSource,
 
@@ -22,9 +25,6 @@ pub struct Request {
 
     /// What attribute (e.g. `href`) the URI is contained in
     pub attribute: Option<String>,
-
-    /// Where the URI is located
-    pub span: Option<RawUriSpan>,
 }
 
 impl Request {
@@ -42,24 +42,22 @@ impl Request {
         }
     }
 
+    /// Set [`Self::span`]
+    #[must_use]
+    pub const fn with_span(mut self, span: RawUriSpan) -> Self {
+        self.span = Some(span);
+        self
+    }
     /// Set [`Self::element`]
     #[must_use]
     pub fn with_element(mut self, element: String) -> Self {
         self.element = Some(element);
         self
     }
-
     /// Set [`Self::attribute`]
     #[must_use]
     pub fn with_attribute(mut self, attribute: String) -> Self {
         self.attribute = Some(attribute);
-        self
-    }
-
-    /// Set [`Self::span`]
-    #[must_use]
-    pub const fn with_span(mut self, span: RawUriSpan) -> Self {
-        self.span = Some(span);
         self
     }
 }

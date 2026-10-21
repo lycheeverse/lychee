@@ -1,11 +1,12 @@
-use anyhow::Result;
-use console::Style;
-use humantime::FormattedDuration;
 use std::{
     fmt::{self, Display, Formatter},
     sync::LazyLock,
     time::Duration,
 };
+
+use anyhow::Result;
+use console::Style;
+use humantime::FormattedDuration;
 
 use crate::config;
 use crate::formatters::{
@@ -18,9 +19,34 @@ use crate::formatters::{
 
 use super::StatsFormatter;
 
-struct CompactResponseStats {
-    stats: ResponseStats,
+pub(crate) struct Compact {
     mode: config::OutputMode,
+}
+
+impl Compact {
+    pub(crate) const fn new(mode: config::OutputMode) -> Self {
+        Self { mode }
+    }
+}
+
+impl StatsFormatter for Compact {
+    fn format(&self, stats: OutputStats) -> Result<String> {
+        let response_stats = CompactResponseStats {
+            stats: stats.response_stats,
+            mode: self.mode.clone(),
+        };
+        let host_stats = CompactHostStats {
+            host_stats: stats.host_stats,
+        };
+
+        Ok(format!("{response_stats}\n{host_stats}"))
+    }
+}
+
+struct CompactResponseStats {
+    mode: config::OutputMode,
+
+    stats: ResponseStats,
 }
 
 impl Display for CompactResponseStats {
@@ -78,12 +104,17 @@ impl Display for CompactResponseStats {
     }
 }
 
-/// Format duration in a human readable format with
-/// millisecond precision. (e.g. `2m 30s 155ms`)
-fn format_duration(d: Duration) -> FormattedDuration {
-    #[allow(clippy::cast_possible_truncation)]
-    let truncated = Duration::from_millis(d.as_millis() as u64);
-    humantime::format_duration(truncated)
+fn write_if_any(
+    value: usize,
+    symbol: &str,
+    text: &str,
+    style: &LazyLock<Style>,
+    f: &mut fmt::Formatter<'_>,
+) -> Result<(), fmt::Error> {
+    if value > 0 {
+        color!(f, style, " {} {} {}", symbol, value, text)?;
+    }
+    Ok(())
 }
 
 fn write_responses(
@@ -120,41 +151,12 @@ fn write_suggestions(
     Ok(())
 }
 
-fn write_if_any(
-    value: usize,
-    symbol: &str,
-    text: &str,
-    style: &LazyLock<Style>,
-    f: &mut fmt::Formatter<'_>,
-) -> Result<(), fmt::Error> {
-    if value > 0 {
-        color!(f, style, " {} {} {}", symbol, value, text)?;
-    }
-    Ok(())
-}
-
-pub(crate) struct Compact {
-    mode: config::OutputMode,
-}
-
-impl Compact {
-    pub(crate) const fn new(mode: config::OutputMode) -> Self {
-        Self { mode }
-    }
-}
-
-impl StatsFormatter for Compact {
-    fn format(&self, stats: OutputStats) -> Result<String> {
-        let response_stats = CompactResponseStats {
-            stats: stats.response_stats,
-            mode: self.mode.clone(),
-        };
-        let host_stats = CompactHostStats {
-            host_stats: stats.host_stats,
-        };
-
-        Ok(format!("{response_stats}\n{host_stats}"))
-    }
+/// Format duration in a human readable format with
+/// millisecond precision. (e.g. `2m 30s 155ms`)
+fn format_duration(d: Duration) -> FormattedDuration {
+    #[allow(clippy::cast_possible_truncation)]
+    let truncated = Duration::from_millis(d.as_millis() as u64);
+    humantime::format_duration(truncated)
 }
 
 #[cfg(test)]

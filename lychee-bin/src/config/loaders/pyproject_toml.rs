@@ -18,30 +18,27 @@
 //! timeout = 10
 //! ```
 
-use super::{ConfigLoader, ConfigMatch};
-use crate::config::Config;
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
-pub(crate) const PYPROJECT_CONFIG_FILE: &str = "pyproject.toml";
+use crate::config::Config;
+use super::{ConfigLoader, ConfigMatch};
 
-#[derive(Deserialize)]
-struct PyprojectToml {
-    tool: Option<Tool>,
-}
+pub(crate) const PYPROJECT_CONFIG_FILE: &str = "pyproject.toml";
 
 #[derive(Deserialize)]
 struct Tool {
     lychee: Option<Config>,
 }
 
+#[derive(Deserialize)]
+struct PyprojectToml {
+    tool: Option<Tool>,
+}
+
 pub(crate) struct PyprojectTomlLoader;
 
 impl ConfigLoader for PyprojectTomlLoader {
-    fn filename(&self) -> &str {
-        PYPROJECT_CONFIG_FILE
-    }
-
     fn load(&self, contents: &str) -> Result<ConfigMatch> {
         let pyproject = toml::from_str::<PyprojectToml>(contents)
             .with_context(|| "Failed to parse [tool.lychee] from pyproject.toml")?;
@@ -50,6 +47,10 @@ impl ConfigLoader for PyprojectTomlLoader {
             Some(config) => Ok(ConfigMatch::Found(Box::new(config))),
             None => Ok(ConfigMatch::NotFound),
         }
+    }
+
+    fn filename(&self) -> &str {
+        PYPROJECT_CONFIG_FILE
     }
 }
 

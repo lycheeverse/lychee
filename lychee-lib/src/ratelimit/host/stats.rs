@@ -4,74 +4,104 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use serde::ser::SerializeStruct;
 
-/// A [`HashMap`] mapping hosts to their [`HostStats`]
-#[derive(Debug, Default, Serialize)]
-pub struct HostStatsMap(HashMap<String, HostStats>);
-
-impl HostStatsMap {
-    /// Sort host statistics by request count (descending order)
-    /// This matches the display order we want in the output
-    #[must_use]
-    pub fn sorted(&self) -> Vec<(String, HostStats)> {
-        let mut sorted_hosts: Vec<_> = self.0.clone().into_iter().collect();
-        sorted_hosts.sort_by_key(|(_, stats)| std::cmp::Reverse(stats.total_requests));
-        sorted_hosts
-    }
-
-    /// Returns the number of unique hosts that have been accessed.
-    #[must_use]
-    pub fn total_hosts(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Returns the number of total requests across all hosts.
-    #[must_use]
-    pub fn total_requests(&self) -> u64 {
-        self.0.values().map(|stats| stats.total_requests).sum()
-    }
-}
-
-impl From<HashMap<String, HostStats>> for HostStatsMap {
-    fn from(value: HashMap<String, HostStats>) -> Self {
-        Self(value)
-    }
-}
-
 /// Record and report statistics for a [`crate::ratelimit::Host`]
 #[derive(Debug, Clone, Default)]
 pub struct HostStats {
-    /// Total number of requests made to this host
-    pub total_requests: u64,
-    /// Number of successful requests (2xx status)
-    pub successful_requests: u64,
-    /// Number of requests that received rate limit responses (429)
-    pub rate_limited: u64,
-    /// Number of server error responses (5xx)
-    pub server_errors: u64,
-    /// Number of client error responses (4xx, excluding 429)
-    pub client_errors: u64,
-    /// Number of network errors (DNS, TCP, TLS, connection reset, no HTTP response received)
-    pub network_errors: u64,
-    /// Timestamp of the last successful request
-    pub last_success: Option<Instant>,
-    /// Timestamp of the last rate limit response
-    pub last_rate_limit: Option<Instant>,
-    /// Request times for median calculation
-    pub request_times: Vec<Duration>,
-    /// Status code counts
-    pub status_codes: HashMap<u16, u64>,
     /// Number of cache hits
     pub cache_hits: u64,
     /// Number of cache misses
     pub cache_misses: u64,
+
+    /// Number of requests that received rate limit responses (429)
+    pub rate_limited: u64,
+
+    /// Status code counts
+    pub status_codes: HashMap<u16, u64>,
+
+    /// Number of server error responses (5xx)
+    pub server_errors: u64,
+
+    /// Number of client error responses (4xx, excluding 429)
+    pub client_errors: u64,
+
+    /// Request times for median calculation
+    pub request_times: Vec<Duration>,
+
+    /// Timestamp of the last successful request
+    pub last_success: Option<Instant>,
+    /// Timestamp of the last rate limit response
+    pub last_rate_limit: Option<Instant>,
+
+    /// Total number of requests made to this host
+    pub total_requests: u64,
+
+    /// Number of network errors (DNS, TCP, TLS, connection reset, no HTTP response received)
+    pub network_errors: u64,
+
+    /// Number of successful requests (2xx status)
+    pub successful_requests: u64,
 }
 
 impl HostStats {
-    /// Record a network error (DNS, TCP, TLS, connection reset, no HTTP response received)
-    pub fn record_network_error(&mut self, request_time: Duration) {
-        self.total_requests += 1;
-        self.network_errors += 1;
-        self.request_times.push(request_time);
+    /// Get human-readable summary of the stats
+    #[must_use]
+    pub fn summary(&self) -> String {
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let success_pct = (self.success_rate() * 100.0) as u64;
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let error_pct = self.error_rate() as u64;
+
+        let avg_time = self
+            .average_request_time()
+            .map_or_else(|| "N/A".to_string(), |d| format!("{:.0}ms", d.as_millis()));
+
+        format!(
+            "{} requests ({}% success, {}% errors), avg: {}",
+            self.total_requests, success_pct, error_pct, avg_time
+        )
+    }
+
+    /// Get error rate (percentage)
+    #[must_use]
+    pub fn error_rate(&self) -> f64 {
+        if self.total_requests == 0 {
+            return 0.0;
+        }
+        let errors =
+            self.rate_limited + self.client_errors + self.server_errors + self.network_errors;
+        #[allow(clippy::cast_precision_loss)]
+        let error_rate = errors as f64 / self.total_requests as f64;
+        error_rate * 100.0
+    }
+
+    /// Get the current success rate (0.0 to 1.0)
+    #[must_use]
+    pub fn success_rate(&self) -> f64 {
+        if self.total_requests == 0 {
+            1.0 // Assume success until proven otherwise
+        } else {
+            #[allow(clippy::cast_precision_loss)]
+            let success_rate = self.successful_requests as f64 / self.total_requests as f64;
+            success_rate
+        }
+    }
+
+    /// Get human-readable cache summary
+    #[must_use]
+    pub fn cache_summary(&self) -> String {
+        format!("({:.0}% cached)", self.cache_hit_rate() * 100.0)
+    }
+    /// Get cache hit rate (0.0 to 1.0)
+    #[must_use]
+    pub fn cache_hit_rate(&self) -> f64 {
+        let total_cache_requests = self.cache_hits + self.cache_misses;
+        if total_cache_requests == 0 {
+            0.0
+        } else {
+            #[allow(clippy::cast_precision_loss)]
+            let hit_rate = self.cache_hits as f64 / total_cache_requests as f64;
+            hit_rate
+        }
     }
 
     /// Record a response with status code and request duration
@@ -102,6 +132,26 @@ impl HostStats {
 
         self.request_times.push(request_time);
     }
+    /// Record a cache hit
+    pub const fn record_cache_hit(&mut self) {
+        self.cache_hits += 1;
+        // Cache hits should also count as total requests from user perspective
+        self.total_requests += 1;
+        // Cache hits are typically for successful previous requests, so count as successful
+        self.successful_requests += 1;
+    }
+    /// Record a cache miss
+    pub const fn record_cache_miss(&mut self) {
+        self.cache_misses += 1;
+        // Cache misses will be followed by actual requests that increment total_requests
+        // so we don't increment here to avoid double-counting
+    }
+    /// Record a network error (DNS, TCP, TLS, connection reset, no HTTP response received)
+    pub fn record_network_error(&mut self, request_time: Duration) {
+        self.total_requests += 1;
+        self.network_errors += 1;
+        self.request_times.push(request_time);
+    }
 
     /// Get median request time
     #[must_use]
@@ -122,29 +172,10 @@ impl HostStats {
         }
     }
 
-    /// Get error rate (percentage)
+    /// Get the most recent request time
     #[must_use]
-    pub fn error_rate(&self) -> f64 {
-        if self.total_requests == 0 {
-            return 0.0;
-        }
-        let errors =
-            self.rate_limited + self.client_errors + self.server_errors + self.network_errors;
-        #[allow(clippy::cast_precision_loss)]
-        let error_rate = errors as f64 / self.total_requests as f64;
-        error_rate * 100.0
-    }
-
-    /// Get the current success rate (0.0 to 1.0)
-    #[must_use]
-    pub fn success_rate(&self) -> f64 {
-        if self.total_requests == 0 {
-            1.0 // Assume success until proven otherwise
-        } else {
-            #[allow(clippy::cast_precision_loss)]
-            let success_rate = self.successful_requests as f64 / self.total_requests as f64;
-            success_rate
-        }
+    pub fn latest_request_time(&self) -> Option<Duration> {
+        self.request_times.iter().last().copied()
     }
 
     /// Get average request time
@@ -159,12 +190,6 @@ impl HostStats {
         Some(total / (self.request_times.len() as u32))
     }
 
-    /// Get the most recent request time
-    #[must_use]
-    pub fn latest_request_time(&self) -> Option<Duration> {
-        self.request_times.iter().last().copied()
-    }
-
     /// Check if this host has been experiencing rate limiting recently
     #[must_use]
     pub fn is_currently_rate_limited(&self) -> bool {
@@ -174,59 +199,6 @@ impl HostStats {
         } else {
             false
         }
-    }
-
-    /// Record a cache hit
-    pub const fn record_cache_hit(&mut self) {
-        self.cache_hits += 1;
-        // Cache hits should also count as total requests from user perspective
-        self.total_requests += 1;
-        // Cache hits are typically for successful previous requests, so count as successful
-        self.successful_requests += 1;
-    }
-
-    /// Record a cache miss
-    pub const fn record_cache_miss(&mut self) {
-        self.cache_misses += 1;
-        // Cache misses will be followed by actual requests that increment total_requests
-        // so we don't increment here to avoid double-counting
-    }
-
-    /// Get cache hit rate (0.0 to 1.0)
-    #[must_use]
-    pub fn cache_hit_rate(&self) -> f64 {
-        let total_cache_requests = self.cache_hits + self.cache_misses;
-        if total_cache_requests == 0 {
-            0.0
-        } else {
-            #[allow(clippy::cast_precision_loss)]
-            let hit_rate = self.cache_hits as f64 / total_cache_requests as f64;
-            hit_rate
-        }
-    }
-
-    /// Get human-readable cache summary
-    #[must_use]
-    pub fn cache_summary(&self) -> String {
-        format!("({:.0}% cached)", self.cache_hit_rate() * 100.0)
-    }
-
-    /// Get human-readable summary of the stats
-    #[must_use]
-    pub fn summary(&self) -> String {
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let success_pct = (self.success_rate() * 100.0) as u64;
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let error_pct = self.error_rate() as u64;
-
-        let avg_time = self
-            .average_request_time()
-            .map_or_else(|| "N/A".to_string(), |d| format!("{:.0}ms", d.as_millis()));
-
-        format!(
-            "{} requests ({}% success, {}% errors), avg: {}",
-            self.total_requests, success_pct, error_pct, avg_time
-        )
     }
 }
 
@@ -251,6 +223,38 @@ impl Serialize for HostStats {
         s.serialize_field("cache_hit_rate", &self.cache_hit_rate())?;
         s.serialize_field("status_codes", &self.status_codes)?;
         s.end()
+    }
+}
+
+/// A [`HashMap`] mapping hosts to their [`HostStats`]
+#[derive(Debug, Default, Serialize)]
+pub struct HostStatsMap(HashMap<String, HostStats>);
+
+impl HostStatsMap {
+    /// Sort host statistics by request count (descending order)
+    /// This matches the display order we want in the output
+    #[must_use]
+    pub fn sorted(&self) -> Vec<(String, HostStats)> {
+        let mut sorted_hosts: Vec<_> = self.0.clone().into_iter().collect();
+        sorted_hosts.sort_by_key(|(_, stats)| std::cmp::Reverse(stats.total_requests));
+        sorted_hosts
+    }
+
+    /// Returns the number of unique hosts that have been accessed.
+    #[must_use]
+    pub fn total_hosts(&self) -> usize {
+        self.0.len()
+    }
+    /// Returns the number of total requests across all hosts.
+    #[must_use]
+    pub fn total_requests(&self) -> u64 {
+        self.0.values().map(|stats| stats.total_requests).sum()
+    }
+}
+
+impl From<HashMap<String, HostStats>> for HostStatsMap {
+    fn from(value: HashMap<String, HostStats>) -> Self {
+        Self(value)
     }
 }
 

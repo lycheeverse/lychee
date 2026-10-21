@@ -1,5 +1,6 @@
-use serde::Deserialize;
 use std::fmt;
+
+use serde::Deserialize;
 use url::Url;
 
 use crate::ErrorKind;
@@ -64,12 +65,6 @@ impl TryFrom<Url> for HostKey {
     }
 }
 
-impl fmt::Display for HostKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
 impl From<String> for HostKey {
     fn from(host: String) -> Self {
         HostKey(host.to_lowercase())
@@ -79,6 +74,12 @@ impl From<String> for HostKey {
 impl From<&str> for HostKey {
     fn from(host: &str) -> Self {
         HostKey(host.to_lowercase())
+    }
+}
+
+impl fmt::Display for HostKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 

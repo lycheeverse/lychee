@@ -17,6 +17,46 @@ use crate::{
 
 use super::html::html5gum::extract_html_fragments;
 
+struct HeadingId(String);
+
+impl HeadingId {
+    fn into_string(self) -> String {
+        self.0
+    }
+}
+
+impl TryFrom<&str> for HeadingId {
+    type Error = ();
+
+    fn try_from(attribute: &str) -> Result<Self, Self::Error> {
+        let id = attribute.strip_prefix('#').ok_or(())?;
+
+        if id.is_empty() {
+            return Err(());
+        }
+
+        Ok(Self(id.to_string()))
+    }
+}
+
+/// Emulate `<a href="...">` tag to be compatible with HTML links.
+/// We might consider using the actual Markdown `LinkType` for better granularity in the future.
+fn raw_uri(dest_url: &CowStr<'_>, span: RawUriSpan) -> Vec<RawUri> {
+    vec![RawUri {
+        text: dest_url.to_string(),
+        element: Some("a".to_string()),
+        attribute: Some("href".to_string()),
+        // Sadly, we don't know how long the `foo` part in `[foo](bar)` is,
+        // so the span points to the `[` and not to the `b`.
+        span,
+    }]
+}
+
+/// Remove exactly one outer pair of braces, leaving the contents unchanged.
+fn strip_braces(text: &str) -> Option<&str> {
+    text.strip_prefix('{')?.strip_suffix('}')
+}
+
 /// Returns the default markdown extensions used by lychee.
 /// Sadly, `|` is not const for `Options` so we can't use a const global.
 fn md_extensions() -> Options {
@@ -24,6 +64,17 @@ fn md_extensions() -> Options {
         | Options::ENABLE_MATH
         | Options::ENABLE_WIKILINKS
         | Options::ENABLE_FOOTNOTES
+}
+
+/// Emulate `<img src="...">` tag to be compatible with HTML links.
+/// We might consider using the actual Markdown `LinkType` for better granularity in the future.
+fn extract_image(dest_url: &CowStr<'_>, span: RawUriSpan) -> Vec<RawUri> {
+    vec![RawUri {
+        text: dest_url.to_string(),
+        element: Some("img".to_string()),
+        attribute: Some("src".to_string()),
+        span,
+    }]
 }
 
 /// Extract unparsed URL strings from a Markdown string.
@@ -219,54 +270,14 @@ pub(crate) fn extract_markdown(
         .collect()
 }
 
-fn get_email_span_provider<'a>(
-    span_provider: &'a SourceSpanProvider<'_>,
-    span: &std::ops::Range<usize>,
-    link_type: LinkType,
-) -> OffsetSpanProvider<'a> {
-    let offset = match link_type {
-        // We don't know how the link starts, so don't offset the span.
-        LinkType::Reference | LinkType::CollapsedUnknown | LinkType::ShortcutUnknown => 0,
-        // These start all with `[` or `<`, so offset the span by `1`.
-        LinkType::ReferenceUnknown
-        | LinkType::Collapsed
-        | LinkType::Shortcut
-        | LinkType::Autolink
-        | LinkType::Email => 1,
-        _ => {
-            debug_assert!(false, "Unexpected email link type: {link_type:?}");
-            0
-        }
-    };
-
-    OffsetSpanProvider {
-        offset: span.start + offset,
-        inner: span_provider,
+fn extract_block_heading_id(text: &str) -> Option<HeadingId> {
+    let text = text.trim();
+    if text.lines().count() != 1 {
+        return None;
     }
-}
-
-/// Emulate `<img src="...">` tag to be compatible with HTML links.
-/// We might consider using the actual Markdown `LinkType` for better granularity in the future.
-fn extract_image(dest_url: &CowStr<'_>, span: RawUriSpan) -> Vec<RawUri> {
-    vec![RawUri {
-        text: dest_url.to_string(),
-        element: Some("img".to_string()),
-        attribute: Some("src".to_string()),
-        span,
-    }]
-}
-
-/// Emulate `<a href="...">` tag to be compatible with HTML links.
-/// We might consider using the actual Markdown `LinkType` for better granularity in the future.
-fn raw_uri(dest_url: &CowStr<'_>, span: RawUriSpan) -> Vec<RawUri> {
-    vec![RawUri {
-        text: dest_url.to_string(),
-        element: Some("a".to_string()),
-        attribute: Some("href".to_string()),
-        // Sadly, we don't know how long the `foo` part in `[foo](bar)` is,
-        // so the span points to the `[` and not to the `b`.
-        span,
-    }]
+    let inner = strip_braces(text)?;
+    let attribute = find_heading_id_attribute(inner)?;
+    HeadingId::try_from(attribute).ok()
 }
 
 /// Extract fragments/anchors from a Markdown string.
@@ -375,14 +386,30 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
     out
 }
 
-fn extract_block_heading_id(text: &str) -> Option<HeadingId> {
-    let text = text.trim();
-    if text.lines().count() != 1 {
-        return None;
+fn get_email_span_provider<'a>(
+    span_provider: &'a SourceSpanProvider<'_>,
+    span: &std::ops::Range<usize>,
+    link_type: LinkType,
+) -> OffsetSpanProvider<'a> {
+    let offset = match link_type {
+        // We don't know how the link starts, so don't offset the span.
+        LinkType::Reference | LinkType::CollapsedUnknown | LinkType::ShortcutUnknown => 0,
+        // These start all with `[` or `<`, so offset the span by `1`.
+        LinkType::ReferenceUnknown
+        | LinkType::Collapsed
+        | LinkType::Shortcut
+        | LinkType::Autolink
+        | LinkType::Email => 1,
+        _ => {
+            debug_assert!(false, "Unexpected email link type: {link_type:?}");
+            0
+        }
+    };
+
+    OffsetSpanProvider {
+        offset: span.start + offset,
+        inner: span_provider,
     }
-    let inner = strip_braces(text)?;
-    let attribute = find_heading_id_attribute(inner)?;
-    HeadingId::try_from(attribute).ok()
 }
 
 /// Find the last `#id` in the first group after removing the outer braces.
@@ -427,33 +454,6 @@ fn find_heading_id_attribute(inner: &str) -> Option<&str> {
         }
     }
     None
-}
-
-/// Remove exactly one outer pair of braces, leaving the contents unchanged.
-fn strip_braces(text: &str) -> Option<&str> {
-    text.strip_prefix('{')?.strip_suffix('}')
-}
-
-struct HeadingId(String);
-
-impl HeadingId {
-    fn into_string(self) -> String {
-        self.0
-    }
-}
-
-impl TryFrom<&str> for HeadingId {
-    type Error = ();
-
-    fn try_from(attribute: &str) -> Result<Self, Self::Error> {
-        let id = attribute.strip_prefix('#').ok_or(())?;
-
-        if id.is_empty() {
-            return Err(());
-        }
-
-        Ok(Self(id.to_string()))
-    }
 }
 
 #[cfg(test)]

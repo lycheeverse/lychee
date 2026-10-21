@@ -1,7 +1,8 @@
+use std::fs;
+
 use lychee_lib::Result;
 use lychee_lib::extract::Extractor;
 use lychee_lib::{FileType, InputContent};
-use std::fs;
 
 #[tokio::main]
 async fn main() -> Result<()> {

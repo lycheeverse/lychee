@@ -126,21 +126,6 @@ pub struct WaitGroup {
     recv: Receiver<Never>,
 }
 
-/// RAII guard held by a task which is being waited for.
-///
-/// The existence of values of this type represents outstanding work for
-/// its corresponding [`WaitGroup`].
-///
-/// A [`WaitGuard`] can be cloned using [`WaitGuard::clone`]. This allows
-/// a task to spawn additional tasks, recursively.
-#[derive(Clone, Debug)]
-pub struct WaitGuard {
-    /// [`Sender`] is held to keep the [`Receiver`] end open (stored in [`WaitGroup`]).
-    /// The dropping of all senders will cause the receiver to detect and close.
-    /// The [`Never`] type means no value can/will ever be sent through the channel.
-    _send: Sender<Never>,
-}
-
 impl WaitGroup {
     /// Creates a new [`WaitGroup`] and its first associated [`WaitGuard`].
     ///
@@ -157,3 +142,18 @@ impl WaitGroup {
         let None = self.recv.recv().await;
     }
 }
+/// RAII guard held by a task which is being waited for.
+///
+/// The existence of values of this type represents outstanding work for
+/// its corresponding [`WaitGroup`].
+///
+/// A [`WaitGuard`] can be cloned using [`WaitGuard::clone`]. This allows
+/// a task to spawn additional tasks, recursively.
+#[derive(Clone, Debug)]
+pub struct WaitGuard {
+    /// [`Sender`] is held to keep the [`Receiver`] end open (stored in [`WaitGroup`]).
+    /// The dropping of all senders will cause the receiver to detect and close.
+    /// The [`Never`] type means no value can/will ever be sent through the channel.
+    _send: Sender<Never>,
+}
+

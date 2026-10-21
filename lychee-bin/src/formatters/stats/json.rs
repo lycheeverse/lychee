@@ -1,7 +1,8 @@
 use anyhow::{Context, Result};
 
-use super::StatsFormatter;
 use crate::formatters::stats::OutputStats;
+
+use super::StatsFormatter;
 
 pub(crate) struct Json;
 

@@ -11,28 +11,13 @@
 //! the handler to the chain.
 //!
 //! [pattern]: https://github.com/lpxxn/rust-design-pattern/blob/master/behavioral/chain_of_responsibility.rs
-use crate::Status;
-use async_trait::async_trait;
 use core::fmt::Debug;
 use std::sync::Arc;
+
+use async_trait::async_trait;
 use tokio::sync::Mutex;
 
-/// Result of a handler.
-///
-/// This is used to decide if the chain should continue to the next handler or
-/// stop and return the result:
-///
-/// - If the chain should continue, the handler should return
-///   [`ChainResult::Next`]. This will traverse the next handler in the chain.
-/// - If the chain should stop, the handler should return [`ChainResult::Done`].
-///   All subsequent chain elements are skipped and the result is returned.
-#[derive(Debug, PartialEq)]
-pub enum ChainResult<T, R> {
-    /// Continue to the next handler in the chain.
-    Next(T),
-    /// Stop the chain and return the result.
-    Done(R),
-}
+use crate::Status;
 
 /// Request chain type
 ///
@@ -97,57 +82,6 @@ pub type RequestChain = Chain<reqwest::Request, Status>;
 /// threads.
 pub(crate) type InnerChain<T, R> = Vec<Box<dyn Handler<T, R> + Send>>;
 
-/// The outer chain type.
-///
-/// This is a wrapper around the inner chain type and allows for
-/// concurrent access to the chain.
-#[derive(Debug)]
-pub struct Chain<T, R>(Arc<Mutex<InnerChain<T, R>>>);
-
-impl<T, R> Default for Chain<T, R> {
-    fn default() -> Self {
-        Self(Arc::new(Mutex::new(InnerChain::default())))
-    }
-}
-
-impl<T, R> Clone for Chain<T, R> {
-    fn clone(&self) -> Self {
-        // Cloning the chain is a cheap operation, because the inner chain is
-        // wrapped in an `Arc` and `Mutex`.
-        Self(self.0.clone())
-    }
-}
-
-impl<T, R> Chain<T, R> {
-    /// Create a new chain from a vector of chainable handlers
-    #[must_use]
-    pub fn new(values: InnerChain<T, R>) -> Self {
-        Self(Arc::new(Mutex::new(values)))
-    }
-
-    /// Traverse the chain with the given input.
-    ///
-    /// This will call `chain` on each handler in the chain and return
-    /// the result. If a handler returns `ChainResult::Done`, the chain
-    /// will stop and return.
-    ///
-    /// If no handler returns `ChainResult::Done`, the chain will return
-    /// `ChainResult::Next` with the input.
-    pub(crate) async fn traverse(&self, mut input: T) -> ChainResult<T, R> {
-        use ChainResult::{Done, Next};
-        for e in self.0.lock().await.iter_mut() {
-            match e.handle(input).await {
-                Next(r) => input = r,
-                Done(r) => {
-                    return Done(r);
-                }
-            }
-        }
-
-        Next(input)
-    }
-}
-
 /// Handler trait for implementing request handlers
 ///
 /// This trait needs to be implemented by all chainable handlers.
@@ -190,6 +124,75 @@ pub trait Handler<T, R>: Debug {
     /// }
     /// ```
     async fn handle(&mut self, input: T) -> ChainResult<T, R>;
+}
+
+/// Result of a handler.
+///
+/// This is used to decide if the chain should continue to the next handler or
+/// stop and return the result:
+///
+/// - If the chain should continue, the handler should return
+///   [`ChainResult::Next`]. This will traverse the next handler in the chain.
+/// - If the chain should stop, the handler should return [`ChainResult::Done`].
+///   All subsequent chain elements are skipped and the result is returned.
+#[derive(Debug, PartialEq)]
+pub enum ChainResult<T, R> {
+    /// Continue to the next handler in the chain.
+    Next(T),
+
+    /// Stop the chain and return the result.
+    Done(R),
+}
+
+/// The outer chain type.
+///
+/// This is a wrapper around the inner chain type and allows for
+/// concurrent access to the chain.
+#[derive(Debug)]
+pub struct Chain<T, R>(Arc<Mutex<InnerChain<T, R>>>);
+
+impl<T, R> Chain<T, R> {
+    /// Create a new chain from a vector of chainable handlers
+    #[must_use]
+    pub fn new(values: InnerChain<T, R>) -> Self {
+        Self(Arc::new(Mutex::new(values)))
+    }
+
+    /// Traverse the chain with the given input.
+    ///
+    /// This will call `chain` on each handler in the chain and return
+    /// the result. If a handler returns `ChainResult::Done`, the chain
+    /// will stop and return.
+    ///
+    /// If no handler returns `ChainResult::Done`, the chain will return
+    /// `ChainResult::Next` with the input.
+    pub(crate) async fn traverse(&self, mut input: T) -> ChainResult<T, R> {
+        use ChainResult::{Done, Next};
+        for e in self.0.lock().await.iter_mut() {
+            match e.handle(input).await {
+                Next(r) => input = r,
+                Done(r) => {
+                    return Done(r);
+                }
+            }
+        }
+
+        Next(input)
+    }
+}
+
+impl<T, R> Default for Chain<T, R> {
+    fn default() -> Self {
+        Self(Arc::new(Mutex::new(InnerChain::default())))
+    }
+}
+
+impl<T, R> Clone for Chain<T, R> {
+    fn clone(&self) -> Self {
+        // Cloning the chain is a cheap operation, because the inner chain is
+        // wrapped in an `Arc` and `Mutex`.
+        Self(self.0.clone())
+    }
 }
 
 /// Client request chains

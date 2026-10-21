@@ -1,38 +1,23 @@
 use std::iter;
 
-use super::parsed_fragment::TextDirective;
-use crate::types::FileType;
 use html5gum::{Token, Tokenizer};
 use log::warn;
 use regex::Regex;
 
-/// Check if the text fragments in the given URL are valid for the provided content and file type.
-pub(super) fn check_text_fragments(
-    directives: &[TextDirective],
-    content: &str,
-    file_type: FileType,
-) -> bool {
-    if file_type != FileType::Html {
-        // We currently don't support text fragments for e.g. Markdown files,
-        // because realistically there is no standard for them.
-        // If text fragments ever become standardized for non-HTML files, we can implement support for them here.
-        return true;
-    }
-
-    if directives.is_empty() {
-        return true;
-    }
-
-    // The algorithm to find a range in a document likely requires a full implementation of a browser.
-    // See https://wicg.github.io/scroll-to-text-fragment/#finding-ranges-in-a-document
-    // Here, we try to approximate it by extracting visible text.
-    let document = extract_visible_text(content);
-    directives
-        .iter()
-        .all(|directive| directive.matches(&document))
-}
+use crate::types::FileType;
+use super::parsed_fragment::TextDirective;
 
 impl TextDirective {
+    fn matches(&self, document: &str) -> bool {
+        match self.to_regex() {
+            Ok(regex) => regex.is_match(document),
+            Err(e) => {
+                warn!("Failed to create regex for text fragment {self:?}. {e:?}");
+                false
+            }
+        }
+    }
+
     /// Builds a regex to find the current [`TextDirective`] within normalised
     /// HTML text content.
     ///
@@ -62,16 +47,6 @@ impl TextDirective {
 
         Regex::new(&regex_str)
     }
-
-    fn matches(&self, document: &str) -> bool {
-        match self.to_regex() {
-            Ok(regex) => regex.is_match(document),
-            Err(e) => {
-                warn!("Failed to create regex for text fragment {self:?}. {e:?}");
-                false
-            }
-        }
-    }
 }
 
 /// Returns whether text within the given HTML tag is hidden from text fragment searching.
@@ -97,6 +72,32 @@ fn is_hidden_tag(name: &str) -> bool {
             | "audio"
             | "select"
     )
+}
+
+/// Check if the text fragments in the given URL are valid for the provided content and file type.
+pub(super) fn check_text_fragments(
+    directives: &[TextDirective],
+    content: &str,
+    file_type: FileType,
+) -> bool {
+    if file_type != FileType::Html {
+        // We currently don't support text fragments for e.g. Markdown files,
+        // because realistically there is no standard for them.
+        // If text fragments ever become standardized for non-HTML files, we can implement support for them here.
+        return true;
+    }
+
+    if directives.is_empty() {
+        return true;
+    }
+
+    // The algorithm to find a range in a document likely requires a full implementation of a browser.
+    // See https://wicg.github.io/scroll-to-text-fragment/#finding-ranges-in-a-document
+    // Here, we try to approximate it by extracting visible text.
+    let document = extract_visible_text(content);
+    directives
+        .iter()
+        .all(|directive| directive.matches(&document))
 }
 
 /// Extract visible text from the given HTML content. Whitespace is normalized by
@@ -153,6 +154,13 @@ fn extract_visible_text(input: &str) -> String {
     text
 }
 
+/// Normalizes whitespace in the given text by replacing adjacent (Unicode-aware)
+/// whitespace characters with a single ASCII space. Leading and trailing whitespace
+/// is removed in the output.
+fn normalize_whitespace(text: &str) -> String {
+    intersperse_whitespace(text).collect()
+}
+
 /// Returns an iterator of whitespace-separated words in the given string, interspersed
 /// with exactly one ASCII space between each word. Leading or trailing whitespace
 /// is discarded.
@@ -161,13 +169,6 @@ fn intersperse_whitespace(text: &str) -> impl Iterator<Item = &str> {
         let space: Option<&str> = (i > 0).then_some(" ");
         space.into_iter().chain(iter::once(word))
     })
-}
-
-/// Normalizes whitespace in the given text by replacing adjacent (Unicode-aware)
-/// whitespace characters with a single ASCII space. Leading and trailing whitespace
-/// is removed in the output.
-fn normalize_whitespace(text: &str) -> String {
-    intersperse_whitespace(text).collect()
 }
 
 #[cfg(test)]

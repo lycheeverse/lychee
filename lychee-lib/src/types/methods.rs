@@ -103,12 +103,13 @@ impl Display for Methods {
     }
 }
 
-/// Parses a single HTTP method
-///
-/// This is case-insensitive, so e.g. "get" and "GET" are both accepted.
-fn parse_method(token: &str) -> Result<Method, MethodsError> {
-    Method::from_str(&token.to_uppercase())
-        .map_err(|_| MethodsError::InvalidMethod(token.to_string()))
+impl<'de> Deserialize<'de> for Methods {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(MethodsVisitor)
+    }
 }
 
 struct MethodsVisitor;
@@ -126,7 +127,6 @@ impl<'de> Visitor<'de> for MethodsVisitor {
     {
         Methods::from_str(v).map_err(serde::de::Error::custom)
     }
-
     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
     where
         A: serde::de::SeqAccess<'de>,
@@ -139,13 +139,12 @@ impl<'de> Visitor<'de> for MethodsVisitor {
     }
 }
 
-impl<'de> Deserialize<'de> for Methods {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_any(MethodsVisitor)
-    }
+/// Parses a single HTTP method
+///
+/// This is case-insensitive, so e.g. "get" and "GET" are both accepted.
+fn parse_method(token: &str) -> Result<Method, MethodsError> {
+    Method::from_str(&token.to_uppercase())
+        .map_err(|_| MethodsError::InvalidMethod(token.to_string()))
 }
 
 #[cfg(test)]

@@ -1,8 +1,12 @@
 mod parsed_fragment;
 mod text;
 
-use log::info;
 use std::{borrow::Cow, collections::HashSet, path::Path};
+
+use log::info;
+use percent_encoding::percent_decode_str;
+use tokio::fs;
+use url::Url;
 
 use crate::{
     FragmentCheckerOptions, Result,
@@ -10,15 +14,12 @@ use crate::{
     extract::{html::html5gum::extract_html_fragments, markdown::extract_markdown_fragments},
     types::{ErrorKind, FileType},
 };
-use percent_encoding::percent_decode_str;
-use tokio::fs;
-use url::Url;
-
 use self::parsed_fragment::ParsedFragment;
 
 /// Holds the content and file type of the fragment input.
 pub(crate) struct FragmentInput<'a> {
     pub content: Cow<'a, str>,
+
     pub file_type: FileType,
 }
 
@@ -37,8 +38,9 @@ impl FragmentInput<'_> {
 
 /// A fragment builder that expands the given fragments into a list of candidates.
 struct FragmentBuilder {
-    variants: Vec<String>,
     decoded: Vec<String>,
+
+    variants: Vec<String>,
 }
 
 impl FragmentBuilder {
@@ -112,6 +114,17 @@ impl FragmentChecker {
         Self::default()
     }
 
+    fn remove_fragment(mut url: Url) -> Url {
+        url.set_fragment(None);
+        url
+    }
+
+    fn with_element_fragment(url: &Url, fragment: Option<&str>) -> Url {
+        let mut updated = url.clone();
+        updated.set_fragment(fragment);
+        updated
+    }
+
     /// Checks if the given [`FragmentInput`] contains the given fragment.
     ///
     /// Returns false, if there is a fragment in the link which is not empty or "top"
@@ -149,7 +162,6 @@ impl FragmentChecker {
 
         Ok(true)
     }
-
     async fn check_anchor_fragment(
         &self,
         content: &str,
@@ -184,16 +196,5 @@ impl FragmentChecker {
             Err(anchors) => anchors,
         };
         Ok(fragment_candidates.any_matches(&*file_frags.wait().await?))
-    }
-
-    fn remove_fragment(mut url: Url) -> Url {
-        url.set_fragment(None);
-        url
-    }
-
-    fn with_element_fragment(url: &Url, fragment: Option<&str>) -> Url {
-        let mut updated = url.clone();
-        updated.set_fragment(fragment);
-        updated
     }
 }

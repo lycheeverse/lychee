@@ -1,9 +1,9 @@
-use lychee_lib::ResponseBody;
-
 mod color;
 mod emoji;
 mod plain;
 mod task;
+
+use lychee_lib::ResponseBody;
 
 pub(crate) use color::ColorFormatter;
 pub(crate) use emoji::EmojiFormatter;

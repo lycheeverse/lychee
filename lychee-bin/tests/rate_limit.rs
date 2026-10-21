@@ -1,6 +1,7 @@
-use assert_cmd::Command;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+use assert_cmd::Command;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -19,9 +20,18 @@ const TIMING_TOLERANCE: Duration = Duration::from_millis(1000);
 enum Reset {
     /// Absolute Unix timestamp (GitHub, GitLab); lychee waits `reset - now`.
     Absolute(SystemTime),
+
     /// Relative seconds until reset (IETF draft, `Retry-After`); lychee waits
     /// that long after parsing the headers.
     Relative(Duration),
+}
+
+/// Formats a `SystemTime` as a whole-second Unix timestamp string.
+fn unix_timestamp(time: SystemTime) -> String {
+    time.duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        .to_string()
 }
 
 /// Absolute reset time `RATE_LIMIT_RESET_OFFSET_SECONDS` from now, truncated to
@@ -33,14 +43,6 @@ fn absolute_reset_time() -> SystemTime {
         .as_secs()
         + RATE_LIMIT_RESET_OFFSET_SECONDS;
     UNIX_EPOCH + Duration::from_secs(secs)
-}
-
-/// Formats a `SystemTime` as a whole-second Unix timestamp string.
-fn unix_timestamp(time: SystemTime) -> String {
-    time.duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
-        .to_string()
 }
 
 /// Runs lychee sequentially over two paths and asserts the gap between the two
@@ -130,124 +132,6 @@ async fn run_rate_limit_test(headers: &[(&str, &str)], reset: Reset) {
 }
 
 #[tokio::test]
-async fn test_github_rate_limit_exhausted() {
-    let reset_time = absolute_reset_time();
-    let reset_header = unix_timestamp(reset_time);
-
-    run_rate_limit_test(
-        &[
-            ("x-ratelimit-limit", "100"),
-            ("x-ratelimit-remaining", "0"),
-            ("x-ratelimit-reset", &reset_header),
-        ],
-        Reset::Absolute(reset_time),
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn test_gitlab_rate_limit_exhausted() {
-    let reset_time = absolute_reset_time();
-    let reset_header = unix_timestamp(reset_time);
-
-    run_rate_limit_test(
-        &[
-            ("RateLimit-Limit", "100"),
-            ("RateLimit-Remaining", "0"),
-            ("RateLimit-Reset", &reset_header),
-            // GitLab-specific. Its presence tells the `rate-limits` crate to read
-            // `RateLimit-Reset` as an absolute timestamp rather than relative
-            // seconds (IETF draft), which share the same header name.
-            ("RateLimit-Observed", "100"),
-        ],
-        Reset::Absolute(reset_time),
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn test_ietf_draft_exhausted() {
-    let delay_str = RATE_LIMIT_DELAY_SECONDS.to_string();
-
-    run_rate_limit_test(
-        &[
-            ("RateLimit-Limit", "100"),
-            ("RateLimit-Remaining", "0"),
-            // Relative seconds (IETF draft), unlike GitLab's absolute timestamp.
-            ("RateLimit-Reset", &delay_str),
-        ],
-        Reset::Relative(Duration::from_secs(RATE_LIMIT_DELAY_SECONDS)),
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn test_retry_rate_limit_headers() {
-    const RETRY_DELAY: Duration = Duration::from_secs(1);
-    let server = MockServer::start().await;
-
-    // Record timestamps in the handlers but assert in the test body: a panic
-    // inside a handler surfaces as a confusing connection error.
-    let first_request_time: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
-    let second_request_time: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
-
-    let first_time_clone = first_request_time.clone();
-    Mock::given(method("GET"))
-        .respond_with(move |_: &wiremock::Request| {
-            *first_time_clone.lock().unwrap() = Some(Instant::now());
-            ResponseTemplate::new(429)
-                .insert_header("Retry-After", RETRY_DELAY.as_secs().to_string().as_str())
-        })
-        .expect(1)
-        .up_to_n_times(1)
-        .mount(&server)
-        .await;
-
-    let second_time_clone = second_request_time.clone();
-    Mock::given(method("GET"))
-        .respond_with(move |_: &wiremock::Request| {
-            *second_time_clone.lock().unwrap() = Some(Instant::now());
-            ResponseTemplate::new(200)
-        })
-        .expect(1)
-        .mount(&server)
-        .await;
-
-    let mut cmd = Command::cargo_bin("lychee").unwrap();
-    cmd.arg("-")
-        // Isolate the `Retry-After`-driven delay from the generic retry wait.
-        .arg("--retry-wait-time")
-        .arg("0")
-        .write_stdin(server.uri())
-        .assert()
-        .success();
-
-    server.verify().await;
-
-    let first = first_request_time
-        .lock()
-        .unwrap()
-        .expect("first request was never received");
-    let second = second_request_time
-        .lock()
-        .unwrap()
-        .expect("retry was never received");
-    let elapsed = second.duration_since(first);
-
-    let expected_min = RETRY_DELAY.saturating_sub(TIMING_TOLERANCE);
-    let expected_max = RETRY_DELAY.saturating_add(TIMING_TOLERANCE);
-
-    assert!(
-        elapsed >= expected_min,
-        "Retry-After was not respected: expected at least {expected_min:?}, got {elapsed:?}"
-    );
-    assert!(
-        elapsed <= expected_max,
-        "Retry wait was unexpectedly long: expected at most {expected_max:?}, got {elapsed:?}"
-    );
-}
-
-#[tokio::test]
 async fn test_retry_after_seconds() {
     // A `Retry-After` on a 429 should delay the *next* request to a different
     // path on the same host. Unlike `test_retry_rate_limit_headers` (same URL),
@@ -331,3 +215,121 @@ async fn test_retry_after_seconds() {
 
     mock_server.verify().await;
 }
+#[tokio::test]
+async fn test_ietf_draft_exhausted() {
+    let delay_str = RATE_LIMIT_DELAY_SECONDS.to_string();
+
+    run_rate_limit_test(
+        &[
+            ("RateLimit-Limit", "100"),
+            ("RateLimit-Remaining", "0"),
+            // Relative seconds (IETF draft), unlike GitLab's absolute timestamp.
+            ("RateLimit-Reset", &delay_str),
+        ],
+        Reset::Relative(Duration::from_secs(RATE_LIMIT_DELAY_SECONDS)),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_retry_rate_limit_headers() {
+    const RETRY_DELAY: Duration = Duration::from_secs(1);
+    let server = MockServer::start().await;
+
+    // Record timestamps in the handlers but assert in the test body: a panic
+    // inside a handler surfaces as a confusing connection error.
+    let first_request_time: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
+    let second_request_time: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
+
+    let first_time_clone = first_request_time.clone();
+    Mock::given(method("GET"))
+        .respond_with(move |_: &wiremock::Request| {
+            *first_time_clone.lock().unwrap() = Some(Instant::now());
+            ResponseTemplate::new(429)
+                .insert_header("Retry-After", RETRY_DELAY.as_secs().to_string().as_str())
+        })
+        .expect(1)
+        .up_to_n_times(1)
+        .mount(&server)
+        .await;
+
+    let second_time_clone = second_request_time.clone();
+    Mock::given(method("GET"))
+        .respond_with(move |_: &wiremock::Request| {
+            *second_time_clone.lock().unwrap() = Some(Instant::now());
+            ResponseTemplate::new(200)
+        })
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let mut cmd = Command::cargo_bin("lychee").unwrap();
+    cmd.arg("-")
+        // Isolate the `Retry-After`-driven delay from the generic retry wait.
+        .arg("--retry-wait-time")
+        .arg("0")
+        .write_stdin(server.uri())
+        .assert()
+        .success();
+
+    server.verify().await;
+
+    let first = first_request_time
+        .lock()
+        .unwrap()
+        .expect("first request was never received");
+    let second = second_request_time
+        .lock()
+        .unwrap()
+        .expect("retry was never received");
+    let elapsed = second.duration_since(first);
+
+    let expected_min = RETRY_DELAY.saturating_sub(TIMING_TOLERANCE);
+    let expected_max = RETRY_DELAY.saturating_add(TIMING_TOLERANCE);
+
+    assert!(
+        elapsed >= expected_min,
+        "Retry-After was not respected: expected at least {expected_min:?}, got {elapsed:?}"
+    );
+    assert!(
+        elapsed <= expected_max,
+        "Retry wait was unexpectedly long: expected at most {expected_max:?}, got {elapsed:?}"
+    );
+}
+
+#[tokio::test]
+async fn test_github_rate_limit_exhausted() {
+    let reset_time = absolute_reset_time();
+    let reset_header = unix_timestamp(reset_time);
+
+    run_rate_limit_test(
+        &[
+            ("x-ratelimit-limit", "100"),
+            ("x-ratelimit-remaining", "0"),
+            ("x-ratelimit-reset", &reset_header),
+        ],
+        Reset::Absolute(reset_time),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn test_gitlab_rate_limit_exhausted() {
+    let reset_time = absolute_reset_time();
+    let reset_header = unix_timestamp(reset_time);
+
+    run_rate_limit_test(
+        &[
+            ("RateLimit-Limit", "100"),
+            ("RateLimit-Remaining", "0"),
+            ("RateLimit-Reset", &reset_header),
+            // GitLab-specific. Its presence tells the `rate-limits` crate to read
+            // `RateLimit-Reset` as an absolute timestamp rather than relative
+            // seconds (IETF draft), which share the same header name.
+            ("RateLimit-Observed", "100"),
+        ],
+        Reset::Absolute(reset_time),
+    )
+    .await;
+}
+

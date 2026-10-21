@@ -5,15 +5,6 @@ mod junit;
 mod markdown;
 mod response;
 
-pub(crate) use compact::Compact;
-
-pub(crate) use detailed::Detailed;
-pub(crate) use json::Json;
-pub(crate) use junit::Junit;
-pub(crate) use markdown::Markdown;
-pub(crate) use response::ResponseStats;
-use serde::Serialize;
-
 use std::{
     cmp::Eq,
     collections::{HashMap, HashSet},
@@ -23,57 +14,36 @@ use std::{
     io::{Write, stdout},
 };
 
+use serde::Serialize;
+
+use anyhow::{Context, Result};
+use lychee_lib::{InputSource, ratelimit::HostStatsMap};
+
 use crate::{
     config::{Config, OutputMode},
     formatters::{color::YELLOW, get_stats_formatter},
 };
-use anyhow::{Context, Result};
-use lychee_lib::{InputSource, ratelimit::HostStatsMap};
 
-#[derive(Default, Serialize)]
-pub(crate) struct OutputStats {
-    #[serde(flatten)]
-    pub(crate) response_stats: ResponseStats,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) host_stats: Option<HostStatsMap>,
-}
+pub(crate) use compact::Compact;
+
+pub(crate) use detailed::Detailed;
+pub(crate) use json::Json;
+pub(crate) use junit::Junit;
+pub(crate) use markdown::Markdown;
+pub(crate) use response::ResponseStats;
 
 pub(crate) trait StatsFormatter {
     /// Format the stats of all responses and write them to stdout
     fn format(&self, stats: OutputStats) -> Result<String>;
 }
 
-/// Output response statistics to stdout or the specified output file.
-pub(crate) fn output_statistics(stats: OutputStats, config: &Config) -> Result<()> {
-    let formatter = get_stats_formatter(&config.format(), &config.mode());
-    let formatted_stats = formatter.format(stats)?;
+#[derive(Default, Serialize)]
+pub(crate) struct OutputStats {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) host_stats: Option<HostStatsMap>,
 
-    if let Some(output) = &config.output {
-        fs::write(output, formatted_stats).context("Cannot write status output to file")?;
-    } else {
-        // we assume that the formatted stats don't have a final newline
-        writeln!(stdout(), "{formatted_stats}")?;
-    }
-    Ok(())
-}
-
-/// Output hints to stderr.
-pub(crate) fn output_hints(config: &Config) {
-    let hints = lychee_lib::get_hints();
-
-    if config.verbose().log_level() <= log::Level::Error {
-        return; // log level is too low
-    }
-
-    let prefix = match &config.mode() {
-        OutputMode::Emoji => "💡".into(),
-        OutputMode::Color => YELLOW.apply_to("Hint").to_string() + ":",
-        OutputMode::Plain | OutputMode::Task => "Hint:".into(),
-    };
-
-    for hint in hints {
-        eprintln!("{prefix} {hint}");
-    }
+    #[serde(flatten)]
+    pub(crate) response_stats: ResponseStats,
 }
 
 /// Convert a `ResponseStats` `HashMap` to a sorted Vec of key-value pairs.
@@ -124,6 +94,39 @@ where
     }
 
     entries
+}
+
+/// Output hints to stderr.
+pub(crate) fn output_hints(config: &Config) {
+    let hints = lychee_lib::get_hints();
+
+    if config.verbose().log_level() <= log::Level::Error {
+        return; // log level is too low
+    }
+
+    let prefix = match &config.mode() {
+        OutputMode::Emoji => "💡".into(),
+        OutputMode::Color => YELLOW.apply_to("Hint").to_string() + ":",
+        OutputMode::Plain | OutputMode::Task => "Hint:".into(),
+    };
+
+    for hint in hints {
+        eprintln!("{prefix} {hint}");
+    }
+}
+
+/// Output response statistics to stdout or the specified output file.
+pub(crate) fn output_statistics(stats: OutputStats, config: &Config) -> Result<()> {
+    let formatter = get_stats_formatter(&config.format(), &config.mode());
+    let formatted_stats = formatter.format(stats)?;
+
+    if let Some(output) = &config.output {
+        fs::write(output, formatted_stats).context("Cannot write status output to file")?;
+    } else {
+        // we assume that the formatted stats don't have a final newline
+        writeln!(stdout(), "{formatted_stats}")?;
+    }
+    Ok(())
 }
 
 /// Create a bunch of dummy stats for testing the formatters.

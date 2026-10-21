@@ -1,8 +1,9 @@
 use std::fmt::{self, Display};
 
-use super::{host_heading, status_summary};
-use crate::formatters::color::{NORMAL, color};
 use lychee_lib::ratelimit::HostStatsMap;
+
+use crate::formatters::color::{NORMAL, color};
+use super::{host_heading, status_summary};
 
 pub(crate) struct CompactHostStats {
     pub(crate) host_stats: Option<HostStatsMap>,

@@ -16,29 +16,33 @@ mod config;
 mod host;
 mod pool;
 
-pub use config::{HostConfig, HostConfigs, RateLimitConfig};
-pub use host::{Host, HostKey, HostStats, HostStatsMap};
 use http::HeaderMap;
-pub use pool::{ClientMap, HostPool};
 use reqwest::Response;
 use url::Url;
 
 use crate::{ErrorKind, Result};
+
+pub use config::{HostConfig, HostConfigs, RateLimitConfig};
+pub use host::{Host, HostKey, HostStats, HostStatsMap};
+pub use pool::{ClientMap, HostPool};
 
 /// The result of a HTTP request, used for internal per-host caching.
 /// This abstraction exists, because [`Response`] cannot easily be cached
 /// since it does not implement [`Clone`].
 #[derive(Debug, Clone)]
 pub(crate) struct CacheableResponse {
-    /// HTTP status code of the response.
-    pub(crate) status: reqwest::StatusCode,
+    /// Final URL after any redirects.
+    pub(crate) url: Url,
+
     /// Response body text. Only populated when `needs_body` was `true` in
     /// [`HostPool::execute_request`].
     pub(crate) text: Option<String>,
+
+    /// HTTP status code of the response.
+    pub(crate) status: reqwest::StatusCode,
+
     /// Response headers.
     pub(crate) headers: HeaderMap,
-    /// Final URL after any redirects.
-    pub(crate) url: Url,
 }
 
 impl CacheableResponse {

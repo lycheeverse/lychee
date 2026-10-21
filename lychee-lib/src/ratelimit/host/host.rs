@@ -1,4 +1,9 @@
-use crate::{ratelimit::CacheableResponse, retry::RetryExt};
+use std::{num::NonZeroU32, sync::Mutex};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
 use dashmap::DashMap;
 use governor::{
     Quota, RateLimiter,
@@ -9,21 +14,18 @@ use http::{Method, StatusCode};
 use humantime_serde::re::humantime::format_duration;
 use log::warn;
 use reqwest::{Client as ReqwestClient, Request, Response as ReqwestResponse};
-use std::{num::NonZeroU32, sync::Mutex};
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
 use tokio::sync::Semaphore;
 
-use super::key::HostKey;
-use super::stats::HostStats;
+use crate::{ratelimit::CacheableResponse, retry::RetryExt};
 use crate::Uri;
 use crate::types::Result;
 use crate::{
     ErrorKind,
     ratelimit::{HostConfig, RateLimitConfig},
 };
+
+use super::key::HostKey;
+use super::stats::HostStats;
 
 /// Cap maximum backoff duration to reasonable limits
 const MAXIMUM_BACKOFF: Duration = Duration::from_secs(60);
@@ -53,27 +55,27 @@ pub struct Host {
     /// The hostname this instance manages
     pub key: HostKey,
 
-    /// Rate limiter using token bucket algorithm
-    rate_limiter: Option<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>,
-
-    /// Controls maximum concurrent requests to this host
-    semaphore: Semaphore,
-
-    /// HTTP client configured for this specific host
-    client: ReqwestClient,
-
     /// Request statistics and adaptive behavior tracking
     stats: Mutex<HostStats>,
-
-    /// Current backoff duration for adaptive rate limiting
-    backoff_duration: Mutex<Duration>,
 
     /// Per-host cache to prevent duplicate requests during a single link check invocation.
     /// Note that this cache has no direct relation to the inter-process persistable [`crate::CacheStatus`].
     cache: HostCache,
 
+    /// HTTP client configured for this specific host
+    client: ReqwestClient,
+
+    /// Controls maximum concurrent requests to this host
+    semaphore: Semaphore,
+
+    /// Rate limiter using token bucket algorithm
+    rate_limiter: Option<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>,
+
     /// Keep track of currently active requests, to prevent duplicate concurrent requests
     active_requests: DashMap<RequestKey, Arc<tokio::sync::Mutex<()>>>,
+
+    /// Current backoff duration for adaptive rate limiting
+    backoff_duration: Mutex<Duration>,
 }
 
 impl Host {
@@ -106,6 +108,72 @@ impl Host {
         }
     }
 
+    /// Get host statistics
+    ///
+    /// # Panics
+    ///
+    /// Panics if the statistics mutex is poisoned
+    pub fn stats(&self) -> HostStats {
+        self.stats.lock().expect("Stats mutex is poisoned").clone()
+    }
+
+    /// Get the current cache size (number of cached entries)
+    pub fn cache_size(&self) -> usize {
+        self.cache.len()
+    }
+    /// Cache a request result
+    fn cache_result(&self, key: RequestKey, response: CacheableResponse) {
+        // Do not cache responses that are potentially retried
+        if !response.status.should_retry() {
+            self.cache.insert(key, response);
+        }
+    }
+
+    fn update_stats(&self, status: StatusCode, request_time: Duration) {
+        self.stats
+            .lock()
+            .expect("Stats mutex is poisoned")
+            .record_response(status.as_u16(), request_time);
+    }
+    fn update_backoff(&self, status: StatusCode) {
+        let mut backoff = self.backoff_duration.lock().unwrap();
+        match status.as_u16() {
+            200..=299 => {
+                // Reset backoff on success
+                *backoff = Duration::from_millis(0);
+            }
+            429 => {
+                // Exponential backoff on rate limit, capped at 30 seconds
+                let new_backoff = std::cmp::min(
+                    if backoff.is_zero() {
+                        Duration::from_millis(500)
+                    } else {
+                        *backoff * 2
+                    },
+                    Duration::from_secs(30),
+                );
+                log::debug!(
+                    "Host {} hit rate limit (429), increasing backoff from {}ms to {}ms",
+                    self.key,
+                    backoff.as_millis(),
+                    new_backoff.as_millis()
+                );
+                *backoff = new_backoff;
+            }
+            500..=599 => {
+                // Moderate backoff increase on server errors, capped at 10 seconds
+                *backoff = std::cmp::min(
+                    *backoff + Duration::from_millis(200),
+                    Duration::from_secs(10),
+                );
+            }
+            _ => {} // No backoff change for other status codes
+        }
+    }
+
+    pub(crate) const fn get_client(&self) -> &ReqwestClient {
+        &self.client
+    }
     /// Check if a request is cached and returns the cached response if it is
     /// valid and satisfies the `needs_body` requirement.
     fn get_cached_status(&self, key: &RequestKey, needs_body: bool) -> Option<CacheableResponse> {
@@ -121,6 +189,25 @@ impl Host {
         }
     }
 
+    /// Increase backoff duration to the given duration, but cap it to a
+    /// reasonable maximum to prevent excessively long backoffs.
+    fn increase_backoff(&self, mut increased_backoff: Duration) {
+        if increased_backoff > MAXIMUM_BACKOFF {
+            warn!(
+                "Host {} sent an unexpectedly big rate limit backoff duration of {}. Capping the duration to {} instead.",
+                self.key,
+                format_duration(increased_backoff),
+                format_duration(MAXIMUM_BACKOFF)
+            );
+            increased_backoff = MAXIMUM_BACKOFF;
+        }
+
+        let mut backoff = self.backoff_duration.lock().unwrap();
+        // Take the maximum of the current backoff and the new backoff to avoid
+        // accidentally reducing the backoff duration
+        *backoff = std::cmp::max(*backoff, increased_backoff);
+    }
+
     /// Record a cache hit from the persistent disk cache.
     /// Cache misses are tracked internally, so we don't expose such a method.
     ///
@@ -133,17 +220,50 @@ impl Host {
             .expect("Stats mutex is poisoned")
             .record_cache_hit();
     }
-
     fn record_cache_miss(&self) {
         self.stats.lock().unwrap().record_cache_miss();
     }
 
-    /// Cache a request result
-    fn cache_result(&self, key: RequestKey, response: CacheableResponse) {
-        // Do not cache responses that are potentially retried
-        if !response.status.should_retry() {
-            self.cache.insert(key, response);
+    /// Parse rate limit headers from response and adjust behavior
+    fn parse_rate_limit_headers(&self, response: &ReqwestResponse) {
+        let headers = response.headers();
+
+        if let Ok(rate_limit) = rate_limits::RateLimit::new(headers)
+            && rate_limit.is_limited()
+        {
+            let duration = rate_limit.reset().duration();
+            if !duration.is_zero() {
+                self.increase_backoff(duration);
+            }
         }
+    }
+
+    /// Await adaptive backoff if needed
+    async fn await_backoff(&self) {
+        let backoff_duration = {
+            let backoff = self.backoff_duration.lock().unwrap();
+            *backoff
+        };
+        if !backoff_duration.is_zero() {
+            log::debug!(
+                "Host {} applying backoff delay of {}ms due to previous rate limiting or errors",
+                self.key,
+                backoff_duration.as_millis()
+            );
+            tokio::time::sleep(backoff_duration).await;
+        }
+    }
+
+    /// Get a [`tokio::sync::OwnedMutexGuard<()>`]
+    /// to prevent concurrent identical requests (same method and [`Uri`]).
+    async fn lock_uri_mutex(&self, key: RequestKey) -> tokio::sync::OwnedMutexGuard<()> {
+        let uri_mutex = self
+            .active_requests
+            .entry(key)
+            .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
+            .clone();
+
+        uri_mutex.lock_owned().await
     }
 
     /// Execute a request with rate limiting, concurrency control, and caching
@@ -183,10 +303,6 @@ impl Host {
         self.perform_request(request, key, needs_body).await
     }
 
-    pub(crate) const fn get_client(&self) -> &ReqwestClient {
-        &self.client
-    }
-
     async fn perform_request(
         &self,
         request: Request,
@@ -216,34 +332,6 @@ impl Host {
         Ok(response)
     }
 
-    /// Await adaptive backoff if needed
-    async fn await_backoff(&self) {
-        let backoff_duration = {
-            let backoff = self.backoff_duration.lock().unwrap();
-            *backoff
-        };
-        if !backoff_duration.is_zero() {
-            log::debug!(
-                "Host {} applying backoff delay of {}ms due to previous rate limiting or errors",
-                self.key,
-                backoff_duration.as_millis()
-            );
-            tokio::time::sleep(backoff_duration).await;
-        }
-    }
-
-    /// Get a [`tokio::sync::OwnedMutexGuard<()>`]
-    /// to prevent concurrent identical requests (same method and [`Uri`]).
-    async fn lock_uri_mutex(&self, key: RequestKey) -> tokio::sync::OwnedMutexGuard<()> {
-        let uri_mutex = self
-            .active_requests
-            .entry(key)
-            .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
-            .clone();
-
-        uri_mutex.lock_owned().await
-    }
-
     /// Enforce the maximum concurrency of this host
     async fn acquire_semaphore(&self) -> tokio::sync::SemaphorePermit<'_> {
         self.semaphore
@@ -251,96 +339,6 @@ impl Host {
             .await
             // SAFETY: this should not panic as we never close the semaphore
             .expect("Semaphore was closed unexpectedly")
-    }
-
-    fn update_backoff(&self, status: StatusCode) {
-        let mut backoff = self.backoff_duration.lock().unwrap();
-        match status.as_u16() {
-            200..=299 => {
-                // Reset backoff on success
-                *backoff = Duration::from_millis(0);
-            }
-            429 => {
-                // Exponential backoff on rate limit, capped at 30 seconds
-                let new_backoff = std::cmp::min(
-                    if backoff.is_zero() {
-                        Duration::from_millis(500)
-                    } else {
-                        *backoff * 2
-                    },
-                    Duration::from_secs(30),
-                );
-                log::debug!(
-                    "Host {} hit rate limit (429), increasing backoff from {}ms to {}ms",
-                    self.key,
-                    backoff.as_millis(),
-                    new_backoff.as_millis()
-                );
-                *backoff = new_backoff;
-            }
-            500..=599 => {
-                // Moderate backoff increase on server errors, capped at 10 seconds
-                *backoff = std::cmp::min(
-                    *backoff + Duration::from_millis(200),
-                    Duration::from_secs(10),
-                );
-            }
-            _ => {} // No backoff change for other status codes
-        }
-    }
-
-    fn update_stats(&self, status: StatusCode, request_time: Duration) {
-        self.stats
-            .lock()
-            .expect("Stats mutex is poisoned")
-            .record_response(status.as_u16(), request_time);
-    }
-
-    /// Parse rate limit headers from response and adjust behavior
-    fn parse_rate_limit_headers(&self, response: &ReqwestResponse) {
-        let headers = response.headers();
-
-        if let Ok(rate_limit) = rate_limits::RateLimit::new(headers)
-            && rate_limit.is_limited()
-        {
-            let duration = rate_limit.reset().duration();
-            if !duration.is_zero() {
-                self.increase_backoff(duration);
-            }
-        }
-    }
-
-    /// Increase backoff duration to the given duration, but cap it to a
-    /// reasonable maximum to prevent excessively long backoffs.
-    fn increase_backoff(&self, mut increased_backoff: Duration) {
-        if increased_backoff > MAXIMUM_BACKOFF {
-            warn!(
-                "Host {} sent an unexpectedly big rate limit backoff duration of {}. Capping the duration to {} instead.",
-                self.key,
-                format_duration(increased_backoff),
-                format_duration(MAXIMUM_BACKOFF)
-            );
-            increased_backoff = MAXIMUM_BACKOFF;
-        }
-
-        let mut backoff = self.backoff_duration.lock().unwrap();
-        // Take the maximum of the current backoff and the new backoff to avoid
-        // accidentally reducing the backoff duration
-        *backoff = std::cmp::max(*backoff, increased_backoff);
-    }
-
-    /// Get host statistics
-    ///
-    /// # Panics
-    ///
-    /// Panics if the statistics mutex is poisoned
-    pub fn stats(&self) -> HostStats {
-        self.stats.lock().expect("Stats mutex is poisoned").clone()
-    }
-
-    /// Get the current cache size (number of cached entries)
-    pub fn cache_size(&self) -> usize {
-        self.cache.len()
     }
 }
 

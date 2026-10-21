@@ -17,12 +17,6 @@ pub struct Preprocessor {
     command: String,
 }
 
-impl From<String> for Preprocessor {
-    fn from(command: String) -> Self {
-        Self { command }
-    }
-}
-
 impl Preprocessor {
     /// Try to invoke the preprocessor command with `path` as single argument
     /// and return the resulting stdout.
@@ -50,6 +44,12 @@ impl Preprocessor {
                 reason: format!("exited with non-zero code: {stderr}"),
             })
         }
+    }
+}
+
+impl From<String> for Preprocessor {
+    fn from(command: String) -> Self {
+        Self { command }
     }
 }
 

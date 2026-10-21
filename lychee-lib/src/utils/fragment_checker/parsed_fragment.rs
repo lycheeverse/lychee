@@ -1,93 +1,20 @@
 use url::Url;
 
-#[derive(Debug, PartialEq, Eq)]
-pub(super) struct ParsedFragment<'a> {
-    /// The element ID part of the fragment, e.g., "section" in `https://example.com/#section:~:text=example`.
-    pub(super) element_id: Option<&'a str>,
-    /// The text directives part of the fragment, e.g., "text=example" in `https://example.com/#section:~:text=example`.
-    pub(super) text_directives: Vec<TextDirective>,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub(super) struct TextDirective {
-    pub(super) prefix: Option<String>,
-    pub(super) start: String,
-    pub(super) end: Option<String>,
-    pub(super) suffix: Option<String>,
-}
-
 const FRAGMENT_DIRECTIVE_DELIMITER: &str = ":~:";
 const TEXT_DIRECTIVE_KEY: &str = "text";
 
-impl Default for ParsedFragment<'_> {
-    /// By default, there is no fragment.
-    fn default() -> Self {
-        Self {
-            element_id: None,
-            text_directives: Vec::new(),
-        }
-    }
-}
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct TextDirective {
+    pub(super) end: Option<String>,
 
-impl<'a> ParsedFragment<'a> {
-    /// This method parses the fragment, separating the element id (if any) from the text directives (if any).
-    pub(super) fn parse(url: &'a Url) -> Self {
-        let Some(fragment) = url.fragment() else {
-            return Self::default();
-        };
+    pub(super) start: String,
 
-        // Split off the element id from the fragment directive
-        // See https://wicg.github.io/scroll-to-text-fragment/#the-fragment-directive
-        // See https://wicg.github.io/scroll-to-text-fragment/#determine-if-fragment-id-is-needed
-        let Some((element_id, fragment_directive)) =
-            fragment.split_once(FRAGMENT_DIRECTIVE_DELIMITER)
-        else {
-            return Self {
-                element_id: Some(fragment),
-                text_directives: Vec::new(),
-            };
-        };
+    pub(super) prefix: Option<String>,
 
-        // Convert empty element id to None.
-        let element_id = (!element_id.is_empty()).then_some(element_id);
-
-        // The fragment directive may contain several components, separated by ampersant, such as https://example.com#:~:text=foo&text=bar&unknownDirective
-        // See Example 6 in https://wicg.github.io/scroll-to-text-fragment/#the-fragment-directive
-        let text_directives = fragment_directive
-            .split('&')
-            .filter_map(|component| component.split_once('='))
-            .filter(|(key, _)| *key == TEXT_DIRECTIVE_KEY)
-            .filter_map(|(_, value)| TextDirective::parse(value))
-            .collect();
-
-        Self {
-            element_id,
-            text_directives,
-        }
-    }
+    pub(super) suffix: Option<String>,
 }
 
 impl TextDirective {
-    /// Helper function to strip a prefix from the start of the text directive parts, if present and correctly formatted.
-    fn strip_prefix(parts: &mut Vec<&str>) -> Option<String> {
-        if parts.len() >= 2 && parts.first().is_some_and(|p| p.ends_with('-')) {
-            let part = parts.remove(0);
-            Some(percentage_decode(&part[..part.len() - 1]))
-        } else {
-            None
-        }
-    }
-
-    /// Helper function to strip a suffix from the end of the text directive parts, if present and correctly formatted.
-    fn strip_suffix(parts: &mut Vec<&str>) -> Option<String> {
-        if parts.len() >= 2 && parts.last().is_some_and(|p| p.starts_with('-')) {
-            let part = parts.pop().expect("checked length above");
-            Some(percentage_decode(&part[1..]))
-        } else {
-            None
-        }
-    }
-
     /// Parse a [text directive] from a string.
     ///
     /// Text directives follow the format:
@@ -129,6 +56,82 @@ impl TextDirective {
             end,
             suffix,
         })
+    }
+
+    /// Helper function to strip a prefix from the start of the text directive parts, if present and correctly formatted.
+    fn strip_prefix(parts: &mut Vec<&str>) -> Option<String> {
+        if parts.len() >= 2 && parts.first().is_some_and(|p| p.ends_with('-')) {
+            let part = parts.remove(0);
+            Some(percentage_decode(&part[..part.len() - 1]))
+        } else {
+            None
+        }
+    }
+    /// Helper function to strip a suffix from the end of the text directive parts, if present and correctly formatted.
+    fn strip_suffix(parts: &mut Vec<&str>) -> Option<String> {
+        if parts.len() >= 2 && parts.last().is_some_and(|p| p.starts_with('-')) {
+            let part = parts.pop().expect("checked length above");
+            Some(percentage_decode(&part[1..]))
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct ParsedFragment<'a> {
+    /// The element ID part of the fragment, e.g., "section" in `https://example.com/#section:~:text=example`.
+    pub(super) element_id: Option<&'a str>,
+
+    /// The text directives part of the fragment, e.g., "text=example" in `https://example.com/#section:~:text=example`.
+    pub(super) text_directives: Vec<TextDirective>,
+}
+
+impl<'a> ParsedFragment<'a> {
+    /// This method parses the fragment, separating the element id (if any) from the text directives (if any).
+    pub(super) fn parse(url: &'a Url) -> Self {
+        let Some(fragment) = url.fragment() else {
+            return Self::default();
+        };
+
+        // Split off the element id from the fragment directive
+        // See https://wicg.github.io/scroll-to-text-fragment/#the-fragment-directive
+        // See https://wicg.github.io/scroll-to-text-fragment/#determine-if-fragment-id-is-needed
+        let Some((element_id, fragment_directive)) =
+            fragment.split_once(FRAGMENT_DIRECTIVE_DELIMITER)
+        else {
+            return Self {
+                element_id: Some(fragment),
+                text_directives: Vec::new(),
+            };
+        };
+
+        // Convert empty element id to None.
+        let element_id = (!element_id.is_empty()).then_some(element_id);
+
+        // The fragment directive may contain several components, separated by ampersant, such as https://example.com#:~:text=foo&text=bar&unknownDirective
+        // See Example 6 in https://wicg.github.io/scroll-to-text-fragment/#the-fragment-directive
+        let text_directives = fragment_directive
+            .split('&')
+            .filter_map(|component| component.split_once('='))
+            .filter(|(key, _)| *key == TEXT_DIRECTIVE_KEY)
+            .filter_map(|(_, value)| TextDirective::parse(value))
+            .collect();
+
+        Self {
+            element_id,
+            text_directives,
+        }
+    }
+}
+
+impl Default for ParsedFragment<'_> {
+    /// By default, there is no fragment.
+    fn default() -> Self {
+        Self {
+            element_id: None,
+            text_directives: Vec::new(),
+        }
     }
 }
 

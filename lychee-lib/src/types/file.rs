@@ -1,7 +1,152 @@
+use std::path::Path;
+
 use ignore::types::{Types, TypesBuilder};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use url::Url;
+
+/// `FileType` defines which file types lychee can handle
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Deserialize, Serialize, Default)]
+pub enum FileType {
+    /// File in CSS format
+    Css,
+
+    /// File in XML format (used for sitemaps)
+    Xml,
+
+    /// File in HTML format
+    Html,
+
+    /// File in Markdown format
+    Markdown,
+
+    /// Generic text file without syntax-specific parsing
+    #[default]
+    Plaintext,
+}
+
+impl FileType {
+    /// All known CSS extensions
+    const CSS_EXTENSIONS: &'static [&'static str] = &["css"];
+
+    /// All known XML extensions
+    const XML_EXTENSIONS: &'static [&'static str] = &["xml"];
+
+    /// All known HTML extensions
+    const HTML_EXTENSIONS: &'static [&'static str] = &["html", "htm"];
+
+    /// All known Markdown extensions, ordered by popularity
+    const MARKDOWN_EXTENSIONS: &'static [&'static str] = &[
+        "md", "markdown", "mdx", "qmd", "rmd", "mkd", "mkdn", "mdwn", "mdown", "mkdown",
+    ];
+
+    /// All known plaintext extensions
+    const PLAINTEXT_EXTENSIONS: &'static [&'static str] = &["txt"];
+
+    /// All known CSS extensions
+    #[must_use]
+    pub fn css_extensions() -> FileExtensions {
+        Self::CSS_EXTENSIONS
+            .iter()
+            .map(|&s| s.to_string())
+            .collect()
+    }
+
+    /// All known XML extensions
+    #[must_use]
+    pub fn xml_extensions() -> FileExtensions {
+        Self::XML_EXTENSIONS
+            .iter()
+            .map(|&s| s.to_string())
+            .collect()
+    }
+
+    /// Get the [`FileType`] from an extension string
+    #[must_use]
+    pub fn from_extension(extension: &str) -> Option<Self> {
+        let ext = extension.to_lowercase();
+        if Self::MARKDOWN_EXTENSIONS.contains(&ext.as_str()) {
+            Some(Self::Markdown)
+        } else if Self::HTML_EXTENSIONS.contains(&ext.as_str()) {
+            Some(Self::Html)
+        } else if Self::CSS_EXTENSIONS.contains(&ext.as_str()) {
+            Some(Self::Css)
+        } else if Self::PLAINTEXT_EXTENSIONS.contains(&ext.as_str()) {
+            Some(Self::Plaintext)
+        } else if Self::XML_EXTENSIONS.contains(&ext.as_str()) {
+            Some(Self::Xml)
+        } else {
+            None
+        }
+    }
+
+    /// All known HTML extensions
+    #[must_use]
+    pub fn html_extensions() -> FileExtensions {
+        Self::HTML_EXTENSIONS
+            .iter()
+            .map(|&s| s.to_string())
+            .collect()
+    }
+
+    /// Default extensions which are checked by lychee
+    #[must_use]
+    pub fn default_extensions() -> FileExtensions {
+        let mut extensions = FileExtensions::empty();
+        extensions.extend(Self::markdown_extensions());
+        extensions.extend(Self::html_extensions());
+        extensions.extend(Self::css_extensions());
+        extensions.extend(Self::plaintext_extensions());
+        extensions.extend(Self::xml_extensions());
+        extensions
+    }
+
+    /// All known Markdown extensions
+    #[must_use]
+    pub fn markdown_extensions() -> FileExtensions {
+        Self::MARKDOWN_EXTENSIONS
+            .iter()
+            .map(|&s| s.to_string())
+            .collect()
+    }
+
+    /// All known plaintext extensions
+    #[must_use]
+    pub fn plaintext_extensions() -> FileExtensions {
+        Self::PLAINTEXT_EXTENSIONS
+            .iter()
+            .map(|&s| s.to_string())
+            .collect()
+    }
+}
+
+impl<P: AsRef<Path>> From<P> for FileType {
+    fn from(p: P) -> FileType {
+        let path = p.as_ref();
+        match path
+            .extension()
+            .and_then(std::ffi::OsStr::to_str)
+            .map(str::to_lowercase)
+            .as_deref()
+            .and_then(FileType::from_extension)
+        {
+            Some(file_type) => file_type,
+            None if is_url(path) => FileType::Html,
+            _ => FileType::default(),
+        }
+    }
+}
+
+impl std::fmt::Display for FileType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FileType::Html => write!(f, "HTML"),
+            FileType::Markdown => write!(f, "Markdown"),
+            FileType::Css => write!(f, "CSS"),
+            FileType::Plaintext => write!(f, "plaintext"),
+            FileType::Xml => write!(f, "XML"),
+        }
+    }
+}
 
 /// Represents an ordered list of file extensions.
 ///
@@ -18,33 +163,16 @@ use url::Url;
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct FileExtensions(Vec<String>);
 
-impl Default for FileExtensions {
-    fn default() -> Self {
-        FileType::default_extensions()
-    }
-}
-
-impl std::fmt::Display for FileExtensions {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.join(","))
-    }
-}
-
 impl FileExtensions {
-    /// Create an empty list of file extensions
-    #[must_use]
-    pub const fn empty() -> Self {
-        Self(vec![])
-    }
-
     /// Returns an iterator of file extensions as strings.
     pub fn iter(&self) -> <&Self as IntoIterator>::IntoIter {
         <&Self as IntoIterator>::into_iter(self)
     }
 
-    /// Check if the list of file extensions contains the given file extension
-    pub fn contains<T: Into<String>>(&self, file_extension: T) -> bool {
-        self.0.contains(&file_extension.into())
+    /// Create an empty list of file extensions
+    #[must_use]
+    pub const fn empty() -> Self {
+        Self(vec![])
     }
 
     /// Build the current list of file extensions into a file type matcher.
@@ -62,11 +190,16 @@ impl FileExtensions {
         }
         Ok(types_builder.select("all").build()?)
     }
+
+    /// Check if the list of file extensions contains the given file extension
+    pub fn contains<T: Into<String>>(&self, file_extension: T) -> bool {
+        self.0.contains(&file_extension.into())
+    }
 }
 
-impl From<FileExtensions> for Vec<String> {
-    fn from(value: FileExtensions) -> Self {
-        value.0
+impl Default for FileExtensions {
+    fn default() -> Self {
+        FileType::default_extensions()
     }
 }
 
@@ -102,6 +235,7 @@ impl Extend<String> for FileExtensions {
 
 impl<'a> IntoIterator for &'a FileExtensions {
     type Item = &'a String;
+
     type IntoIter = Box<dyn Iterator<Item = Self::Item> + 'a>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -111,10 +245,17 @@ impl<'a> IntoIterator for &'a FileExtensions {
 
 impl IntoIterator for FileExtensions {
     type Item = String;
+
     type IntoIter = Box<dyn Iterator<Item = Self::Item>>;
 
     fn into_iter(self) -> Self::IntoIter {
         Box::new(self.0.into_iter())
+    }
+}
+
+impl std::fmt::Display for FileExtensions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.join(","))
     }
 }
 
@@ -126,143 +267,9 @@ impl std::str::FromStr for FileExtensions {
     }
 }
 
-/// `FileType` defines which file types lychee can handle
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Deserialize, Serialize, Default)]
-pub enum FileType {
-    /// File in HTML format
-    Html,
-    /// File in Markdown format
-    Markdown,
-    /// File in CSS format
-    Css,
-    /// File in XML format (used for sitemaps)
-    Xml,
-    /// Generic text file without syntax-specific parsing
-    #[default]
-    Plaintext,
-}
-
-impl std::fmt::Display for FileType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            FileType::Html => write!(f, "HTML"),
-            FileType::Markdown => write!(f, "Markdown"),
-            FileType::Css => write!(f, "CSS"),
-            FileType::Plaintext => write!(f, "plaintext"),
-            FileType::Xml => write!(f, "XML"),
-        }
-    }
-}
-
-impl FileType {
-    /// All known Markdown extensions, ordered by popularity
-    const MARKDOWN_EXTENSIONS: &'static [&'static str] = &[
-        "md", "markdown", "mdx", "qmd", "rmd", "mkd", "mkdn", "mdwn", "mdown", "mkdown",
-    ];
-
-    /// All known HTML extensions
-    const HTML_EXTENSIONS: &'static [&'static str] = &["html", "htm"];
-
-    /// All known CSS extensions
-    const CSS_EXTENSIONS: &'static [&'static str] = &["css"];
-
-    /// All known plaintext extensions
-    const PLAINTEXT_EXTENSIONS: &'static [&'static str] = &["txt"];
-
-    /// All known XML extensions
-    const XML_EXTENSIONS: &'static [&'static str] = &["xml"];
-
-    /// Default extensions which are checked by lychee
-    #[must_use]
-    pub fn default_extensions() -> FileExtensions {
-        let mut extensions = FileExtensions::empty();
-        extensions.extend(Self::markdown_extensions());
-        extensions.extend(Self::html_extensions());
-        extensions.extend(Self::css_extensions());
-        extensions.extend(Self::plaintext_extensions());
-        extensions.extend(Self::xml_extensions());
-        extensions
-    }
-
-    /// All known Markdown extensions
-    #[must_use]
-    pub fn markdown_extensions() -> FileExtensions {
-        Self::MARKDOWN_EXTENSIONS
-            .iter()
-            .map(|&s| s.to_string())
-            .collect()
-    }
-
-    /// All known HTML extensions
-    #[must_use]
-    pub fn html_extensions() -> FileExtensions {
-        Self::HTML_EXTENSIONS
-            .iter()
-            .map(|&s| s.to_string())
-            .collect()
-    }
-
-    /// All known CSS extensions
-    #[must_use]
-    pub fn css_extensions() -> FileExtensions {
-        Self::CSS_EXTENSIONS
-            .iter()
-            .map(|&s| s.to_string())
-            .collect()
-    }
-
-    /// All known plaintext extensions
-    #[must_use]
-    pub fn plaintext_extensions() -> FileExtensions {
-        Self::PLAINTEXT_EXTENSIONS
-            .iter()
-            .map(|&s| s.to_string())
-            .collect()
-    }
-
-    /// All known XML extensions
-    #[must_use]
-    pub fn xml_extensions() -> FileExtensions {
-        Self::XML_EXTENSIONS
-            .iter()
-            .map(|&s| s.to_string())
-            .collect()
-    }
-
-    /// Get the [`FileType`] from an extension string
-    #[must_use]
-    pub fn from_extension(extension: &str) -> Option<Self> {
-        let ext = extension.to_lowercase();
-        if Self::MARKDOWN_EXTENSIONS.contains(&ext.as_str()) {
-            Some(Self::Markdown)
-        } else if Self::HTML_EXTENSIONS.contains(&ext.as_str()) {
-            Some(Self::Html)
-        } else if Self::CSS_EXTENSIONS.contains(&ext.as_str()) {
-            Some(Self::Css)
-        } else if Self::PLAINTEXT_EXTENSIONS.contains(&ext.as_str()) {
-            Some(Self::Plaintext)
-        } else if Self::XML_EXTENSIONS.contains(&ext.as_str()) {
-            Some(Self::Xml)
-        } else {
-            None
-        }
-    }
-}
-
-impl<P: AsRef<Path>> From<P> for FileType {
-    fn from(p: P) -> FileType {
-        let path = p.as_ref();
-        match path
-            .extension()
-            .and_then(std::ffi::OsStr::to_str)
-            .map(str::to_lowercase)
-            .as_deref()
-            .and_then(FileType::from_extension)
-        {
-            Some(file_type) => file_type,
-            None if is_url(path) => FileType::Html,
-            _ => FileType::default(),
-        }
+impl From<FileExtensions> for Vec<String> {
+    fn from(value: FileExtensions) -> Self {
+        value.0
     }
 }
 

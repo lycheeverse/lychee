@@ -1,8 +1,8 @@
-use lychee_lib::ratelimit::{HostStats, HostStatsMap};
-
 mod compact;
 mod detailed;
 mod markdown;
+
+use lychee_lib::ratelimit::{HostStats, HostStatsMap};
 
 pub(crate) use compact::CompactHostStats;
 pub(crate) use detailed::DetailedHostStats;

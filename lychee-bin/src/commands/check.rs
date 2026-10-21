@@ -25,6 +25,24 @@ use crate::formatters::suggestion::Suggestion;
 use crate::progress::Progress;
 use crate::{ExitCode, cache::Cache};
 
+fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
+    stats
+        .error_map
+        .iter()
+        .flat_map(|(source, set)| set.iter().map(move |body| (source, &body.uri)))
+        .filter_map(|(source, uri)| {
+            if uri.is_data() || uri.is_mail() || uri.is_file() {
+                None
+            } else {
+                match Url::try_from(uri.as_str()) {
+                    Ok(url) => Some((source.clone(), url)),
+                    Err(_) => None,
+                }
+            }
+        })
+        .collect()
+}
+
 #[allow(clippy::match_bool, reason = "more readable and compact")]
 #[allow(
     clippy::result_large_err,
@@ -179,6 +197,30 @@ pub(crate) async fn check(
     Ok((stats, cache, code, client.host_pool()))
 }
 
+/// Check a URL and return a response.
+///
+/// # Errors
+///
+/// This can fail when the URL could not be parsed to a URI.
+async fn check_url(client: &Client, request: Request) -> Response {
+    // Request was not cached; run a normal check
+    let uri = request.uri.clone();
+    let source = request.source.clone();
+    let span = request.span;
+    client.check(request).await.unwrap_or_else(|e| {
+        log::error!("Error checking URL {uri}: {e}");
+        Response::new(
+            uri.clone(),
+            Status::Error(ErrorKind::InvalidURI(uri)),
+            None,
+            None,
+            source.into(),
+            span,
+            None,
+        )
+    })
+}
+
 async fn suggest_archived_links(
     archive: Archive,
     stats: &mut ResponseStats,
@@ -221,48 +263,6 @@ async fn suggest_archived_links(
         .await;
 
     progress.finish("Finished searching for alternatives");
-}
-
-/// Check a URL and return a response.
-///
-/// # Errors
-///
-/// This can fail when the URL could not be parsed to a URI.
-async fn check_url(client: &Client, request: Request) -> Response {
-    // Request was not cached; run a normal check
-    let uri = request.uri.clone();
-    let source = request.source.clone();
-    let span = request.span;
-    client.check(request).await.unwrap_or_else(|e| {
-        log::error!("Error checking URL {uri}: {e}");
-        Response::new(
-            uri.clone(),
-            Status::Error(ErrorKind::InvalidURI(uri)),
-            None,
-            None,
-            source.into(),
-            span,
-            None,
-        )
-    })
-}
-
-fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
-    stats
-        .error_map
-        .iter()
-        .flat_map(|(source, set)| set.iter().map(move |body| (source, &body.uri)))
-        .filter_map(|(source, uri)| {
-            if uri.is_data() || uri.is_mail() || uri.is_file() {
-                None
-            } else {
-                match Url::try_from(uri.as_str()) {
-                    Ok(url) => Some((source.clone(), url)),
-                    Err(_) => None,
-                }
-            }
-        })
-        .collect()
 }
 
 #[cfg(test)]

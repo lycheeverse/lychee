@@ -10,14 +10,6 @@ pub struct RegexFilter {
 
 impl RegexFilter {
     /// Create a new empty regex set.
-    #[must_use]
-    pub fn empty() -> Self {
-        Self {
-            regex: RegexSet::empty(),
-        }
-    }
-
-    /// Create a new empty regex set.
     pub fn new<I, S>(exprs: I) -> Result<Self, regex::Error>
     where
         S: AsRef<str>,
@@ -28,6 +20,14 @@ impl RegexFilter {
         })
     }
 
+    /// Create a new empty regex set.
+    #[must_use]
+    pub fn empty() -> Self {
+        Self {
+            regex: RegexSet::empty(),
+        }
+    }
+
     #[inline]
     #[must_use]
     /// Returns `true` if the given input string matches the regex set
@@ -35,7 +35,6 @@ impl RegexFilter {
     pub fn is_match(&self, input: &str) -> bool {
         self.regex.is_match(input)
     }
-
     #[inline]
     #[must_use]
     /// Whether there were no regular expressions defined

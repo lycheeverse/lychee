@@ -3,19 +3,21 @@
 //! Provides the `InputResolver` which handles resolution of various input sources
 //! into concrete, processable sources by expanding glob patterns and applying filters.
 
-use super::input::Input;
-use super::source::{InputSource, ResolvedInputSource};
-use crate::Result;
-use crate::filter::PathExcludes;
-use crate::types::file::FileExtensions;
+use std::path::Path;
+use std::pin::Pin;
+
 use async_stream::try_stream;
 use futures::stream::Stream;
 use futures::stream::once;
 use glob::glob_with;
 use ignore::{Walk, WalkBuilder};
 use shellexpand::tilde;
-use std::path::Path;
-use std::pin::Pin;
+
+use crate::Result;
+use crate::filter::PathExcludes;
+use crate::types::file::FileExtensions;
+use super::input::Input;
+use super::source::{InputSource, ResolvedInputSource};
 
 /// Resolves input sources into concrete, processable sources.
 ///
@@ -24,6 +26,31 @@ use std::pin::Pin;
 pub struct InputResolver;
 
 impl InputResolver {
+    /// Create a [`Walk`] iterator for directory traversal
+    ///
+    /// # Errors
+    ///
+    /// Fails if [`FileExtensions`] cannot be converted
+    pub(crate) fn walk(
+        path: &Path,
+        file_extensions: FileExtensions,
+        skip_hidden: bool,
+        skip_ignored: bool,
+    ) -> Result<Walk> {
+        Ok(WalkBuilder::new(path)
+            // Skip over files which are ignored by git or `.ignore` if necessary
+            .git_ignore(skip_ignored)
+            .git_global(skip_ignored)
+            .git_exclude(skip_ignored)
+            .ignore(skip_ignored)
+            .parents(skip_ignored)
+            // Ignore hidden files if necessary
+            .hidden(skip_hidden)
+            // Configure the file types filter to only include files with matching extensions
+            .types(file_extensions.build(skip_hidden)?)
+            .build())
+    }
+
     /// Resolve an input into a stream of concrete input sources.
     ///
     /// This returns a stream of resolved input sources for the given input,
@@ -65,32 +92,6 @@ impl InputResolver {
             excluded_paths,
         )
     }
-
-    /// Create a [`Walk`] iterator for directory traversal
-    ///
-    /// # Errors
-    ///
-    /// Fails if [`FileExtensions`] cannot be converted
-    pub(crate) fn walk(
-        path: &Path,
-        file_extensions: FileExtensions,
-        skip_hidden: bool,
-        skip_ignored: bool,
-    ) -> Result<Walk> {
-        Ok(WalkBuilder::new(path)
-            // Skip over files which are ignored by git or `.ignore` if necessary
-            .git_ignore(skip_ignored)
-            .git_global(skip_ignored)
-            .git_exclude(skip_ignored)
-            .ignore(skip_ignored)
-            .parents(skip_ignored)
-            // Ignore hidden files if necessary
-            .hidden(skip_hidden)
-            // Configure the file types filter to only include files with matching extensions
-            .types(file_extensions.build(skip_hidden)?)
-            .build())
-    }
-
     /// Internal method for resolving input sources.
     ///
     /// Takes an Input and returns a stream of `ResolvedInputSource` items,

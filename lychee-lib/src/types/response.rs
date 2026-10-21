@@ -5,8 +5,9 @@ use serde::Serialize;
 
 use crate::{InputSource, Status, Uri, types::uri::raw::RawUriSpan};
 
-use super::redirect_history::Redirects;
 use crate::remap::Remap;
+
+use super::redirect_history::Redirects;
 
 /// Response type returned by lychee after checking a URI
 //
@@ -19,6 +20,7 @@ use crate::remap::Remap;
 #[derive(Debug)]
 pub struct Response {
     input_source: InputSource,
+
     response_body: ResponseBody,
 }
 
@@ -50,16 +52,9 @@ impl Response {
 
     #[inline]
     #[must_use]
-    /// Retrieve the underlying status of the response
-    pub const fn status(&self) -> &Status {
-        &self.response_body.status
-    }
-
-    #[inline]
-    #[must_use]
-    /// Retrieve the redirect chain (if any)
-    pub const fn redirects(&self) -> Option<&Redirects> {
-        self.response_body.redirects.as_ref()
+    /// Retrieve the body of the response
+    pub const fn body(&self) -> &ResponseBody {
+        &self.response_body
     }
 
     #[inline]
@@ -67,6 +62,13 @@ impl Response {
     /// Retrieve the remap applied before checking (if any)
     pub const fn remap(&self) -> Option<&Remap> {
         self.response_body.remap.as_ref()
+    }
+
+    #[inline]
+    #[must_use]
+    /// Retrieve the underlying status of the response
+    pub const fn status(&self) -> &Status {
+        &self.response_body.status
     }
 
     #[inline]
@@ -79,9 +81,9 @@ impl Response {
 
     #[inline]
     #[must_use]
-    /// Retrieve the body of the response
-    pub const fn body(&self) -> &ResponseBody {
-        &self.response_body
+    /// Retrieve the redirect chain (if any)
+    pub const fn redirects(&self) -> Option<&Redirects> {
+        self.response_body.redirects.as_ref()
     }
 
     #[inline]
@@ -114,20 +116,25 @@ pub struct ResponseBody {
     #[serde(flatten)]
     /// The URI which was checked
     pub uri: Uri,
-    /// The status of the check
-    pub status: Status,
-    /// Redirect chain followed during the check (if any)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub redirects: Option<Redirects>,
-    /// Remap applied before checking (if any)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub remap: Option<Remap>,
+
     /// The location of the URI
     #[serde(skip_serializing_if = "Option::is_none")]
     pub span: Option<RawUriSpan>,
+
+    /// Remap applied before checking (if any)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remap: Option<Remap>,
+
+    /// The status of the check
+    pub status: Status,
+
     /// The time it took to perform the request and produce this [`ResponseBody`]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<Duration>,
+
+    /// Redirect chain followed during the check (if any)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redirects: Option<Redirects>,
 }
 
 // Extract as much information from the underlying error conditions as possible

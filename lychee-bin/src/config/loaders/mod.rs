@@ -3,33 +3,12 @@ pub(crate) mod lychee_toml;
 pub(crate) mod package_json;
 pub(crate) mod pyproject_toml;
 
-use super::Config;
-use anyhow::{Context, Result, bail};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Result of attempting to load configuration from a file
-#[derive(Debug)]
-pub(crate) enum ConfigMatch {
-    /// The file contains a valid lychee configuration
-    Found(Box<Config>),
-    /// The file was parsed successfully but doesn't
-    /// contain a lychee configuration section
-    NotFound,
-}
+use anyhow::{Context, Result, bail};
 
-pub(crate) trait ConfigLoader {
-    /// Returns the expected filename for this configuration type.
-    fn filename(&self) -> &str;
-
-    /// Attempts to load configuration from the file contents.
-    ///
-    /// Returns:
-    /// - `Ok(ConfigMatch::Found(config))` if the file contains valid lychee configuration
-    /// - `Ok(ConfigMatch::NotFound)` if the file is valid but doesn't contain lychee configuration
-    /// - `Err(error)` if the file is invalid or contains malformed lychee configuration
-    fn load(&self, contents: &str) -> Result<ConfigMatch>;
-}
+use super::Config;
 
 const LOADERS: [&dyn ConfigLoader; 4] = [
     &lychee_toml::LycheeTomlLoader,
@@ -38,26 +17,28 @@ const LOADERS: [&dyn ConfigLoader; 4] = [
     &package_json::PackageJsonLoader,
 ];
 
-/// Find the first matching default configuration file in the current directory
-/// and return the parsed configuration it contains.
-pub(crate) fn default_config_file() -> Result<Option<Config>> {
-    for loader in LOADERS {
-        let path = PathBuf::from(loader.filename());
-        if path.is_file() {
-            let contents = fs::read_to_string(&path).unwrap_or_default();
-            match loader.load(&contents) {
-                Ok(ConfigMatch::Found(config)) => return Ok(Some(*config)),
-                Ok(ConfigMatch::NotFound) => (),
-                Err(e) => {
-                    return Err(e.context(format!(
-                        "Cannot load configuration file: {}",
-                        path.display()
-                    )));
-                }
-            }
-        }
-    }
-    Ok(None)
+pub(crate) trait ConfigLoader {
+    /// Attempts to load configuration from the file contents.
+    ///
+    /// Returns:
+    /// - `Ok(ConfigMatch::Found(config))` if the file contains valid lychee configuration
+    /// - `Ok(ConfigMatch::NotFound)` if the file is valid but doesn't contain lychee configuration
+    /// - `Err(error)` if the file is invalid or contains malformed lychee configuration
+    fn load(&self, contents: &str) -> Result<ConfigMatch>;
+
+    /// Returns the expected filename for this configuration type.
+    fn filename(&self) -> &str;
+}
+
+/// Result of attempting to load configuration from a file
+#[derive(Debug)]
+pub(crate) enum ConfigMatch {
+    /// The file contains a valid lychee configuration
+    Found(Box<Config>),
+
+    /// The file was parsed successfully but doesn't
+    /// contain a lychee configuration section
+    NotFound,
 }
 
 /// Load the configuration from the given file path.
@@ -88,3 +69,25 @@ pub(crate) fn load_from_file(path: &Path) -> Result<Config> {
         ConfigMatch::NotFound => bail!("No valid lychee configuration found in {}", path.display()),
     }
 }
+/// Find the first matching default configuration file in the current directory
+/// and return the parsed configuration it contains.
+pub(crate) fn default_config_file() -> Result<Option<Config>> {
+    for loader in LOADERS {
+        let path = PathBuf::from(loader.filename());
+        if path.is_file() {
+            let contents = fs::read_to_string(&path).unwrap_or_default();
+            match loader.load(&contents) {
+                Ok(ConfigMatch::Found(config)) => return Ok(Some(*config)),
+                Ok(ConfigMatch::NotFound) => (),
+                Err(e) => {
+                    return Err(e.context(format!(
+                        "Cannot load configuration file: {}",
+                        path.display()
+                    )));
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+

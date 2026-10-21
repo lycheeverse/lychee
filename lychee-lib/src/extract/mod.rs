@@ -1,14 +1,14 @@
-use crate::types::{
-    FileType, InputContent,
-    uri::raw::{RawUri, SourceSpanProvider},
-};
-
 pub mod css;
 pub mod fragments;
 pub mod html;
 pub mod markdown;
 mod plaintext;
 pub mod xml;
+
+use crate::types::{
+    FileType, InputContent,
+    uri::raw::{RawUri, SourceSpanProvider},
+};
 
 use css::extract_css;
 use markdown::extract_markdown;
@@ -21,6 +21,7 @@ use xml::extract_xml;
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Extractor {
     use_html5ever: bool,
+
     include_verbatim: bool,
     include_wikilinks: bool,
 }

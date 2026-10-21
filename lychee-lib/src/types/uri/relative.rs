@@ -15,6 +15,12 @@ pub enum RelativeUri<'a> {
     /// [MDN]: https://developer.mozilla.org/en-US/docs/Learn_web_development/Howto/Web_mechanics/What_is_a_URL#absolute_urls_vs._relative_urls
     /// [WHATWG]: https://url.spec.whatwg.org/#path-absolute-url-string
     Root(&'a str),
+
+    /// A locally-relative link. This is much less constrained than the other
+    /// two variants. For example, `"help"`, `"../home"`, and `""` (the empty string)
+    /// are all valid locally-relative links.
+    Local(&'a str),
+
     /// A scheme-relative link, e.g. `"//example.com/help"`. The contained
     /// string will start with `//`.
     ///
@@ -26,10 +32,6 @@ pub enum RelativeUri<'a> {
     ///
     /// [MDN]: https://developer.mozilla.org/en-US/docs/Learn_web_development/Howto/Web_mechanics/What_is_a_URL#absolute_urls_vs._relative_urls
     Scheme(&'a str),
-    /// A locally-relative link. This is much less constrained than the other
-    /// two variants. For example, `"help"`, `"../home"`, and `""` (the empty string)
-    /// are all valid locally-relative links.
-    Local(&'a str),
 }
 
 impl RelativeUri<'_> {

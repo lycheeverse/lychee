@@ -4,12 +4,6 @@ fn main() {
     set_git_date_variable();
 }
 
-/// Set GIT_DATE as environment variable for use in the main program.
-/// The value will be displayed in the manual page.
-fn set_git_date_variable() {
-    println!("cargo:rustc-env=GIT_DATE={}", git_date())
-}
-
 /// Get the commit date of HEAD with git
 fn git_date() -> String {
     let output = Command::new("git")
@@ -20,3 +14,9 @@ fn git_date() -> String {
 
     String::from_utf8(output.stdout).expect("Unable to read stdout to string")
 }
+/// Set GIT_DATE as environment variable for use in the main program.
+/// The value will be displayed in the manual page.
+fn set_git_date_variable() {
+    println!("cargo:rustc-env=GIT_DATE={}", git_date())
+}
+
