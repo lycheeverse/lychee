@@ -86,14 +86,6 @@ impl RetryExt for ErrorKind {
         // If the error is a `reqwest::Error`, delegate to that
         if let Some(r) = self.reqwest_error() {
             r.should_retry()
-        // GitHub errors sometimes wrap `reqwest` errors.
-        // In that case, delegate to the underlying error.
-        } else if let Some(octocrab::Error::Http {
-            source,
-            backtrace: _,
-        }) = self.github_error()
-        {
-            source.should_retry()
         } else {
             matches!(
                 self,

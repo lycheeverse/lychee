@@ -5,6 +5,7 @@
 use std::path::{Path, PathBuf};
 
 pub(crate) mod file;
+pub(crate) mod github;
 pub(crate) mod mail;
 pub(crate) mod website;
 pub(crate) mod wikilink;
