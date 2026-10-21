@@ -5,8 +5,8 @@
 
 use std::borrow::Cow;
 
-use crate::types::FileType;
 use super::source::ResolvedInputSource;
+use crate::types::FileType;
 
 /// Encapsulates the content for a given input
 #[derive(Debug)]

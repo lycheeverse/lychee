@@ -8,13 +8,13 @@ use percent_encoding::percent_decode_str;
 use tokio::fs;
 use url::Url;
 
+use self::parsed_fragment::ParsedFragment;
 use crate::{
     FragmentCheckerOptions, Result,
     async_lib::cache::Cache,
     extract::{html::html5gum::extract_html_fragments, markdown::extract_markdown_fragments},
     types::{ErrorKind, FileType},
 };
-use self::parsed_fragment::ParsedFragment;
 
 /// Holds the content and file type of the fragment input.
 pub(crate) struct FragmentInput<'a> {

@@ -19,8 +19,8 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
-use crate::config::Config;
 use super::{ConfigLoader, ConfigMatch};
+use crate::config::Config;
 
 pub(crate) const PACKAGE_JSON_CONFIG_FILE: &str = "package.json";
 

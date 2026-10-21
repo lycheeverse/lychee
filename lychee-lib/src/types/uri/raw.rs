@@ -174,4 +174,3 @@ pub(crate) const fn span_line(line: usize) -> RawUriSpan {
         column: None,
     }
 }
-

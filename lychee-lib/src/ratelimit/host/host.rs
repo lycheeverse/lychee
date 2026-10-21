@@ -16,13 +16,13 @@ use log::warn;
 use reqwest::{Client as ReqwestClient, Request, Response as ReqwestResponse};
 use tokio::sync::Semaphore;
 
-use crate::{ratelimit::CacheableResponse, retry::RetryExt};
 use crate::Uri;
 use crate::types::Result;
 use crate::{
     ErrorKind,
     ratelimit::{HostConfig, RateLimitConfig},
 };
+use crate::{ratelimit::CacheableResponse, retry::RetryExt};
 
 use super::key::HostKey;
 use super::stats::HostStats;

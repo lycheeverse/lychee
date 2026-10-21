@@ -96,8 +96,8 @@ use crate::{
 };
 
 use commands::{CommandParams, generate};
-use formatters::log::init_logging;
 use config::HeaderMapExt;
+use formatters::log::init_logging;
 
 /// Ignore lines starting with this marker in `.lycheeignore` files
 const LYCHEEIGNORE_COMMENT_MARKER: &str = "#";

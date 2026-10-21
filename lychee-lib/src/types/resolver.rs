@@ -3,10 +3,10 @@ use std::sync::Arc;
 use http::HeaderMap;
 use reqwest::{Request, Url};
 
+use super::{FileType, InputContent, ResolvedInputSource};
 use crate::ratelimit::HostPool;
 use crate::utils::request;
 use crate::{BasicAuthExtractor, Result, Uri};
-use super::{FileType, InputContent, ResolvedInputSource};
 
 /// Structure to fetch remote content.
 ///
@@ -86,4 +86,3 @@ impl Default for UrlContentResolver {
         }
     }
 }
-

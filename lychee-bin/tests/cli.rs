@@ -4771,4 +4771,3 @@ exclude_path = ["exclude_package.txt"]
             .stderr(contains("Fragments aren't checked").not());
     }
 }
-

@@ -4,10 +4,10 @@ use http::StatusCode;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 
+use super::CacheStatus;
 use crate::ErrorKind;
 use crate::RequestError;
 use crate::ratelimit::CacheableResponse;
-use super::CacheStatus;
 
 const ICON_OK: &str = "✔";
 const ICON_EXCLUDED: &str = "?";

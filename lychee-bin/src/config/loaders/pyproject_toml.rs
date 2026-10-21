@@ -21,8 +21,8 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
-use crate::config::Config;
 use super::{ConfigLoader, ConfigMatch};
+use crate::config::Config;
 
 pub(crate) const PYPROJECT_CONFIG_FILE: &str = "pyproject.toml";
 

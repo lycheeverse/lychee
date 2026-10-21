@@ -159,4 +159,3 @@ fn status_code_selector_string_schema(_: &mut SchemaGenerator) -> Schema {
     // An empty selector is valid; whitespace is allowed around each list item.
     json_schema!({ "type": "string", "pattern": format!(r"^\s*({list})?\s*$") })
 }
-

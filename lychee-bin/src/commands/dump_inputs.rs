@@ -56,4 +56,3 @@ pub(crate) async fn dump_inputs(
 
     Ok(ExitCode::Success)
 }
-

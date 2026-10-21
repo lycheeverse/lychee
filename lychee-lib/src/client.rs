@@ -27,7 +27,6 @@ use reqwest_cookie_store::CookieStoreMutex;
 use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
-use crate::{BasicAuthExtractor, remap::Remap};
 use crate::{
     BaseInfo, ErrorKind, Methods, Request, Response, Result, Status, Uri,
     chain::RequestChain,
@@ -37,6 +36,7 @@ use crate::{
     remap::Remaps,
     types::{DEFAULT_ACCEPTED_STATUS_CODES, Redirects, redirect_history::RedirectHistory},
 };
+use crate::{BasicAuthExtractor, remap::Remap};
 
 /// Default number of redirects that are followed.
 pub const DEFAULT_MAX_REDIRECTS: usize = 10;

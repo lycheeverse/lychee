@@ -4,8 +4,8 @@ use html5gum::{Token, Tokenizer};
 use log::warn;
 use regex::Regex;
 
-use crate::types::FileType;
 use super::parsed_fragment::TextDirective;
+use crate::types::FileType;
 
 impl TextDirective {
     fn matches(&self, document: &str) -> bool {

@@ -19,4 +19,3 @@ fn git_date() -> String {
 fn set_git_date_variable() {
     println!("cargo:rustc-env=GIT_DATE={}", git_date())
 }
-

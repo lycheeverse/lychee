@@ -90,4 +90,3 @@ pub(crate) fn default_config_file() -> Result<Option<Config>> {
     }
     Ok(None)
 }
-

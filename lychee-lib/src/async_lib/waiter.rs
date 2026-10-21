@@ -156,4 +156,3 @@ pub struct WaitGuard {
     /// The [`Never`] type means no value can/will ever be sent through the channel.
     _send: Sender<Never>,
 }
-

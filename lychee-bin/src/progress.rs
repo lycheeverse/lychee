@@ -112,4 +112,3 @@ struct ProgressConfig {
 
     progress_chars: &'static str,
 }
-

@@ -110,4 +110,3 @@ impl FromStr for StatsFormat {
         }
     }
 }
-

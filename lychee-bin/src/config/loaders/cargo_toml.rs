@@ -24,8 +24,8 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
-use crate::config::Config;
 use super::{ConfigLoader, ConfigMatch};
+use crate::config::Config;
 
 pub(crate) const CARGO_CONFIG_FILE: &str = "Cargo.toml";
 

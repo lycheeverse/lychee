@@ -13,11 +13,11 @@ use glob::glob_with;
 use ignore::{Walk, WalkBuilder};
 use shellexpand::tilde;
 
+use super::input::Input;
+use super::source::{InputSource, ResolvedInputSource};
 use crate::Result;
 use crate::filter::PathExcludes;
 use crate::types::file::FileExtensions;
-use super::input::Input;
-use super::source::{InputSource, ResolvedInputSource};
 
 /// Resolves input sources into concrete, processable sources.
 ///

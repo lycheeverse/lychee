@@ -39,4 +39,3 @@ pub(crate) fn color_for_level(level: Level) -> &'static Style {
         Level::Trace => &DIM,
     }
 }
-

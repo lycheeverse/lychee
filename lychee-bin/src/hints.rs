@@ -142,4 +142,3 @@ fn fragment_checks_with_non_get_method(config: &Config) {
         hint!("Fragments aren't checked for `{primary_method}` requests. Use `--method get`.");
     }
 }
-

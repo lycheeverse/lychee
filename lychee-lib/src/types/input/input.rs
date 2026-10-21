@@ -12,13 +12,13 @@ use futures::stream::{Stream, StreamExt};
 use log::debug;
 use tokio::io::{AsyncReadExt, stdin};
 
+use super::InputResolver;
+use super::content::InputContent;
+use super::source::{InputSource, ResolvedInputSource};
 use crate::Preprocessor;
 use crate::filter::PathExcludes;
 use crate::types::{FileType, RequestError, file::FileExtensions, resolver::UrlContentResolver};
 use crate::{ErrorKind, LycheeResult};
-use super::InputResolver;
-use super::content::InputContent;
-use super::source::{InputSource, ResolvedInputSource};
 
 /// Lychee Input with optional file hint for parsing
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

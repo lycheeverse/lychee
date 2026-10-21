@@ -332,4 +332,3 @@ async fn test_gitlab_rate_limit_exhausted() {
     )
     .await;
 }
-
