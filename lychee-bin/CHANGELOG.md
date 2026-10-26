@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add recursive website link checking with domain and depth limits ([#78](https://github.com/lycheeverse/lychee/issues/78))
+
 ## [0.24.2](https://github.com/lycheeverse/lychee/compare/lychee-v0.24.1...lychee-v0.24.2) - 2026-04-30
 
 ### Added

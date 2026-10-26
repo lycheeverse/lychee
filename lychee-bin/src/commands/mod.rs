@@ -14,13 +14,16 @@ use std::path::PathBuf;
 use crate::cache::Cache;
 use crate::config::Config;
 use lychee_lib::RequestError;
-use lychee_lib::{Client, Request};
+use lychee_lib::{Client, Collector, Request};
+use std::collections::HashSet;
 
 /// Parameters passed to every command
 pub(crate) struct CommandParams<S: futures::Stream<Item = Result<Request, RequestError>>> {
     pub(crate) client: Client,
     pub(crate) cache: Cache,
+    pub(crate) collector: Collector,
     pub(crate) requests: S,
+    pub(crate) recursion_domains: HashSet<String>,
     pub(crate) cfg: Config,
     pub(crate) is_stdin_input: bool,
 }
