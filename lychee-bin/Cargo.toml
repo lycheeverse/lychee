@@ -61,10 +61,10 @@ quick-junit = "0.8.0"
 [dev-dependencies]
 assert_cmd = "2.2.2"
 cookie_store = "0.22.1"
-jsonschema = { version = "0.58.6", default-features = false }
+jsonschema = { version = "0.60.0", default-features = false }
 predicates = "3.1.4"
 pretty_assertions = "1.4.1"
-rstest = "0.27.0"
+rstest = "0.28.0"
 tempfile = "3.27.0"
 test-utils = { path = "../test-utils" }
 tracing-subscriber = { version = "0.3.23", default-features = false, features = [
