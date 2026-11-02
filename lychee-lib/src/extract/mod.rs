@@ -231,6 +231,7 @@ mod tests {
 
         let input_content = &InputContent {
             source,
+            original_source: None,
             file_type: FileType::Html,
             content: contents.to_string(),
         };
