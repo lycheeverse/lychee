@@ -16,6 +16,8 @@ use crate::types::uri::raw::{RawUri, RawUriSpan, SourceSpanProvider, SpanProvide
 struct LineOffsetSpanProvider<'a> {
     /// The number of lines each span will be offset by.
     lines_before: usize,
+    /// Whether the input starts at the beginning of a line, i.e. at column 1.
+    at_line_start: bool,
     /// The inner [`SpanProvider`] which will be responsible for computing the spans.
     inner: &'a SourceSpanProvider<'a>,
 }
@@ -23,10 +25,9 @@ struct LineOffsetSpanProvider<'a> {
 impl SpanProvider for LineOffsetSpanProvider<'_> {
     fn span(&self, offset: usize) -> RawUriSpan {
         let mut span = self.inner.span(offset);
-        // if we stay in the same line the column information is wrong, since we didn't know the
-        // column beforehand and likely did not start at a linebreak.
-        // This can be improved in the future by using the computed length of lines.
-        if span.line.get() == 1 {
+        // The column on the first line of the input is only meaningful if the input started at
+        // the beginning of a line.
+        if span.line.get() == 1 && !self.at_line_start {
             span.column = None;
         }
         span.line = span
@@ -45,6 +46,8 @@ struct LinkExtractor {
     in_style_tag: RefCell<bool>,
     /// Accumulated CSS content from within a `<style>` tag.
     style_content: RefCell<String>,
+    /// Whether the next character token starts at the beginning of a line.
+    at_line_start: RefCell<bool>,
 }
 
 impl TokenSink for LinkExtractor {
@@ -55,6 +58,14 @@ impl TokenSink for LinkExtractor {
         debug_assert_ne!(line_number, 0);
         let line_number =
             usize::try_from(line_number).expect("Unable to convert u64 line_number to usize");
+
+        // Whether this token starts at the beginning of a line: only a preceding character
+        // token ending in a line break is known to be followed by text at the beginning of a
+        // line, for every other token kind the next text starts at an unknown column.
+        let at_line_start = self.at_line_start.replace(match &token {
+            Token::CharacterTokens(raw) => raw.ends_with('\n'),
+            _ => false,
+        });
 
         match token {
             Token::CharacterTokens(raw) => {
@@ -74,6 +85,7 @@ impl TokenSink for LinkExtractor {
                             &raw,
                             &LineOffsetSpanProvider {
                                 lines_before: respect_multiline_tendril(line_number, &raw),
+                                at_line_start,
                                 inner: &SourceSpanProvider::from_input(&raw),
                             },
                         ));
@@ -107,6 +119,8 @@ impl LinkExtractor {
             current_verbatim_element_name: RefCell::new(None),
             in_style_tag: RefCell::new(false),
             style_content: RefCell::new(String::new()),
+            // The input starts at the beginning of the first line.
+            at_line_start: RefCell::new(true),
         }
     }
 
@@ -199,6 +213,8 @@ impl LinkExtractor {
                     &attr.value,
                     &LineOffsetSpanProvider {
                         lines_before: line_number,
+                        // An attribute value always starts mid-line, after `name="`.
+                        at_line_start: false,
                         inner: &SourceSpanProvider::from_input(&attr.value),
                     },
                 ),
