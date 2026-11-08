@@ -13,7 +13,6 @@ version.workspace = true
 rust-version = "1.89.0"
 
 [dependencies]
-rate-limits = "0.7.0"
 async-stream = "0.3.6"
 async-trait = "0.1.88"
 cookie_store = "0.22.1"
@@ -49,6 +48,7 @@ octocrab = { version = "0.54.1", default-features = false, features = [
 percent-encoding = "2.3.1"
 pulldown-cmark = "0.13.4"
 quick-xml = "0.42.0"
+rate-limits = "0.7.0"
 regex = "1.12.2"
 reqwest = { version = "0.13.4", features = ["json", "gzip"] }
 reqwest_cookie_store = { version = "0.10.0", features = ["serde"] }
