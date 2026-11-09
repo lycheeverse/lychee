@@ -80,6 +80,7 @@ fn try_parse_into_uri(
 pub(crate) fn create(
     uris: Vec<RawUri>,
     source: &ResolvedInputSource,
+    report_source: &ResolvedInputSource,
     root_dir: Option<&Path>,
     fallback_base: &BaseInfo,
 ) -> Vec<Result<Request, RequestError>> {
@@ -103,8 +104,12 @@ pub(crate) fn create(
 
     uris.into_iter()
         .map(|raw_uri| {
-            create_request(&raw_uri, source, root_dir, base).map_err(|e| {
-                RequestError::CreateRequestItem(raw_uri.clone().into(), source.clone(), e.into())
+            create_request(&raw_uri, report_source, root_dir, base).map_err(|e| {
+                RequestError::CreateRequestItem(
+                    raw_uri.clone().into(),
+                    report_source.clone(),
+                    e.into(),
+                )
             })
         })
         .collect()
@@ -138,7 +143,7 @@ mod tests {
         root_dir: Option<&Path>,
         base: &BaseInfo,
     ) -> Vec<Request> {
-        create(uris, source, root_dir, base)
+        create(uris, source, source, root_dir, base)
             .into_iter()
             .filter_map(Result::ok)
             .collect()

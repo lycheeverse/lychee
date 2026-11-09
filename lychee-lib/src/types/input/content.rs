@@ -10,8 +10,19 @@ use std::borrow::Cow;
 /// Encapsulates the content for a given input
 #[derive(Debug)]
 pub struct InputContent {
-    /// Input source
+    /// Input source used for resolving relative links in `content`.
+    ///
+    /// For remote inputs this is the *final* URL after any redirects, since
+    /// relative links must resolve against the URL the content actually came
+    /// from. See <https://github.com/lycheeverse/lychee/issues/2018>.
     pub source: ResolvedInputSource,
+    /// Input source as originally requested by the user, used for reporting.
+    ///
+    /// This differs from [`Self::source`] only for remote inputs which were
+    /// redirected. Keeping the original here means the URL shown to the user is
+    /// the one they actually asked for, not the redirect target (which may
+    /// contain opaque or temporary query parameters).
+    pub original_source: Option<ResolvedInputSource>,
     /// File type of given input
     pub file_type: FileType,
     /// Raw UTF-8 string content
@@ -24,6 +35,7 @@ impl InputContent {
     pub fn from_string(s: &str, file_type: FileType) -> Self {
         Self {
             source: ResolvedInputSource::String(Cow::Owned(s.to_owned())),
+            original_source: None,
             file_type,
             content: s.to_owned(),
         }
@@ -35,6 +47,7 @@ impl InputContent {
         let cow = s.into();
         Self {
             source: ResolvedInputSource::String(cow.clone()),
+            original_source: None,
             file_type,
             content: cow.into_owned(),
         }
