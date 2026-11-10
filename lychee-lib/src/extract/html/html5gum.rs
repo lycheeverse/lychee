@@ -158,10 +158,10 @@ impl<S: SpanProvider> LinkExtractor<S> {
             return;
         }
 
+        // `rel` is a space-separated token list; commas are accepted as well.
         if self.current_attributes.get("rel").is_some_and(|rel| {
-            rel.split(',').any(|r| {
-                r.trim() == "nofollow" || r.trim() == "preconnect" || r.trim() == "dns-prefetch"
-            })
+            rel.split(|c: char| c == ',' || c.is_ascii_whitespace())
+                .any(|r| r == "nofollow" || r == "preconnect" || r == "dns-prefetch")
         }) {
             self.current_attributes.clear();
             return;
@@ -535,6 +535,22 @@ mod tests {
         "#;
         let uris = extract_html(input, false);
         assert_eq!(uris, []);
+    }
+
+    #[test]
+    fn test_exclude_nofollow_space_separated() {
+        let input = r#"
+        <a rel="noopener nofollow" href="https://foo.com">do not follow me</a>
+        <a rel="noopener noreferrer" href="https://example.org">i'm fine</a>
+        "#;
+        let expected = vec![RawUri {
+            text: "https://example.org".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+            span: span(3, 44),
+        }];
+        let uris = extract_html(input, false);
+        assert_eq!(uris, expected);
     }
 
     #[test]
