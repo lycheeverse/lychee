@@ -950,6 +950,79 @@ mod cli {
         Ok(())
     }
 
+    /// Test that `--dump` honors `--format json` and keeps plain text by default
+    #[test]
+    fn test_dump_format_json() -> Result<()> {
+        let input = "https://lychee.cli.rs https://excluded.test";
+
+        let result = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg("--exclude")
+            .arg("excluded")
+            .arg("-v")
+            .arg("-")
+            .write_stdin(input)
+            .assert()
+            .success();
+        assert_lines_eq(
+            result,
+            vec![
+                "https://lychee.cli.rs/ (stdin)",
+                "https://excluded.test/ (stdin) [excluded]",
+            ],
+        );
+
+        let output = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg("--format")
+            .arg("json")
+            .arg("--exclude")
+            .arg("excluded")
+            .arg("-v")
+            .arg("-")
+            .write_stdin(input)
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let mut links = output
+            .lines()
+            .map(|line| Ok(serde_json::from_str::<Value>(&line?)?))
+            .collect::<Result<Vec<Value>>>()?;
+        let mut expected = vec![
+            json!({"url": "https://lychee.cli.rs/", "source": "stdin", "excluded": false}),
+            json!({"url": "https://excluded.test/", "source": "stdin", "excluded": true}),
+        ];
+        links.sort_by_key(ToString::to_string);
+        expected.sort_by_key(ToString::to_string);
+        assert_eq!(links, expected);
+
+        // Without `-v`, excluded links are left out in JSON mode too
+        let output = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg("--format")
+            .arg("json")
+            .arg("--exclude")
+            .arg("excluded")
+            .arg("-")
+            .write_stdin(input)
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let links = output
+            .lines()
+            .map(|line| Ok(serde_json::from_str::<Value>(&line?)?))
+            .collect::<Result<Vec<Value>>>()?;
+        assert_eq!(
+            links,
+            vec![json!({"url": "https://lychee.cli.rs/", "source": "stdin", "excluded": false})]
+        );
+        Ok(())
+    }
+
     /// Test excludes
     #[test]
     fn test_exclude_wildcard() {

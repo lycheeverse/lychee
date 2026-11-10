@@ -3,11 +3,13 @@ use log::error;
 use log::warn;
 use lychee_lib::Request;
 use lychee_lib::RequestError;
+use serde::Serialize;
 use std::fs;
 use std::io::{self, Write};
 use tokio_stream::StreamExt;
 
 use crate::ExitCode;
+use crate::config::StatsFormat;
 use crate::verbosity::Verbosity;
 
 use super::CommandParams;
@@ -25,6 +27,7 @@ where
     }
 
     let verbosity = params.cfg.verbose();
+    let json = params.cfg.format() == StatsFormat::Json;
     let mut writer = super::create_writer(params.cfg.output)?;
 
     while let Some(request) = requests.next().await {
@@ -52,7 +55,7 @@ where
             continue;
         }
 
-        if let Err(e) = write(&mut writer, &request, &verbosity, excluded) {
+        if let Err(e) = write(&mut writer, &request, &verbosity, excluded, json) {
             // Avoid panic on broken pipe.
             // See https://github.com/rust-lang/rust/issues/46016
             // This can occur when piping the output of lychee
@@ -67,16 +70,35 @@ where
     Ok(ExitCode::Success)
 }
 
+/// A dumped link, as printed with `--format json`
+#[derive(Serialize)]
+struct DumpedLink<'a> {
+    url: &'a str,
+    source: String,
+    excluded: bool,
+}
+
 /// Dump request to stdout
 fn write(
     writer: &mut Box<dyn Write>,
     request: &Request,
     verbosity: &Verbosity,
     excluded: bool,
+    json: bool,
 ) -> io::Result<()> {
     // Only print `data:` URIs if verbose mode is at least `info`.
     if request.uri.is_data() && verbosity.log_level() < log::Level::Info {
         return Ok(());
+    }
+
+    // One JSON object per line, so output can be streamed and fed into tools like `jq`
+    if json {
+        let link = DumpedLink {
+            url: request.uri.as_str(),
+            source: request.source.to_string(),
+            excluded,
+        };
+        return write_out(writer, &serde_json::to_string(&link)?);
     }
 
     // Only print source if verbose mode is at least `info`. This way the normal

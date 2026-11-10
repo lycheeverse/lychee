@@ -293,6 +293,8 @@ pub(crate) struct Config {
 
     /// Don't perform any link checking.
     /// Instead, dump all the links extracted from inputs that would be checked
+    ///
+    /// With `--format json`, each link is printed as a JSON object on its own line
     #[arg(long, optional_bool_flag())]
     #[serde(default)]
     dump: Option<bool>,

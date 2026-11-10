@@ -480,6 +480,8 @@ Options:
       --dump[=<false|true>]
           Don't perform any link checking. Instead, dump all the links extracted from inputs that would be checked
 
+          With `--format json`, each link is printed as a JSON object on its own line
+
       --dump-inputs[=<false|true>]
           Don't perform any link extraction and checking. Instead, dump all input sources from which links would be collected
 
