@@ -91,29 +91,28 @@ fn write(
         return Ok(());
     }
 
-    // One JSON object per line, so output can be streamed and fed into tools like `jq`
-    if json {
-        let link = DumpedLink {
+    let out_str = if json {
+        // One JSON object per line, so output can be streamed and fed into tools like `jq`
+        serde_json::to_string(&DumpedLink {
             url: request.uri.as_str(),
             source: request.source.to_string(),
             excluded,
+        })?
+    } else {
+        // Only print source if verbose mode is at least `info`. This way the normal
+        // link output can be fed into another tool without data mangling.
+        let request = if verbosity.log_level() >= log::Level::Info {
+            request.to_string()
+        } else {
+            request.uri.to_string()
         };
-        return write_out(writer, &serde_json::to_string(&link)?);
-    }
 
-    // Only print source if verbose mode is at least `info`. This way the normal
-    // link output can be fed into another tool without data mangling.
-    let request = if verbosity.log_level() >= log::Level::Info {
-        request.to_string()
-    } else {
-        request.uri.to_string()
-    };
-
-    // Mark excluded links
-    let out_str = if excluded {
-        format!("{request} [excluded]")
-    } else {
-        request
+        // Mark excluded links
+        if excluded {
+            format!("{request} [excluded]")
+        } else {
+            request
+        }
     };
 
     write_out(writer, &out_str)
