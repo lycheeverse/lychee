@@ -27,7 +27,7 @@ where
     }
 
     let verbosity = params.cfg.verbose();
-    let json = params.cfg.format() == StatsFormat::Json;
+    let use_json = params.cfg.format() == StatsFormat::Json;
     let mut writer = super::create_writer(params.cfg.output)?;
 
     while let Some(request) = requests.next().await {
@@ -55,7 +55,7 @@ where
             continue;
         }
 
-        if let Err(e) = write(&mut writer, &request, &verbosity, excluded, json) {
+        if let Err(e) = write(&mut writer, &request, &verbosity, excluded, use_json) {
             // Avoid panic on broken pipe.
             // See https://github.com/rust-lang/rust/issues/46016
             // This can occur when piping the output of lychee
@@ -84,15 +84,16 @@ fn write(
     request: &Request,
     verbosity: &Verbosity,
     excluded: bool,
-    json: bool,
+    use_json: bool,
 ) -> io::Result<()> {
     // Only print `data:` URIs if verbose mode is at least `info`.
     if request.uri.is_data() && verbosity.log_level() < log::Level::Info {
         return Ok(());
     }
 
-    let out_str = if json {
-        // One JSON object per line, so output can be streamed and fed into tools like `jq`
+    let out_str = if use_json {
+        // One JSON object per line (compact output, newlines in strings are escaped),
+        // so output can be streamed and fed into tools like `jq`
         serde_json::to_string(&DumpedLink {
             url: request.uri.as_str(),
             source: request.source.to_string(),
