@@ -316,11 +316,12 @@ jobs:
         if: startsWith(matrix.os, 'windows')
         run: |
           7z a "$ARCHIVE.zip" "$ARCHIVE"
-          # Use shasum (bundled with Git for Windows) instead of certutil so the
-          # checksum file matches the shasum format that the attest job feeds to
-          # `subject-checksums`. certutil's multi-line, filename-less output is
-          # not a valid checksums file.
-          shasum -a 256 "$ARCHIVE.zip" > "$ARCHIVE.zip.sha256"
+          # Use sha256sum (bundled with Git for Windows) instead of certutil so
+          # the checksum file matches the shasum format that the attest job feeds
+          # to `subject-checksums`. certutil's multi-line, filename-less output is
+          # not a valid checksums file. shasum itself is no longer on the PATH:
+          # Git for Windows now ships it in /usr/bin/core_perl.
+          sha256sum "$ARCHIVE.zip" > "$ARCHIVE.zip.sha256"
           echo "ASSET=$ARCHIVE.zip" >> $GITHUB_ENV
           echo "ASSET_SUM=$ARCHIVE.zip.sha256" >> $GITHUB_ENV
 
