@@ -3,11 +3,13 @@ use log::error;
 use log::warn;
 use lychee_lib::Request;
 use lychee_lib::RequestError;
+use serde::Serialize;
 use std::fs;
 use std::io::{self, Write};
 use tokio_stream::StreamExt;
 
 use crate::ExitCode;
+use crate::config::StatsFormat;
 use crate::verbosity::Verbosity;
 
 use super::CommandParams;
@@ -25,6 +27,7 @@ where
     }
 
     let verbosity = params.cfg.verbose();
+    let use_json = params.cfg.format() == StatsFormat::Json;
     let mut writer = super::create_writer(params.cfg.output)?;
 
     while let Some(request) = requests.next().await {
@@ -52,7 +55,7 @@ where
             continue;
         }
 
-        if let Err(e) = write(&mut writer, &request, &verbosity, excluded) {
+        if let Err(e) = write(&mut writer, &request, &verbosity, excluded, use_json) {
             // Avoid panic on broken pipe.
             // See https://github.com/rust-lang/rust/issues/46016
             // This can occur when piping the output of lychee
@@ -67,31 +70,50 @@ where
     Ok(ExitCode::Success)
 }
 
+/// A dumped link, as printed with `--format json`
+#[derive(Serialize)]
+struct DumpedLink<'a> {
+    url: &'a str,
+    source: String,
+    excluded: bool,
+}
+
 /// Dump request to stdout
 fn write(
     writer: &mut Box<dyn Write>,
     request: &Request,
     verbosity: &Verbosity,
     excluded: bool,
+    use_json: bool,
 ) -> io::Result<()> {
     // Only print `data:` URIs if verbose mode is at least `info`.
     if request.uri.is_data() && verbosity.log_level() < log::Level::Info {
         return Ok(());
     }
 
-    // Only print source if verbose mode is at least `info`. This way the normal
-    // link output can be fed into another tool without data mangling.
-    let request = if verbosity.log_level() >= log::Level::Info {
-        request.to_string()
+    let out_str = if use_json {
+        // One JSON object per line (compact output, newlines in strings are escaped),
+        // so output can be streamed and fed into tools like `jq`
+        serde_json::to_string(&DumpedLink {
+            url: request.uri.as_str(),
+            source: request.source.to_string(),
+            excluded,
+        })?
     } else {
-        request.uri.to_string()
-    };
+        // Only print source if verbose mode is at least `info`. This way the normal
+        // link output can be fed into another tool without data mangling.
+        let request = if verbosity.log_level() >= log::Level::Info {
+            request.to_string()
+        } else {
+            request.uri.to_string()
+        };
 
-    // Mark excluded links
-    let out_str = if excluded {
-        format!("{request} [excluded]")
-    } else {
-        request
+        // Mark excluded links
+        if excluded {
+            format!("{request} [excluded]")
+        } else {
+            request
+        }
     };
 
     write_out(writer, &out_str)

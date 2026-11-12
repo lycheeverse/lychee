@@ -91,7 +91,7 @@
       ]
     },
     "dump": {
-      "description": "Don't perform any link checking.\nInstead, dump all the links extracted from inputs that would be checked",
+      "description": "Don't perform any link checking.\nInstead, dump all the links extracted from inputs that would be checked\n\nWith `--format json`, each link is printed as a JSON object on its own line",
       "type": [
         "boolean",
         "null"
