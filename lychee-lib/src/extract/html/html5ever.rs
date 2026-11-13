@@ -402,6 +402,34 @@ mod tests {
         assert_eq!(uris, expected);
     }
 
+    /// html5ever does not guarantee that character tokens match source lines.
+    ///
+    /// Verify that a URI on the first line of a token starting at the beginning
+    /// of a line keeps its column, regardless of whether the token spans multiple
+    /// lines.
+    #[test]
+    fn test_include_verbatim_in_multiline_token() {
+        const HTML_INPUT: &str = r"
+        <html>
+            <body>
+                <pre>
+                one https://foo.com
+                more text
+                </pre>
+            </body>
+        </html>";
+
+        let expected = vec![RawUri {
+            text: "https://foo.com".to_string(),
+            element: None,
+            attribute: None,
+            span: span(5, 21),
+        }];
+
+        let uris = extract_html(HTML_INPUT, true);
+        assert_eq!(uris, expected);
+    }
+
     #[test]
     fn test_include_verbatim_recursive() {
         const HTML_INPUT: &str = r#"
