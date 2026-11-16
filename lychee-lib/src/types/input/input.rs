@@ -267,6 +267,7 @@ impl Input {
         Ok(InputContent {
             file_type,
             source: ResolvedInputSource::FsPath(path),
+            original_source: None,
             content,
         })
     }
@@ -288,6 +289,7 @@ impl Input {
 
         let input_content = InputContent {
             source: ResolvedInputSource::Stdin,
+            original_source: None,
             file_type: file_type_hint.unwrap_or_default(),
             content,
         };

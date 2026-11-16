@@ -60,8 +60,17 @@ impl UrlContentResolver {
             unreachable!("execute_request with needs_body=true always returns text")
         });
 
+        // If the request was redirected, the content comes from the redirect
+        // target. Relative URLs in that content must therefore be resolved
+        // against the *final* URL, not the originally requested one.
+        // See <https://github.com/lycheeverse/lychee/issues/2018>.
+        let final_url = response.url;
+
         Ok(InputContent {
-            source: ResolvedInputSource::RemoteUrl(Box::new(url)),
+            source: ResolvedInputSource::RemoteUrl(Box::new(final_url)),
+            // Keep the URL the user asked for so reports show it rather than
+            // the (possibly opaque) redirect target.
+            original_source: Some(ResolvedInputSource::RemoteUrl(Box::new(url))),
             file_type,
             content,
         })
