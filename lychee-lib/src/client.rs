@@ -29,7 +29,7 @@ use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
 use crate::{
-    BaseInfo, ErrorKind, Methods, Request, Response, Result, Status, Uri,
+    BaseInfo, ErrorKind, Methods, Preprocessor, Request, Response, Result, Status, Uri,
     chain::RequestChain,
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::Filter,
@@ -325,6 +325,17 @@ pub struct ClientBuilder {
     /// Note that base must not be `None` if you set this `true`.
     include_wikilinks: bool,
 
+    /// Preprocessor which is applied to local files before their fragments
+    /// are checked.
+    ///
+    /// This should be the same preprocessor which is used to collect links,
+    /// so that links and the fragments they point to are read from the same
+    /// representation of a file.
+    ///
+    /// In the [`ClientBuilder`], this defaults to `None`.
+    #[builder(default = None)]
+    preprocessor: Option<Preprocessor>,
+
     /// Requests run through this chain where each item in the chain
     /// can modify the request. A chained item can also decide to exit
     /// early and return a status, so that subsequent chain items are
@@ -428,7 +439,8 @@ impl ClientBuilder {
                 self.index_files,
                 self.fragment_checker_options,
                 self.include_wikilinks,
-            )?,
+            )?
+            .with_preprocessor(self.preprocessor),
         })
     }
 

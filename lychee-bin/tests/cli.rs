@@ -3977,6 +3977,109 @@ The config file should contain every possible key for documentation purposes."
             )));
     }
 
+    /// Without a preprocessor, fragments are looked up in the files on disk.
+    #[test]
+    fn test_fragments_without_preprocessor_use_original_target() {
+        let dir = fixtures_path!().join("preprocess_fragments");
+        cargo_bin_cmd!()
+            .arg("--offline")
+            .arg("--include-fragments")
+            .arg("--no-progress")
+            .arg(dir.join("source.md"))
+            .assert()
+            .failure()
+            .code(2)
+            .stdout(contains("2 Errors"));
+
+        cargo_bin_cmd!()
+            .arg("--offline")
+            .arg("--include-fragments")
+            .arg("--no-progress")
+            .arg(dir.join("source_stale.md"))
+            .assert()
+            .success();
+    }
+
+    /// Fragments of local files must be checked against the preprocessed
+    /// content, which is also where the links of the file are extracted from.
+    #[test]
+    fn test_fragments_use_preprocessed_target() {
+        let dir = fixtures_path!().join("preprocess_fragments");
+        let script = fixtures_path!().join("pre").join("fragment_target.sh");
+
+        // Both fragments only exist in the preprocessed target.
+        cargo_bin_cmd!()
+            .arg("--offline")
+            .arg("--include-fragments")
+            .arg("--no-progress")
+            .arg("--preprocess")
+            .arg(&script)
+            .arg(dir.join("source.md"))
+            .assert()
+            .success()
+            .stdout(contains("2 OK"));
+
+        // The fragment of the original target was removed by the preprocessor.
+        cargo_bin_cmd!()
+            .arg("--offline")
+            .arg("--include-fragments")
+            .arg("--no-progress")
+            .arg("--preprocess")
+            .arg(&script)
+            .arg(dir.join("source_stale.md"))
+            .assert()
+            .failure()
+            .code(2)
+            .stdout(contains("Cannot find fragment"));
+    }
+
+    /// The preprocessor runs once per target, however many fragments of it are checked.
+    #[test]
+    fn test_fragments_preprocess_target_once() -> Result<()> {
+        let dir = fixtures_path!().join("preprocess_fragments");
+        let script = fixtures_path!().join("pre").join("fragment_target.sh");
+        let calls = NamedTempFile::new()?;
+
+        cargo_bin_cmd!()
+            .env("CALLS_LOG", calls.path())
+            .arg("--offline")
+            .arg("--include-fragments")
+            .arg("--no-progress")
+            .arg("--preprocess")
+            .arg(&script)
+            .arg(dir.join("source.md"))
+            .assert()
+            .success();
+
+        let log = fs::read_to_string(calls.path())?;
+        let count = |name: &str| log.lines().filter(|line| line.ends_with(name)).count();
+        assert_eq!(count("source.md"), 1, "calls: {log}");
+        assert_eq!(count("target.md"), 1, "calls: {log}");
+        Ok(())
+    }
+
+    /// A preprocessor which fails on the target of a link is an error, instead
+    /// of silently skipping the fragment check.
+    #[test]
+    fn test_fragments_preprocess_target_error() {
+        let dir = fixtures_path!().join("preprocess_fragments");
+        let script = fixtures_path!().join("pre").join("fail_on_target.sh");
+
+        cargo_bin_cmd!()
+            .arg("--offline")
+            .arg("--include-fragments")
+            .arg("--no-progress")
+            .arg("--preprocess")
+            .arg(&script)
+            .arg(dir.join("source.md"))
+            .assert()
+            .failure()
+            .code(2)
+            .stdout(contains(
+                "exited with non-zero code: Cannot preprocess target",
+            ));
+    }
+
     #[test]
     fn test_mdx_file() {
         let file = fixtures_path!().join("mdx").join("test.mdx");
