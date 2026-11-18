@@ -720,7 +720,8 @@ Options:
           For each file input, this flag causes lychee to execute `COMMAND PATH` and process
           its standard output instead of the original contents of PATH. This allows you to
           convert files that would otherwise not be understood by lychee. The preprocessor
-          COMMAND is only run on input files, not on standard input or URLs.
+          COMMAND is only run on input files, not on standard input or URLs. When fragments are
+          checked, the output of COMMAND is also used for the local files which links point to.
 
           To invoke programs with custom arguments or to use multiple preprocessors, use a
           wrapper program such as a shell script. An example script looks like this:

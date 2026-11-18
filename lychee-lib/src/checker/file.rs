@@ -2,13 +2,21 @@ use http::StatusCode;
 use log::warn;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
+use crate::async_lib::cache::Cache;
 use crate::checker::fallback_candidates;
 use crate::checker::wikilink::resolver::WikilinkResolver;
+use crate::types::FileType;
 use crate::{
-    BaseInfo, ErrorKind, FragmentCheckerOptions, Result, Status, Uri,
+    BaseInfo, ErrorKind, FragmentCheckerOptions, Preprocessor, Result, Status, Uri,
     utils::fragment_checker::{FragmentChecker, FragmentInput},
 };
+
+/// The output of running a [`Preprocessor`] on a file. On failure, this holds
+/// the preprocessor command and the reason it failed, so that the failure can be
+/// reported again for every link which points into the same file.
+type PreprocessedContent = std::result::Result<String, (String, String)>;
 
 /// A utility for checking the existence and validity of file-based URIs.
 ///
@@ -36,6 +44,14 @@ pub(crate) struct FileChecker {
     fragment_checker: FragmentChecker,
     /// Utility for optionally resolving Wikilinks.
     wikilink_resolver: Option<WikilinkResolver>,
+    /// If specified, fragments are looked up in the output of this preprocessor
+    /// instead of in the content of the file on disk.
+    preprocessor: Option<Preprocessor>,
+    /// Output of the preprocessor for the files which were already preprocessed.
+    ///
+    /// Several links often point into the same file, but the preprocessor
+    /// only needs to run once for it.
+    preprocessed: Cache<PathBuf, PreprocessedContent>,
 }
 
 impl FileChecker {
@@ -71,7 +87,20 @@ impl FileChecker {
             fragment_checker_options,
             fragment_checker: FragmentChecker::new(),
             wikilink_resolver,
+            preprocessor: None,
+            preprocessed: Cache::new(),
         })
+    }
+
+    /// Sets the preprocessor which is applied to files before checking the
+    /// fragments they contain.
+    ///
+    /// This makes fragment checking see the same content as link extraction,
+    /// which also reads files through the preprocessor.
+    #[must_use]
+    pub(crate) fn with_preprocessor(mut self, preprocessor: Option<Preprocessor>) -> Self {
+        self.preprocessor = preprocessor;
+        self
     }
 
     /// Checks the given file URI for existence and validity.
@@ -277,7 +306,35 @@ impl FileChecker {
             return ErrorKind::InvalidFragment(uri.clone()).into();
         }
 
-        match FragmentInput::from_path(path).await {
+        let Some(preprocessor) = &self.preprocessor else {
+            let input = FragmentInput::from_path(path).await;
+            return self.check_fragment_input(input, uri).await;
+        };
+
+        // Unlike a file which cannot be read, a failing preprocessor is reported
+        // as an error. This is also what happens when the same file is given as input.
+        let content = self.preprocess(preprocessor, path).await;
+        match &*content {
+            Ok(content) => {
+                let input = FragmentInput {
+                    content: Cow::Borrowed(content),
+                    file_type: FileType::from(path),
+                };
+                self.check_fragment_input(Ok(input), uri).await
+            }
+            Err((command, reason)) => ErrorKind::PreprocessorError {
+                command: command.clone(),
+                reason: reason.clone(),
+            }
+            .into(),
+        }
+    }
+
+    /// Checks for the existence of a fragment in the given file content.
+    ///
+    /// If the content could not be loaded or checked, the fragment check is skipped.
+    async fn check_fragment_input(&self, input: Result<FragmentInput<'_>>, uri: &Uri) -> Status {
+        match input {
             Ok(input) => match self
                 .fragment_checker
                 .check(input, &uri.url, self.fragment_checker_options)
@@ -296,6 +353,39 @@ impl FileChecker {
             }
         }
     }
+
+    /// Runs the preprocessor on the given file, unless its output is already cached.
+    ///
+    /// The preprocessor is an external process which blocks until it exits,
+    /// so it runs on a thread where blocking is allowed.
+    async fn preprocess(
+        &self,
+        preprocessor: &Preprocessor,
+        path: &Path,
+    ) -> Arc<PreprocessedContent> {
+        let setter = match self.preprocessed.lock_entry(path) {
+            Ok(setter) => setter,
+            Err(cached) => {
+                return cached.wait().await.unwrap_or_else(|_| {
+                    Arc::new(Err((
+                        preprocessor.command().to_owned(),
+                        "the preprocessor did not finish".to_owned(),
+                    )))
+                });
+            }
+        };
+
+        let command = preprocessor.command().to_owned();
+        let (preprocessor, path) = (preprocessor.clone(), path.to_path_buf());
+        let content = match tokio::task::spawn_blocking(move || preprocessor.process(&path)).await {
+            Ok(Ok(content)) => Ok(content),
+            Ok(Err(ErrorKind::PreprocessorError { command, reason })) => Err((command, reason)),
+            Ok(Err(err)) => Err((command, err.to_string())),
+            Err(err) => Err((command, err.to_string())),
+        };
+
+        setter.set(content).get().expect("the value was just set")
+    }
 }
 
 #[cfg(test)]
@@ -303,8 +393,8 @@ mod tests {
     use super::FileChecker;
     use crate::{
         BaseInfo,
-        ErrorKind::{InvalidFilePath, InvalidFragment, InvalidIndexFile},
-        FragmentCheckerOptions, Status, Uri,
+        ErrorKind::{InvalidFilePath, InvalidFragment, InvalidIndexFile, PreprocessorError},
+        FragmentCheckerOptions, Preprocessor, Status, Uri,
     };
     use test_utils::{fixture_uri, fixtures_path};
 
@@ -746,5 +836,86 @@ mod tests {
         // Replacing ` hi` would discard it, so the unrelated `e.md` must not be
         // reached.
         assert_resolves_in!(&checker, dir, "e.%20hi", Err(InvalidFilePath(_)));
+    }
+
+    /// Builds a checker which preprocesses files with the given script from
+    /// `fixtures/pre` and checks anchor fragments.
+    #[cfg(unix)]
+    fn preprocessing_checker(script: &str) -> FileChecker {
+        let script = fixtures_path!().join("pre").join(script);
+        FileChecker::new(
+            &BaseInfo::none(),
+            vec![],
+            None,
+            FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
+            false,
+        )
+        .unwrap()
+        .with_preprocessor(Some(Preprocessor::from(
+            script.to_string_lossy().into_owned(),
+        )))
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_fragments_are_checked_in_preprocessed_content() {
+        let checker = preprocessing_checker("fragment_target.sh");
+
+        // only present in the output of the preprocessor
+        assert_filecheck!(
+            checker,
+            "preprocess_fragments/target.md#prepared",
+            Status::Ok(_)
+        );
+        assert_filecheck!(
+            checker,
+            "preprocess_fragments/target.md#other",
+            Status::Ok(_)
+        );
+        // only present in the file on disk
+        assert_filecheck!(
+            checker,
+            "preprocess_fragments/target.md#original",
+            Status::Error(InvalidFragment(_))
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_preprocessed_content_is_cached_per_file() {
+        let checker = preprocessing_checker("fragment_target.sh");
+        let path = fixtures_path!().join("preprocess_fragments/target.md");
+        let preprocessor = checker.preprocessor.as_ref().unwrap();
+
+        let first = checker.preprocess(preprocessor, &path).await;
+        let second = checker.preprocess(preprocessor, &path).await;
+
+        assert_eq!(*first, Ok("# Prepared\n\n## Other\n".to_owned()));
+        // both calls share one result, so the preprocessor ran once
+        assert!(std::sync::Arc::ptr_eq(&first, &second));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_preprocessor_failure_is_an_error_for_every_fragment() {
+        let checker = preprocessing_checker("fail_on_target.sh");
+
+        for fragment in ["prepared", "other"] {
+            let path = format!("preprocess_fragments/target.md#{fragment}");
+            assert_filecheck!(checker, &path, Status::Error(PreprocessorError { .. }));
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_preprocessor_is_not_run_without_fragment() {
+        // `fail_on_target.sh` would fail if it was run for the target
+        let checker = preprocessing_checker("fail_on_target.sh");
+
+        assert_filecheck!(checker, "preprocess_fragments/target.md", Status::Ok(_));
+        assert_filecheck!(checker, "preprocess_fragments/target.md#", Status::Ok(_));
     }
 }
