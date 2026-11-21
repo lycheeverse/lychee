@@ -19,9 +19,6 @@
 //! Thus, the parsing process becomes significantly more complex and we need to
 //! use a state machine to keep track of the current state.
 
-use log::info;
-use std::result::Result;
-
 enum State {
     InsideDescriptor,
     AfterDescriptor,
@@ -53,17 +50,9 @@ pub(crate) fn parse(input: &str) -> Vec<&str> {
     let mut candidates: Vec<&str> = Vec::new();
     let mut remaining = input;
     while !remaining.is_empty() {
-        remaining = match parse_one_url(remaining) {
-            Ok((rem, None)) => rem,
-            Ok((rem, Some(url))) => {
-                candidates.push(url);
-                rem
-            }
-            Err(e) => {
-                info!("{e}");
-                return vec![];
-            }
-        }
+        let (rem, url) = parse_one_url(remaining);
+        candidates.extend(url);
+        remaining = rem;
     }
 
     candidates
@@ -72,35 +61,33 @@ pub(crate) fn parse(input: &str) -> Vec<&str> {
 /// Implements one iteration of the "splitting loop" from the reference algorithm.
 /// This is intended to be repeatedly called until the remaining string is empty.
 ///
-/// Returns a tuple of remaining string and an optional parsed URL, if successful.
-/// Otherwise, in case of srcset syntax errors, returns Err.
+/// Returns a tuple of remaining string and an optional parsed URL.
+///
+/// Extra commas are a parse error in the spec, but parsing goes on, so
+/// browsers still load the other candidates. We keep them too.
 ///
 /// <https://html.spec.whatwg.org/multipage/images.html#parsing-a-srcset-attribute>
-fn parse_one_url(remaining: &str) -> Result<(&str, Option<&str>), String> {
-    let (start, remaining) = split_at(remaining, |c| *c == ',' || c.is_ascii_whitespace());
-
-    if start.find(',').is_some() {
-        return Err("srcset parse error (too many commas)".to_string());
-    }
+fn parse_one_url(remaining: &str) -> (&str, Option<&str>) {
+    let (_, remaining) = split_at(remaining, |c| *c == ',' || c.is_ascii_whitespace());
 
     if remaining.is_empty() {
-        return Ok(("", None));
+        return ("", None);
     }
 
     let (url, remaining) = split_at(remaining, |c| !c.is_ascii_whitespace());
 
-    let comma_count = url.chars().rev().take_while(|c| *c == ',').count();
-    if comma_count > 1 {
-        return Err("srcset parse error (trailing commas)".to_string());
+    // A URL that ends with a comma ends the candidate: it has no descriptor,
+    // and what follows is the next candidate.
+    let trimmed = url.trim_end_matches(',');
+    if trimmed.len() != url.len() {
+        return (remaining, Some(trimmed));
     }
-
-    let url = url.get(..url.len() - comma_count);
 
     let (_spaces, remaining) = split_at(remaining, char::is_ascii_whitespace);
 
     let remaining = skip_descriptor(remaining);
 
-    Ok((remaining, url))
+    (remaining, Some(url))
 }
 
 /// Helper function to skip over a descriptor. Returns the string remaining
@@ -124,6 +111,8 @@ fn skip_descriptor(remaining: &str) -> &str {
             },
             State::AfterDescriptor => match c {
                 c if c.is_ascii_whitespace() => (),
+                ',' => return &remaining[i + c.len_utf8()..], // e.g. "a.jpg 1x , b.jpg 2x"
+                '(' => state = State::InsideParens,
                 _ => state = State::InsideDescriptor,
             },
         }
@@ -244,5 +233,31 @@ mod tests {
                 "relative.png"
             ]
         );
+    }
+
+    #[test]
+    fn test_parse_srcset_candidate_without_descriptor() {
+        assert_eq!(parse("a.jpg, b.jpg 2x"), vec!["a.jpg", "b.jpg"]);
+        assert_eq!(
+            parse("a.jpg, b.jpg, c.jpg"),
+            vec!["a.jpg", "b.jpg", "c.jpg"]
+        );
+    }
+
+    #[test]
+    fn test_parse_srcset_whitespace_before_comma() {
+        assert_eq!(parse("a.jpg 1x , b.jpg 2x"), vec!["a.jpg", "b.jpg"]);
+        assert_eq!(
+            parse("a.jpg 100w\n  , b.jpg 200w ,c.jpg 300w"),
+            vec!["a.jpg", "b.jpg", "c.jpg"]
+        );
+    }
+
+    #[test]
+    fn test_parse_srcset_extra_commas() {
+        assert_eq!(parse(", a.jpg 1x"), vec!["a.jpg"]);
+        assert_eq!(parse("a.jpg 1x,, b.jpg 2x"), vec!["a.jpg", "b.jpg"]);
+        assert_eq!(parse("a.jpg,, b.jpg"), vec!["a.jpg", "b.jpg"]);
+        assert_eq!(parse("a.jpg 1x, , b.jpg 2x,"), vec!["a.jpg", "b.jpg"]);
     }
 }
