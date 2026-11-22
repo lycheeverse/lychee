@@ -2938,6 +2938,73 @@ The config file should contain every possible key for documentation purposes."
         }
     }
 
+    /// A connection reset that arrives while the client is still connecting
+    /// (during the TLS handshake) is as transient as one on an established
+    /// connection, so `--max-retries` has to cover it too.
+    ///
+    /// A listener that reads one byte and then closes with unread data queued
+    /// makes the kernel answer with RST rather than FIN, which surfaces as a
+    /// connect-phase `ConnectionReset` on every platform.
+    #[tokio::test]
+    async fn test_retry_connect_phase_reset() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("https://{}/", listener.local_addr().unwrap());
+        let attempts = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+        let counter = std::sync::Arc::clone(&attempts);
+        let stopper = std::sync::Arc::clone(&stop);
+        let server = std::thread::spawn(move || {
+            while !stopper.load(std::sync::atomic::Ordering::SeqCst) {
+                match listener.accept() {
+                    Ok((mut stream, _)) => {
+                        counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        // `accept` on a non-blocking listener can hand back a
+                        // non-blocking socket; block (with a bound) so the write
+                        // below lands before the close.
+                        stream.set_nonblocking(false).unwrap();
+                        stream
+                            .set_read_timeout(Some(Duration::from_millis(50)))
+                            .unwrap();
+                        let mut byte = [0];
+                        let _ = stream.read(&mut byte);
+                        // Close with the rest of the client's handshake unread:
+                        // the kernel tears the connection down with RST, not FIN.
+                    }
+                    Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+
+        let output = cargo_bin_cmd!()
+            .arg("--max-retries=2")
+            .arg("--retry-wait-time=0")
+            .arg("--timeout=5")
+            .arg("-")
+            .write_stdin(url)
+            .output()
+            .unwrap();
+
+        stop.store(true, std::sync::atomic::Ordering::SeqCst);
+        server.join().unwrap();
+        let attempts = attempts.load(std::sync::atomic::Ordering::SeqCst);
+        assert!(
+            !output.status.success(),
+            "expected the unreachable URL to fail; stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            attempts,
+            3,
+            "expected the initial attempt plus two retries; stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
     #[tokio::test]
     async fn test_retry() {
         for status in [

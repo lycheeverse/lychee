@@ -31,7 +31,10 @@ impl RetryExt for reqwest::Error {
         if self.is_timeout() {
             true
         } else if self.is_connect() {
-            false
+            // A reset or an abort during connect, including the TLS handshake,
+            // is as transient as the same error arriving one byte later. Decide
+            // by the io kind instead of rejecting every connect-phase error.
+            get_source_error_type::<io::Error>(self).is_some_and(should_retry_io)
         } else if self.is_body() || self.is_decode() || self.is_builder() || self.is_redirect() {
             false
         } else if self.is_request() {
@@ -120,6 +123,16 @@ impl RetryExt for Status {
 
 /// Classifies an `io::Error` into retryable or not.
 fn should_retry_io(error: &io::Error) -> bool {
+    // The transport layer can hand us the OS error wrapped in another
+    // `io::Error` whose own kind is `Other`. `io::Error::source` forwards to the
+    // inner error's source and skips the inner error itself, so walk it here.
+    if let Some(inner) = error
+        .get_ref()
+        .and_then(|inner| inner.downcast_ref::<io::Error>())
+    {
+        return should_retry_io(inner);
+    }
+
     matches!(
         error.kind(),
         io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted | io::ErrorKind::TimedOut
@@ -145,10 +158,11 @@ fn get_source_error_type<T: std::error::Error + 'static>(
 #[cfg(test)]
 mod tests {
     use http::StatusCode;
+    use std::io;
 
     use crate::ErrorKind;
 
-    use super::RetryExt;
+    use super::{RetryExt, should_retry_io};
 
     #[test]
     fn test_should_retry() {
@@ -169,5 +183,39 @@ mod tests {
         }
 
         assert!(!ErrorKind::RejectedStatusCode(StatusCode::NOT_FOUND).should_retry());
+    }
+
+    #[test]
+    fn test_should_retry_io_unwraps_wrapped_errors() {
+        // The transport layer can report a connect-phase reset as an
+        // `io::Error` of kind `Other` wrapping the real OS error. The wrapper
+        // must not hide the retryable kind.
+        for kind in [
+            io::ErrorKind::ConnectionReset,
+            io::ErrorKind::ConnectionAborted,
+            io::ErrorKind::TimedOut,
+        ] {
+            let inner = io::Error::new(kind, "transport error");
+            let wrapped = io::Error::other(inner);
+            assert_eq!(wrapped.kind(), io::ErrorKind::Other);
+            assert!(
+                should_retry_io(&wrapped),
+                "expected {kind:?} wrapped in Other to be retryable"
+            );
+        }
+    }
+
+    #[test]
+    fn test_should_retry_io_rejects_permanent_errors() {
+        for kind in [
+            io::ErrorKind::ConnectionRefused,
+            io::ErrorKind::NotFound,
+            io::ErrorKind::InvalidInput,
+        ] {
+            assert!(!should_retry_io(&io::Error::new(kind, "permanent error")));
+
+            let wrapped = io::Error::other(io::Error::new(kind, "permanent"));
+            assert!(!should_retry_io(&wrapped));
+        }
     }
 }
