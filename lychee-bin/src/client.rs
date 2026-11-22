@@ -63,6 +63,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .fallback_extensions(cfg.fallback_extensions.clone())
         .index_files(cfg.index_files.clone())
         .include_wikilinks(cfg.include_wikilinks())
+        .preprocessor(cfg.preprocess.clone())
         .rate_limit_config(RateLimitConfig::from_options(
             cfg.host_concurrency,
             cfg.host_request_interval,
