@@ -150,14 +150,9 @@ impl Filter {
     #[must_use]
     /// Whether the IP address is excluded from checking
     pub fn is_ip_excluded(&self, uri: &Uri) -> bool {
-        if (self.exclude_loopback_ips && uri.is_loopback())
+        (self.exclude_loopback_ips && uri.is_loopback())
             || (self.exclude_private_ips && uri.is_private())
             || (self.exclude_link_local_ips && uri.is_link_local())
-        {
-            return true;
-        }
-
-        false
     }
 
     #[must_use]
