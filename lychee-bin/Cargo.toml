@@ -61,7 +61,7 @@ url = "2.5.8"
 [dev-dependencies]
 assert_cmd = "2.2.2"
 cookie_store = "0.22.1"
-jsonschema = { version = "0.60.0", default-features = false }
+jsonschema = { version = "0.61.2", default-features = false }
 predicates = "3.1.4"
 pretty_assertions = "1.4.1"
 rstest = "0.28.0"
